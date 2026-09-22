@@ -178,14 +178,15 @@ export default function ProductCard({
           {product.item_name || product.web_item_name || product.item_code}
         </Text>
 
-        {availableUoms.length > 1 && (
+        
           <UOMSelector
             uoms={availableUoms}
+            stockUom={product.stock_uom}
             selectedUom={selectedUom}
             onSelectUom={(uom) => setSelectedUom(uom)}
             size="sm"
           />
-        )}
+        
 
         {/* Pricing */}
         <View style={styles.priceRow}>

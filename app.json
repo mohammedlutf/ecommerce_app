@@ -18,10 +18,14 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#16A34A"
-      }
+      },
+      "package": "com.mohammedlutfdalal.hadramoutecommerce"
     },
     "extra": {
-      "apiUrl": "http://192.168.1.35:8000"
+      "apiUrl": "http://192.168.1.35:8000",
+      "eas": {
+        "projectId": "1ea621da-1e71-4e8a-90e4-cd60b706ffcf"
+      }
     },
     "plugins": [
       "expo-font"

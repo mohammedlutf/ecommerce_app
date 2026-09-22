@@ -1,25 +1,53 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
-import { Typography } from '../theme/typography';
-import { Radius } from '../theme/spacing';
 
 /**
- * UOMSelector — pill switcher for product pack sizes (حبة / كيلو / علبة ...).
- * Selecting a UOM changes the displayed rate on the parent card.
+ * UOMSelector — responsive single-row pill switcher for product pack sizes.
+ * Falls back to displaying stockUom if uoms list is empty or has a single item.
  */
 export default function UOMSelector({
   uoms = [],
+  stockUom,
   selectedUom,
   onSelectUom,
   disabled = false,
-  size = 'md', // 'sm' | 'md'
 }) {
-  if (!uoms || uoms.length <= 1) return null;
+  // If there are no uoms at all, but we have a stockUom, display it as a single static badge
+  if (!uoms || uoms.length === 0) {
+    if (!stockUom) return null;
+    return (
+      <View style={styles.container}>
+        <View style={[styles.pill, styles.pillActive]}>
+          <Text style={[styles.pillText, styles.pillTextActive]} numberOfLines={1}>
+            {stockUom}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  // If there's only 1 uom, display it nicely using the stockUom or the single item
+  const displayList = uoms.length === 1 && stockUom ? [stockUom] : uoms;
+
+  if (displayList.length <= 1) {
+    const singleName = typeof displayList[0] === 'string' ? displayList[0] : displayList[0]?.uom;
+    if (!singleName) return null;
+    
+    return (
+      <View style={styles.container}>
+        <View style={[styles.pill, styles.pillActive]}>
+          <Text style={[styles.pillText, styles.pillTextActive]} numberOfLines={1}>
+            {singleName}
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {uoms.map((unit) => {
+      {displayList.map((unit) => {
         const uomName = typeof unit === 'string' ? unit : unit.uom;
         const isSelected = uomName === selectedUom;
 
@@ -31,14 +59,12 @@ export default function UOMSelector({
             onPress={() => onSelectUom && onSelectUom(uomName, unit)}
             style={[
               styles.pill,
-              size === 'sm' ? styles.pillSm : styles.pillMd,
               isSelected ? styles.pillActive : styles.pillInactive,
             ]}
           >
             <Text
               style={[
                 styles.pillText,
-                size === 'sm' ? styles.pillTextSm : styles.pillTextMd,
                 isSelected ? styles.pillTextActive : styles.pillTextInactive,
               ]}
               numberOfLines={1}
@@ -55,29 +81,40 @@ export default function UOMSelector({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
+    backgroundColor: '#EDF3ED',
+    padding: 4,
+    borderRadius: 8,
+    gap: 4,
     marginVertical: 6,
   },
   pill: {
-    borderRadius: Radius.full,
-    borderWidth: 1,
+    flex: 1,
+    paddingVertical: 6,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pillMd: { paddingHorizontal: 14, paddingVertical: 6 },
-  pillSm: { paddingHorizontal: 9, paddingVertical: 4 },
   pillActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: '#ffffff', // Matches emerald-mint style
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 1,
   },
   pillInactive: {
-    backgroundColor: Colors.surfaceContainerLowest,
-    borderColor: Colors.outlineVariant,
+    backgroundColor: 'transparent',
   },
-  pillText: { fontFamily: Typography.fontFamilyMedium },
-  pillTextMd: { fontSize: Typography.sizes.labelMd },
-  pillTextSm: { fontSize: Typography.sizes.labelSm },
-  pillTextActive: { color: Colors.onPrimary, fontFamily: Typography.fontFamilyBold },
-  pillTextInactive: { color: Colors.onSurface, fontFamily: Typography.fontFamilyMedium },
+  pillText: {
+    fontSize: 11,
+    textAlign: 'center',
+  },
+  pillTextActive: {
+    color: '#000000',
+    fontWeight: 'bold',
+  },
+  pillTextInactive: {
+    color: '#334155', // Matches charcoal-ink style
+    fontWeight: '500',
+  },
 });
