@@ -1,0 +1,179 @@
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useRef,
+  useCallback,
+} from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Animated,
+  TouchableOpacity,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Icon from '../components/Icon';
+import { Colors } from '../theme/colors';
+import { Typography } from '../theme/typography';
+import { Radius, Shadows } from '../theme/spacing';
+
+const ToastContext = createContext(null);
+
+const TOAST_TYPES = {
+  success: {
+    icon: 'checkmark-circle',
+    iconColor: Colors.success,
+    bg: Colors.successContainer,
+    textColor: '#0F7A3D',
+  },
+  error: {
+    icon: 'alert-circle',
+    iconColor: Colors.error,
+    bg: Colors.errorContainer,
+    textColor: '#C52A2D',
+  },
+  info: {
+    icon: 'information-circle',
+    iconColor: Colors.info,
+    bg: Colors.infoContainer,
+    textColor: '#2563EB',
+  },
+};
+
+let toastCounter = 0;
+
+function ToastItem({ toast, onDone }) {
+  const progress = useRef(new Animated.Value(0)).current;
+  const translateY = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-24, 0],
+  });
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  const config = TOAST_TYPES[toast.type] || TOAST_TYPES.info;
+
+  const dismiss = useCallback(() => {
+    Animated.timing(opacity, {
+      toValue: 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start(() => onDone(toast.id));
+  }, [opacity, onDone, toast.id]);
+
+  React.useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: 260,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    const timer = setTimeout(dismiss, toast.duration || 3200);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <Animated.View
+      style={[
+        styles.toast,
+        {
+          backgroundColor: config.bg,
+          opacity,
+          transform: [{ translateY }],
+        },
+      ]}
+    >
+      <Icon name={config.icon} size={22} color={config.iconColor} />
+      <Text style={[styles.toastText, { color: config.textColor }]}>
+        {toast.text}
+      </Text>
+      <TouchableOpacity onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Icon name="close" size={18} color={config.textColor} />
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+export function ToastProvider({ children }) {
+  const [toasts, setToasts] = useState([]);
+  const insets = useSafeAreaInsets();
+  const queue = useRef([]);
+
+  const removeToast = useCallback((id) => {
+    setToasts((current) => current.filter((t) => t.id !== id));
+  }, []);
+
+  const show = useCallback(
+    (type = 'info', text, duration = 3200) => {
+      const id = ++toastCounter;
+      queue.current.push({ id, type, text, duration });
+      if (queue.current.length > 3) queue.current.shift();
+      setToasts([...queue.current]);
+    },
+    []
+  );
+
+  const success = useCallback((text, duration) => show('success', text, duration), [show]);
+  const error = useCallback((text, duration) => show('error', text, duration), [show]);
+  const info = useCallback((text, duration) => show('info', text, duration), [show]);
+
+  return (
+    <ToastContext.Provider value={{ show, success, error, info, dismiss: removeToast }}>
+      {children}
+
+      {toasts.length > 0 && (
+        <View
+          pointerEvents="box-none"
+          style={[styles.container, { top: insets.top + 8 }]}
+        >
+          {toasts.map((toast) => (
+            <ToastItem key={toast.id} toast={toast} onDone={removeToast} />
+          ))}
+        </View>
+      )}
+    </ToastContext.Provider>
+  );
+}
+
+export function useToast() {
+  const context = useContext(ToastContext);
+  if (!context) {
+    throw new Error('useToast must be used within a ToastProvider');
+  }
+  return context;
+}
+
+export default ToastContext;
+
+const styles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    zIndex: 1000,
+    gap: 8,
+    elevation: 10,
+  },
+  toast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: Radius.lg,
+    ...Shadows.md,
+  },
+  toastText: {
+    flex: 1,
+    fontSize: Typography.sizes.bodyMd,
+    fontFamily: Typography.fontFamilySemiBold,
+    textAlign: 'left',
+  },
+});
