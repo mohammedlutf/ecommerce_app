@@ -20,11 +20,14 @@ import EmptyState from '../../components/EmptyState';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
+import { useResetOnTabPress } from '../../hooks/useResetOnTabPress';
 import OrdersAPI from '../../api/orders';
 import AddressAPI from '../../api/address';
 import LoginScreen from '../auth/LoginScreen';
 
 export default function AccountScreen({ navigation }) {
+  useResetOnTabPress(navigation, 'AccountTab');
+
   const { user, isAuthenticated, logout } = useAuth();
   const { fetchCart } = useCart();
   const toast = useToast();

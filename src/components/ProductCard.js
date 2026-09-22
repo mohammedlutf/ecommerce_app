@@ -16,6 +16,7 @@ import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
 import { Radius, Shadows } from '../theme/spacing';
 import { formatCurrency, calculateDiscount } from '../utils/format';
+import { rateForUom } from '../utils/catalog';
 import { getImageUrl } from '../api/client';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -44,13 +45,7 @@ export default function ProductCard({
 
   const scale = useRef(new Animated.Value(1)).current;
 
-  const currentUomObj = availableUoms.find(
-    (u) => (typeof u === 'string' ? u : u.uom) === selectedUom
-  );
-  const currentRate =
-    currentUomObj && currentUomObj.rate
-      ? currentUomObj.rate
-      : product.rate || product.price || 0;
+  const currentRate = rateForUom(product, selectedUom);
   const originalPrice = product.original_rate || product.old_rate || null;
   const discountPercent = calculateDiscount(currentRate, originalPrice);
 
@@ -89,7 +84,7 @@ export default function ProductCard({
     animatePress();
     setCartActionLoading(true);
     try {
-      await addToCart(product.item_code, 1, selectedUom);
+      await addToCart(product.item_code, 1, selectedUom, product);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (showToastOnAdd) toast.success('تمت الإضافة إلى السلة');
     } catch (err) {

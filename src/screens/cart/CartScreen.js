@@ -20,6 +20,7 @@ import EmptyState from '../../components/EmptyState';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useResetOnTabPress } from '../../hooks/useResetOnTabPress';
 import CartAPI from '../../api/cart';
 import AddressAPI from '../../api/address';
 import { Colors } from '../../theme/colors';
@@ -29,6 +30,8 @@ import { formatCurrency } from '../../utils/format';
 import { getImageUrl } from '../../api/client';
 
 export default function CartScreen({ navigation }) {
+  useResetOnTabPress(navigation, 'CartTab');
+
   const { items, total, currency, loading, updateQuantity, updateUOM, removeItem, clearCart } = useCart();
   const { isAuthenticated, user } = useAuth();
   const toast = useToast();

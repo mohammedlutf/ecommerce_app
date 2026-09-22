@@ -23,6 +23,7 @@ import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
 import { formatCurrency, calculateDiscount } from '../../utils/format';
+import { rateForUom } from '../../utils/catalog';
 import { getImageUrl } from '../../api/client';
 
 export default function ProductDetailScreen({ route, navigation }) {
@@ -84,13 +85,7 @@ export default function ProductDetailScreen({ route, navigation }) {
       ? product.uoms
       : [{ uom: product.stock_uom || 'حبة', rate: product.rate || product.price || 0 }];
 
-  const currentUomObj = availableUoms.find(
-    (u) => (typeof u === 'string' ? u : u.uom) === selectedUom
-  );
-  const currentRate =
-    currentUomObj && currentUomObj.rate
-      ? currentUomObj.rate
-      : product.rate || product.price || 0;
+  const currentRate = rateForUom(product, selectedUom);
   const originalPrice = product.original_rate || null;
   const discountPercent = calculateDiscount(currentRate, originalPrice);
 
@@ -105,12 +100,25 @@ export default function ProductDetailScreen({ route, navigation }) {
   async function handleAddToCart() {
     setActionLoading(true);
     try {
-      await addToCart(product.item_code, qty, selectedUom);
+      await addToCart(product.item_code, qty, selectedUom, product);
       toast.success('تمت إضافة المنتج إلى سلتك بنجاح');
     } catch (err) {
       toast.error(err?.message || 'فشلت إضافة المنتج');
     } finally {
       setActionLoading(false);
+    }
+  }
+
+  function handleSelectUom(uom) {
+    const previousUom = selectedUom;
+    setSelectedUom(uom);
+    // If this product is already in the cart under a different UOM, migrate
+    // the cart line immediately so the cart reflects the change live.
+    const line = cartItems.find(
+      (i) => i.item_code === product.item_code && i.uom === previousUom
+    );
+    if (line) {
+      updateUOM(product.item_code, uom, previousUom);
     }
   }
 
@@ -225,7 +233,7 @@ export default function ProductDetailScreen({ route, navigation }) {
               <UOMSelector
                 uoms={availableUoms}
                 selectedUom={selectedUom}
-                onSelectUom={(uom) => setSelectedUom(uom)}
+                onSelectUom={handleSelectUom}
                 size="md"
               />
             </View>

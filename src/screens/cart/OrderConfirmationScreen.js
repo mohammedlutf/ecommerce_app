@@ -59,7 +59,10 @@ export default function OrderConfirmationScreen({ route, navigation }) {
         <View style={styles.actions}>
           <TouchableOpacity
             activeOpacity={0.9}
-            onPress={() => navigation.navigate('AccountTab')}
+            onPress={() => {
+              navigation.popToTop();
+              navigation.navigate('AccountTab');
+            }}
             style={styles.primaryBtn}
           >
             <Text style={styles.primaryBtnText}>عرض طلباتي ومتابعة الحالة</Text>
@@ -67,7 +70,10 @@ export default function OrderConfirmationScreen({ route, navigation }) {
 
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={() => navigation.navigate('HomeTab')}
+            onPress={() => {
+              navigation.popToTop();
+              navigation.navigate('HomeTab');
+            }}
             style={styles.secondaryBtn}
           >
             <Text style={styles.secondaryBtnText}>العودة للرئيسية ومواصلة التسوق</Text>

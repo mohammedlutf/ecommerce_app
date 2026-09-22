@@ -18,15 +18,17 @@ import LoadingSkeleton from '../../components/LoadingSkeleton';
 import CatalogAPI from '../../api/catalog';
 import { useCart } from '../../context/CartContext';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
+import { useResetOnTabPress } from '../../hooks/useResetOnTabPress';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
 
 export default function HomeScreen({ navigation }) {
+  useResetOnTabPress(navigation, 'HomeTab');
+
   const { count: cartCount } = useCart();
 
   const [categories, setCategories] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('all');
   const [products, setProducts] = useState([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -35,7 +37,7 @@ export default function HomeScreen({ navigation }) {
   const fetchHome = useCallback(async () => {
     try {
       const data = await CatalogAPI.getCatalog({
-        itemGroup: selectedCategory,
+        itemGroup: 'all',
         limit: 20,
       });
       if (data) {
@@ -47,7 +49,7 @@ export default function HomeScreen({ navigation }) {
     } catch (err) {
       console.warn('Could not load home catalog:', err);
     }
-  }, [selectedCategory]);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -61,8 +63,9 @@ export default function HomeScreen({ navigation }) {
     };
   }, [fetchHome]);
 
-  // Live: re-fetch the home catalog when the app reactivates and every 60s.
-  useLiveRefresh(fetchHome, { intervalMs: 60000, isEnabled: true });
+  // Live: re-fetch the home strip whenever the app returns to the foreground
+  // (no aggressive in-app polling that visually refreshes the list).
+  useLiveRefresh(fetchHome, { intervalMs: 0, isEnabled: true });
 
   async function onRefresh() {
     setRefreshing(true);
@@ -77,6 +80,13 @@ export default function HomeScreen({ navigation }) {
         params: { search: searchQuery },
       });
     }
+  }
+
+  function handleSelectCategory(catName) {
+    navigation.navigate('ProductsTab', {
+      screen: 'Products',
+      params: { itemGroup: catName === 'الكل' ? undefined : catName },
+    });
   }
 
   return (
@@ -178,17 +188,17 @@ export default function HomeScreen({ navigation }) {
         >
           <CategoryCard
             category="الكل"
-            isSelected={selectedCategory === 'all'}
-            onSelect={() => setSelectedCategory('all')}
+            variant="tile"
+            onSelect={handleSelectCategory}
           />
           {categories.map((cat, idx) => {
             const catName = typeof cat === 'string' ? cat : cat.name;
             return (
               <CategoryCard
-                key={idx}
+                key={catName || idx}
                 category={cat}
-                isSelected={selectedCategory === catName}
-                onSelect={(name) => setSelectedCategory(name)}
+                variant="tile"
+                onSelect={handleSelectCategory}
               />
             );
           })}
@@ -196,9 +206,7 @@ export default function HomeScreen({ navigation }) {
 
         {/* Products */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            {selectedCategory === 'all' ? 'أحدث المنتجات' : selectedCategory}
-          </Text>
+          <Text style={styles.sectionTitle}>أحدث المنتجات</Text>
           <Text style={styles.productCount}>{products.length} منتج</Text>
         </View>
 
@@ -414,7 +422,8 @@ const styles = StyleSheet.create({
   },
   categoriesRow: {
     paddingHorizontal: 16,
-    gap: 8,
+    paddingVertical: 4,
+    gap: 14,
   },
   grid: {
     flexDirection: 'row',

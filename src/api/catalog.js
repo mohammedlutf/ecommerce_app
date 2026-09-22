@@ -8,8 +8,9 @@ export const CatalogAPI = {
    * @param {string} [params.search]
    * @param {number} [params.limit]
    */
-  async getCatalog({ itemGroup = null, search = null, limit = 50 } = {}) {
+  async getCatalog({ itemGroup = null, search = null, limit = 20, offset = 0 } = {}) {
     const args = { limit };
+    if (offset > 0) args.offset = offset;
     if (itemGroup && itemGroup !== 'all') args.item_group = itemGroup;
     if (search) args.search = search;
 

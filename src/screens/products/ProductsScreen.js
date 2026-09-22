@@ -6,6 +6,7 @@ import {
   StyleSheet,
   RefreshControl,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from '../../components/Icon';
@@ -16,57 +17,113 @@ import EmptyState from '../../components/EmptyState';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import CatalogAPI from '../../api/catalog';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
+import { useResetOnTabPress } from '../../hooks/useResetOnTabPress';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius } from '../../theme/spacing';
 
+const PAGE_SIZE = 20;
+
 export default function ProductsScreen({ route, navigation }) {
+  useResetOnTabPress(navigation, 'ProductsTab');
+
+  const initialItemGroup = route.params?.itemGroup;
   const initialCategory = route.params?.category || 'all';
   const initialSearch = route.params?.search || '';
 
-  const [selectedCategory, setSelectedCategory] = useState(initialCategory);
+  const [selectedCategory, setSelectedCategory] = useState(
+    initialItemGroup || (initialCategory === 'all' ? 'all' : initialCategory)
+  );
   const [categories, setCategories] = useState([]);
   const [searchQuery, setSearchQuery] = useState(initialSearch);
+  const [activeSearch, setActiveSearch] = useState(initialSearch);
   const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchProducts = useCallback(async (search = searchQuery) => {
-    setLoading(true);
+  const mergePage = useCallback((data, replace) => {
+    const pageItems = data && Array.isArray(data.items) ? data.items : [];
+    const pageHasMore = pageItems.length >= PAGE_SIZE;
+
+    setProducts((cur) => {
+      const merged = replace ? [] : cur.slice();
+      for (const item of pageItems) {
+        const code = item.item_code || item.name;
+        if (!merged.some((p) => (p.item_code || p.name) === code)) {
+          merged.push(item);
+        }
+      }
+      return merged;
+    });
+    setHasMore(pageHasMore);
+    if (data && Array.isArray(data.groups) && data.groups.length > 0) {
+      setCategories(data.groups);
+    }
+  }, []);
+
+  const loadFirst = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!silent) setInitialLoading(true);
+      try {
+        const data = await CatalogAPI.getCatalog({
+          itemGroup: selectedCategory,
+          search: activeSearch || null,
+          limit: PAGE_SIZE,
+          offset: 0,
+        });
+        mergePage(data, true);
+      } catch (err) {
+        console.warn('Failed to fetch catalog:', err);
+      } finally {
+        setInitialLoading(false);
+        setRefreshing(false);
+        setLoadingMore(false);
+      }
+    },
+    [selectedCategory, activeSearch, mergePage]
+  );
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || initialLoading) return;
+    setLoadingMore(true);
     try {
       const data = await CatalogAPI.getCatalog({
         itemGroup: selectedCategory,
-        search: search || null,
-        limit: 50,
+        search: activeSearch || null,
+        limit: PAGE_SIZE,
+        offset: products.length,
       });
-      if (data) {
-        setProducts(data.items || []);
-        if (data.groups && data.groups.length > 0) {
-          setCategories(data.groups);
-        }
-      }
+      mergePage(data, false);
     } catch (err) {
-      console.warn('Failed to fetch catalog:', err);
+      console.warn('Failed to load more products:', err);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setLoadingMore(false);
     }
-  }, [selectedCategory, searchQuery]);
+  }, [loadingMore, hasMore, initialLoading, products.length, selectedCategory, activeSearch, mergePage]);
 
   useEffect(() => {
-    fetchProducts();
-  }, [selectedCategory, fetchProducts]);
+    loadFirst();
+  }, [selectedCategory, activeSearch, loadFirst]);
 
-  // Live: re-fetch when the app reactivates and every 60s.
-  useLiveRefresh(fetchProducts, { intervalMs: 60000, isEnabled: true });
+  // Live: re-sync the first page only when the app returns to the foreground.
+  // No in-app auto-polling (avoided the visible ~60s list refresh).
+  useLiveRefresh(() => loadFirst({ silent: true }), { intervalMs: 0, isEnabled: true });
+
+  function handleSelectCategory(name) {
+    setSelectedCategory(name === 'الكل' ? 'all' : name);
+    setSearchQuery('');
+    setActiveSearch('');
+  }
 
   function handleSearchSubmit() {
-    fetchProducts(searchQuery);
+    setActiveSearch(searchQuery.trim());
   }
 
   function handleClearSearch() {
     setSearchQuery('');
-    fetchProducts('');
+    setActiveSearch('');
   }
 
   return (
@@ -82,7 +139,7 @@ export default function ProductsScreen({ route, navigation }) {
         />
       </View>
 
-      {/* Categories */}
+      {/* Categories — compact text chips */}
       <View style={styles.categoriesWrapper}>
         <ScrollView
           horizontal
@@ -91,17 +148,19 @@ export default function ProductsScreen({ route, navigation }) {
         >
           <CategoryCard
             category="الكل"
+            variant="chip"
             isSelected={selectedCategory === 'all'}
-            onSelect={() => setSelectedCategory('all')}
+            onSelect={handleSelectCategory}
           />
           {categories.map((cat, idx) => {
             const catName = typeof cat === 'string' ? cat : cat.name;
             return (
               <CategoryCard
-                key={idx}
+                key={catName || idx}
                 category={cat}
+                variant="chip"
                 isSelected={selectedCategory === catName}
-                onSelect={(name) => setSelectedCategory(name)}
+                onSelect={handleSelectCategory}
               />
             );
           })}
@@ -111,11 +170,12 @@ export default function ProductsScreen({ route, navigation }) {
       {/* Results */}
       <View style={styles.resultsInfo}>
         <Text style={styles.resultsText}>
-          {loading ? 'جاري التحميل...' : `عرض ${products.length} من المنتجات`}
+          {activeSearch ? `نتائج البحث عن: "${activeSearch}" — ` : ''}
+          عرض {products.length} من المنتجات
         </Text>
       </View>
 
-      {loading ? (
+      {initialLoading && products.length === 0 ? (
         <View style={styles.skeletonGrid}>
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <View key={i} style={styles.gridColumn}>
@@ -134,16 +194,30 @@ export default function ProductsScreen({ route, navigation }) {
           numColumns={2}
           columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.4}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => {
                 setRefreshing(true);
-                fetchProducts(searchQuery);
+                loadFirst({ silent: true });
               }}
               colors={[Colors.primary]}
               tintColor={Colors.primary}
             />
+          }
+          ListFooterComponent={
+            <View style={styles.footer}>
+              {loadingMore ? (
+                <>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                  <Text style={styles.footerText}>جاري تحميل المزيد...</Text>
+                </>
+              ) : !hasMore && products.length > 0 ? (
+                <Text style={styles.footerText}>— لقد وصلت إلى نهاية القائمة —</Text>
+              ) : null}
+            </View>
           }
           renderItem={({ item }) => (
             <View style={styles.gridColumn}>
@@ -151,7 +225,7 @@ export default function ProductsScreen({ route, navigation }) {
                 product={item}
                 onPress={() =>
                   navigation.navigate('ProductDetail', {
-                    itemCode: item.item_code,
+                    itemCode: item.item_code || item.name,
                   })
                 }
               />
@@ -164,8 +238,7 @@ export default function ProductsScreen({ route, navigation }) {
               description="جرب البحث بكلمات أخرى أو اختر فئة مختلفة."
               actionLabel="عرض كل المنتجات"
               onAction={() => {
-                setSelectedCategory('all');
-                handleClearSearch();
+                handleSelectCategory('الكل');
               }}
             />
           }
@@ -221,5 +294,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     paddingHorizontal: 10,
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 18,
+  },
+  footerText: {
+    fontSize: Typography.sizes.labelSm,
+    color: Colors.textMuted,
+    fontFamily: Typography.fontFamilyMedium,
   },
 });

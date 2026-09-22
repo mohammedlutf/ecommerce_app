@@ -42,12 +42,46 @@ export function WishlistProvider({ children }) {
   }
 
   async function toggleWishlist(itemCode) {
+    if (!itemCode) return null;
+    const item = {
+      item_code: itemCode,
+      name: itemCode,
+      _optimistic: true,
+    };
+    const currently = isWishlisted(itemCode);
+
+    // Optimistic: flip the heart instantly, reconcile with the server after.
+    setItems((cur) =>
+      currently
+        ? cur.filter((item_) => {
+            const code =
+              typeof item_ === 'string' ? item_ : item_.item_code || item_.name;
+            return code !== itemCode;
+          })
+        : [...cur, item]
+    );
+
     try {
       const res = await WishlistAPI.toggleWishlist(itemCode);
-      // Refresh items list
-      await fetchWishlist();
+      // Reconcile with the authoritative list (quietly).
+      try {
+        const data = await WishlistAPI.getWishlistItems();
+        setItems(Array.isArray(data) ? data : []);
+      } catch (e) {
+        /* keep optimistic state */
+      }
       return res;
     } catch (err) {
+      // Revert optimistic change on failure.
+      setItems((cur) =>
+        currently
+          ? [...cur, item]
+          : cur.filter((item_) => {
+              const code =
+                typeof item_ === 'string' ? item_ : item_.item_code || item_.name;
+              return code !== itemCode;
+            })
+      );
       throw err;
     }
   }
