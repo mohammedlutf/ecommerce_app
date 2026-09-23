@@ -47,22 +47,34 @@ function pickStyle(name) {
   return { monogram, colors };
 }
 
-export default function CategoryCard({ category, isSelected, onSelect, variant = 'tile' }) {
+export default function CategoryCard({
+  category,
+  isSelected,
+  onSelect,
+  variant = 'tile',
+  chipActiveStyle = 'pill',
+}) {
   const name = typeof category === 'string' ? category : category.name;
   const count = category && category.count ? category.count : null;
 
   // Text chip — compact, no image (used on the Products screen).
   if (variant === 'chip') {
+    const underline = chipActiveStyle === 'underline';
+    const chipStyle =
+      underline
+        ? isSelected ? styles.chipUnderlineActive : styles.chipUnderlineInactive
+        : isSelected ? styles.chipActive : styles.chipInactive;
+    const textStyle =
+      underline
+        ? isSelected ? styles.chipTextUnderlineActive : styles.chipTextUnderlineInactive
+        : isSelected ? styles.chipTextActive : styles.chipTextInactive;
     return (
       <TouchableOpacity
         activeOpacity={0.72}
         onPress={() => onSelect && onSelect(name)}
-        style={[styles.chip, isSelected ? styles.chipActive : styles.chipInactive]}
+        style={[styles.chip, chipStyle]}
       >
-        <Text
-          style={[styles.chipText, isSelected ? styles.chipTextActive : styles.chipTextInactive]}
-          numberOfLines={1}
-        >
+        <Text style={[styles.chipText, textStyle]} numberOfLines={1}>
           {name}
         </Text>
         {count !== null && count !== undefined && (
@@ -195,14 +207,14 @@ const styles = StyleSheet.create({
 
   // Chip variant
   chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
     borderRadius: Radius.full,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    gap: 6,
+    gap: 5,
   },
   chipActive: {
     backgroundColor: Colors.primary,
@@ -212,8 +224,24 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceContainerLowest,
     borderColor: Colors.outlineVariant,
   },
+  // Underline variant — flat tab look for the parent groups: a green underline
+  // for the active one, never a rounded green pill.
+  chipUnderlineActive: {
+    borderWidth: 0,
+    borderBottomWidth: 2.5,
+    borderBottomColor: Colors.primary,
+    borderRadius: 0,
+    backgroundColor: 'transparent',
+  },
+  chipUnderlineInactive: {
+    borderWidth: 0,
+    borderBottomWidth: 2.5,
+    borderBottomColor: 'transparent',
+    borderRadius: 0,
+    backgroundColor: 'transparent',
+  },
   chipText: {
-    fontSize: Typography.sizes.bodyMd,
+    fontSize: Typography.sizes.labelMd,
     fontFamily: Typography.fontFamilyMedium,
   },
   chipTextActive: {
@@ -221,6 +249,14 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyBold,
   },
   chipTextInactive: {
+    color: Colors.onSurface,
+    fontFamily: Typography.fontFamilyMedium,
+  },
+  chipTextUnderlineActive: {
+    color: Colors.primary,
+    fontFamily: Typography.fontFamilyBold,
+  },
+  chipTextUnderlineInactive: {
     color: Colors.onSurface,
     fontFamily: Typography.fontFamilyMedium,
   },

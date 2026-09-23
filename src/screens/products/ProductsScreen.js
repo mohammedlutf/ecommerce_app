@@ -8,6 +8,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Animated,
+  Easing,
   PanResponder,
   useWindowDimensions,
 } from 'react-native';
@@ -43,6 +44,35 @@ const ProductGridCell = React.memo(function ProductGridCell({ product, onOpen })
     </View>
   );
 });
+
+// Fades + slides the product list in whenever its page mounts after a swipe, so
+// content appears smoothly instead of popping in.
+function PageContent({ children }) {
+  const enter = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(enter, {
+      toValue: 1,
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [enter]);
+  return (
+    <Animated.View
+      style={{
+        flex: 1,
+        opacity: enter,
+        transform: [
+          {
+            translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }),
+          },
+        ],
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
+}
 
 export default function ProductsScreen({ route, navigation }) {
   useResetOnTabPress(navigation, 'ProductsTab');
@@ -272,29 +302,35 @@ export default function ProductsScreen({ route, navigation }) {
   const childPagesRef = useRef(childPages);
   childPagesRef.current = childPages;
 
-  const animateToPage = useCallback(
+  // Keep the pager aligned to the active child on every change (chip press,
+  // parent switch, or swipe release). This is the single animation path, so
+  // page transitions always glide with the same easing and stay interruptible.
+  const settleSlide = useCallback(
     (index) => {
-      const count = childPagesRef.current.length;
-      const target = Math.max(0, Math.min(index, count - 1));
-      const x = target * width;
+      baseOffset.stopAnimation();
+      dragOffset.stopAnimation();
+      const x = index * width;
       Animated.parallel([
-        Animated.timing(baseOffset, { toValue: x, duration: 260, useNativeDriver: true }),
-        Animated.timing(dragOffset, { toValue: 0, duration: 260, useNativeDriver: true }),
-      ]).start(() => {
-        if (activeIndexRef.current !== target) {
-          setActiveChildIndex(target);
-        }
-      });
+        Animated.timing(baseOffset, {
+          toValue: x,
+          duration: 300,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(dragOffset, {
+          toValue: 0,
+          duration: 300,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
     },
     [width]
   );
 
-  // Keep the pager aligned whenever the active child changes (chip press,
-  // parent switch) and when the page list itself changes.
   useEffect(() => {
-    baseOffset.stopAnimation();
-    animateToPage(activeChildIndex);
-  }, [activeChildIndex, animateToPage, childPages.length]);
+    settleSlide(activeChildIndex);
+  }, [activeChildIndex, childPages.length, settleSlide]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -302,6 +338,7 @@ export default function ProductsScreen({ route, navigation }) {
         Math.abs(g.dx) > 6 && Math.abs(g.dx) > Math.abs(g.dy),
       onPanResponderGrant: () => {
         baseOffset.stopAnimation();
+        dragOffset.stopAnimation();
       },
       onPanResponderMove: (_, g) => {
         const startIndex = activeIndexRef.current;
@@ -319,10 +356,28 @@ export default function ProductsScreen({ route, navigation }) {
         let target = start;
         if (g.dx < -threshold || g.vx < -0.5) target = start + 1; // swipe left → next
         else if (g.dx > threshold || g.vx > 0.5) target = start - 1; // swipe right → previous
-        animateToPage(target);
+        target = Math.max(0, Math.min(target, childPagesRef.current.length - 1));
+        if (target !== start) {
+          // Commit immediately so the chips + counter react while the track is
+          // still gliding; the settleSlide effect drives the animation.
+          setActiveChildIndex(target);
+        } else {
+          // Reverted — just ease the drag back into place.
+          Animated.timing(dragOffset, {
+            toValue: 0,
+            duration: 180,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }).start();
+        }
       },
       onPanResponderTerminate: () => {
-        animateToPage(activeIndexRef.current);
+        Animated.timing(dragOffset, {
+          toValue: 0,
+          duration: 180,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start();
       },
     })
   ).current;
@@ -378,10 +433,10 @@ export default function ProductsScreen({ route, navigation }) {
 
       {/* Parent groups — main departments */}
       <View style={styles.chipsGroup}>
-        <View style={styles.chipsLabelRow}>
+        {/* <View style={styles.chipsLabelRow}>
           <Icon name="albums-outline" size={14} color={Colors.primary} />
           <Text style={styles.chipsLabel}>الأقسام الرئيسية</Text>
-        </View>
+        </View> */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -392,6 +447,7 @@ export default function ProductsScreen({ route, navigation }) {
               key={key}
               category={key === ALL_KEY ? 'الكل' : key}
               variant="chip"
+              chipActiveStyle="underline"
               isSelected={activeParent === key}
               onSelect={() => handleSelectParent(key)}
             />
@@ -487,59 +543,61 @@ export default function ProductsScreen({ route, navigation }) {
 
               return (
                 <View key={`${idx}-${key}`} style={[styles.page, { width }]}>
-                  <FlatList
-                    data={pageProducts}
-                    keyExtractor={(item, index) => item.item_code || String(index)}
-                    numColumns={2}
-                    columnWrapperStyle={styles.columnWrapper}
-                    contentContainerStyle={styles.listContent}
-                    initialNumToRender={6}
-                    maxToRenderPerBatch={10}
-                    updateCellsBatchingPeriod={60}
-                    windowSize={7}
-                    removeClippedSubviews
-                    renderItem={({ item }) => (
-                      <ProductGridCell product={item} onOpen={onOpen} />
-                    )}
-                    onEndReached={() => loadMoreKey(key)}
-                    onEndReachedThreshold={0.4}
-                    refreshControl={
-                      <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={() => refreshKey(key)}
-                        colors={[Colors.primary]}
-                        tintColor={Colors.primary}
-                      />
-                    }
-                    ListFooterComponent={
-                      <View style={styles.footer}>
-                        {loadingMore ? (
-                          <>
-                            <ActivityIndicator size="small" color={Colors.primary} />
-                            <Text style={styles.footerText}>جاري تحميل المزيد...</Text>
-                          </>
-                        ) : !hasMoreByKey[key] && pageProducts.length > 0 ? (
-                          <Text style={styles.footerText}>— لقد وصلت إلى نهاية القائمة —</Text>
-                        ) : null}
-                      </View>
-                    }
-                    ListEmptyComponent={
-                      loadedKeys[key] ? (
-                        <EmptyState
-                          icon="search-outline"
-                          title="لم يتم العثور على منتجات"
-                          description="جرب البحث بكلمات أخرى أو اختر فئة مختلفة."
-                          actionLabel="عرض كل المنتجات"
-                          onAction={showAll}
+                  <PageContent>
+                    <FlatList
+                      data={pageProducts}
+                      keyExtractor={(item, index) => item.item_code || String(index)}
+                      numColumns={2}
+                      columnWrapperStyle={styles.columnWrapper}
+                      contentContainerStyle={styles.listContent}
+                      initialNumToRender={6}
+                      maxToRenderPerBatch={10}
+                      updateCellsBatchingPeriod={60}
+                      windowSize={7}
+                      removeClippedSubviews
+                      renderItem={({ item }) => (
+                        <ProductGridCell product={item} onOpen={onOpen} />
+                      )}
+                      onEndReached={() => loadMoreKey(key)}
+                      onEndReachedThreshold={0.4}
+                      refreshControl={
+                        <RefreshControl
+                          refreshing={refreshing}
+                          onRefresh={() => refreshKey(key)}
+                          colors={[Colors.primary]}
+                          tintColor={Colors.primary}
                         />
-                      ) : initialLoading ? (
-                        <View style={styles.pageLoader}>
-                          <ActivityIndicator size="small" color={Colors.primary} />
-                          <Text style={styles.pageLoaderText}>جاري تحميل المنتجات...</Text>
+                      }
+                      ListFooterComponent={
+                        <View style={styles.footer}>
+                          {loadingMore ? (
+                            <>
+                              <ActivityIndicator size="small" color={Colors.primary} />
+                              <Text style={styles.footerText}>جاري تحميل المزيد...</Text>
+                            </>
+                          ) : !hasMoreByKey[key] && pageProducts.length > 0 ? (
+                            <Text style={styles.footerText}>— لقد وصلت إلى نهاية القائمة —</Text>
+                          ) : null}
                         </View>
-                      ) : null
-                    }
-                  />
+                      }
+                      ListEmptyComponent={
+                        loadedKeys[key] ? (
+                          <EmptyState
+                            icon="search-outline"
+                            title="لم يتم العثور على منتجات"
+                            description="جرب البحث بكلمات أخرى أو اختر فئة مختلفة."
+                            actionLabel="عرض كل المنتجات"
+                            onAction={showAll}
+                          />
+                        ) : initialLoading ? (
+                          <View style={styles.pageLoader}>
+                            <ActivityIndicator size="small" color={Colors.primary} />
+                            <Text style={styles.pageLoaderText}>جاري تحميل المنتجات...</Text>
+                          </View>
+                        ) : null
+                      }
+                    />
+                  </PageContent>
                 </View>
               );
             })}
@@ -564,19 +622,19 @@ const styles = StyleSheet.create({
   chipsGroup: {
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
-    paddingBottom: 10,
+    paddingBottom: 6,
     borderBottomColor: Colors.borderSubtle,
   },
   chipsGroupSub: {
-    paddingBottom: 12,
+    paddingBottom: 6,
   },
   chipsLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 6,
+    paddingTop: 4,
+    paddingBottom: 3,
   },
   chipsLabel: {
     fontSize: Typography.sizes.labelMd,
@@ -584,12 +642,12 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilySemiBold,
   },
   chipsRow: {
-    paddingHorizontal: 16,
-    gap: 8,
+    paddingHorizontal: 14,
+    gap: 6,
   },
   resultsInfo: {
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 6,
     backgroundColor: Colors.background,
   },
   resultsText: {
