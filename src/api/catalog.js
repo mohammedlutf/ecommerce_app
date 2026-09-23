@@ -13,12 +13,7 @@ export const CatalogAPI = {
     if (offset > 0) args.offset = offset;
     if (itemGroup && itemGroup !== 'all') args.item_group = itemGroup;
     if (search) args.search = search;
-    try {
-      return await frappeCall('ecommerce.api.catalog', args, 'GET');
-    } catch {
-      // Fallback method name
-      return await frappeCall('ecommerce.api.catalog', args, 'GET');
-    }
+    return frappeCall('ecommerce.api.catalog', args, 'GET');
   },
 
   /**
@@ -30,12 +25,7 @@ export const CatalogAPI = {
     const args = {};
     if (itemCode) args.item_code = itemCode;
     if (route) args.route = route;
-
-    try {
-      return await frappeCall('ecommerce.api.item', args, 'GET');
-    } catch {
-      return await frappeCall('ecommerce.api.item', args, 'GET');
-    }
+    return frappeCall('ecommerce.api.item', args, 'GET');
   },
 
   /**
@@ -48,11 +38,7 @@ export const CatalogAPI = {
       review_title: reviewTitle || 'تقييم المنتج',
       comment: comment || '',
     };
-    try {
-      return await frappeCall('ecommerce.api.reviews', args, 'POST');
-    } catch {
-      return await frappeCall('ecommerce.api.reviews', args, 'POST');
-    }
+    return frappeCall('ecommerce.api.reviews', args, 'POST');
   },
 };
 

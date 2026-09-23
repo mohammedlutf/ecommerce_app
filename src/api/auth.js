@@ -21,21 +21,11 @@ export const AuthAPI = {
    */
   async register(phone, fullName, newPassword) {
     const cleanPhone = phone.replace(/[^0-9]/g, '').slice(-9);
-
-    try {
-      const res = await frappeCall('ecommerce.www.login.register_user_by_phone', {
-        phone: cleanPhone,
-        full_name: fullName,
-        new_password: newPassword,
-      });
-      return res;
-    } catch {
-      return await frappeCall('ecommerce.www.login.register_user_by_phone', {
-        phone: cleanPhone,
-        full_name: fullName,
-        new_password: newPassword,
-      });
-    }
+    return frappeCall('ecommerce.www.login.register_user_by_phone', {
+      phone: cleanPhone,
+      full_name: fullName,
+      new_password: newPassword,
+    });
   },
 
   /**
@@ -59,11 +49,10 @@ export const AuthAPI = {
         {},
         'GET'
       );
-      console.log('CURRENT USER:', currentUser);
       return currentUser;
     } catch (error) {
       // If user is a guest or not logged in, just return null safely
-      console.log('User is not logged in or session is guest.');
+      console.warn('User is not logged in or session is guest.');
       return null;
     }
   },

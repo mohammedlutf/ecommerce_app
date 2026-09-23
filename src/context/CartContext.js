@@ -131,9 +131,10 @@ export function CartProvider({ children }) {
     fetchCart();
   }, [fetchCart]);
 
-  // Background sync: re-fetch when the app returns to the foreground and poll
-  // quietly every 20s (never flashes the spinner, never clobbers a mutation).
-  useLiveRefresh(() => fetchCart(true), { intervalMs: 20000, isEnabled: true });
+  // Foreground sync: re-fetch the cart once when the app returns to the
+  // foreground. No background polling — data loads on mount and on explicit
+  // user actions only.
+  useLiveRefresh(() => fetchCart(true), { intervalMs: 0, isEnabled: true });
 
   // Apply a locally-computed next cart immediately (optimistic UI), then let
   // the server round-trip reconcile with the authoritative payload.
@@ -150,19 +151,21 @@ export function CartProvider({ children }) {
     if (data.currency) setCurrency(data.currency);
   }
 
-  async function addToCart(itemCode, qty = 1, uom = null, product = null) {
+  // Apply a mutation optimistically to the local cart instantly, then reconcile
+  // with the server response when it lands. If the request fails, the exact
+  // pre-mutation snapshot is restored — no extra network round-trip required.
+  async function runMutation(updateFn, payload, apiFn) {
     setActionLoading(true);
+    const snapshot = items;
     const version = ++mutationVersion.current;
-    applyOptimistic(optimisticAdd, { itemCode, qty, uom, product });
+    applyOptimistic(updateFn, payload);
     try {
-      const data = await CartAPI.addToCart(itemCode, qty, uom);
+      const data = await apiFn();
       reconcile(data, version);
       return data;
     } catch (err) {
-      try {
-        await fetchCart(true);
-      } catch (e) {
-        /* ignore */
+      if (mutationVersion.current === version) {
+        setItems(snapshot);
       }
       throw err;
     } finally {
@@ -170,68 +173,40 @@ export function CartProvider({ children }) {
     }
   }
 
-  async function updateQuantity(itemCode, qty, uom = null) {
-    setActionLoading(true);
-    const version = ++mutationVersion.current;
-    applyOptimistic(optimisticQuantity, { itemCode, qty, uom });
-    try {
-      const data = await CartAPI.updateCartLine(itemCode, qty, uom);
-      reconcile(data, version);
-      return data;
-    } catch (err) {
-      try {
-        await fetchCart(true);
-      } catch (e) {
-        /* ignore */
-      }
-      throw err;
-    } finally {
-      setActionLoading(false);
-    }
+  function addToCart(itemCode, qty = 1, uom = null, product = null) {
+    return runMutation(
+      optimisticAdd,
+      { itemCode, qty, uom, product },
+      () => CartAPI.addToCart(itemCode, qty, uom)
+    );
   }
 
-  async function updateUOM(itemCode, newUom, previousUom) {
-    setActionLoading(true);
-    const version = ++mutationVersion.current;
-    applyOptimistic(optimisticUom, { itemCode, newUom, previousUom });
-    try {
-      const line = items.find(
-        (i) => i.item_code === itemCode && (i.uom === previousUom || !previousUom)
-      );
-      const qty = line ? line.qty : 1;
-      const data = await CartAPI.updateCartLine(itemCode, qty, newUom, previousUom);
-      reconcile(data, version);
-      return data;
-    } catch (err) {
-      try {
-        await fetchCart(true);
-      } catch (e) {
-        /* ignore */
-      }
-      throw err;
-    } finally {
-      setActionLoading(false);
-    }
+  function updateQuantity(itemCode, qty, uom = null) {
+    return runMutation(
+      optimisticQuantity,
+      { itemCode, qty, uom },
+      () => CartAPI.updateCartLine(itemCode, qty, uom)
+    );
   }
 
-  async function removeItem(itemCode) {
-    setActionLoading(true);
-    const version = ++mutationVersion.current;
-    applyOptimistic(optimisticRemove, itemCode);
-    try {
-      const data = await CartAPI.removeFromCart(itemCode);
-      reconcile(data, version);
-      return data;
-    } catch (err) {
-      try {
-        await fetchCart(true);
-      } catch (e) {
-        /* ignore */
-      }
-      throw err;
-    } finally {
-      setActionLoading(false);
-    }
+  function updateUOM(itemCode, newUom, previousUom) {
+    const line = items.find(
+      (i) => i.item_code === itemCode && (i.uom === previousUom || !previousUom)
+    );
+    const qty = line ? line.qty : 1;
+    return runMutation(
+      optimisticUom,
+      { itemCode, newUom, previousUom },
+      () => CartAPI.updateCartLine(itemCode, qty, newUom, previousUom)
+    );
+  }
+
+  function removeItem(itemCode) {
+    return runMutation(
+      optimisticRemove,
+      itemCode,
+      () => CartAPI.removeFromCart(itemCode)
+    );
   }
 
   const count = items.reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0);

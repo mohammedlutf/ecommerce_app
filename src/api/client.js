@@ -1,5 +1,6 @@
 import {
   getCall,
+  getDB,
   initSession,
   saveSessionCookie,
   clearSession as clearSdkSession,
@@ -74,6 +75,26 @@ function parseServerMessages(rawMessages) {
     // fallback
   }
   return 'حدث خطأ غير متوقع';
+}
+
+/**
+ * Query a DocType list directly through the frappe-js-sdk DB adapter.
+ *
+ * Use this instead of a custom RPC endpoint whenever a plain read of a
+ * DocType (e.g. `Item`, `Item Group`, `Customer`) is all that is needed.
+ * `args` maps to the SDK's `getDocList` options (fields, filters, limit,
+ * orderBy, limit_start, ...) and results come back as an array of dicts.
+ */
+export async function frappeList(doctype, args = {}) {
+  const list = await getDB().getDocList(doctype, args);
+  return Array.isArray(list) ? list : [];
+}
+
+/**
+ * Fetch a single document of a DocType directly through the frappe-js-sdk.
+ */
+export async function frappeGetDoc(doctype, docname) {
+  return getDB().getDoc(doctype, docname);
 }
 
 /**
