@@ -235,6 +235,58 @@ export default function CartScreen({ navigation }) {
             );
           })}
         </View>
+          {/* Summary */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionTitleRow}>
+            <Icon name="receipt-outline" size={17} color={Colors.primary} />
+            <Text style={styles.sectionTitle}>تفاصيل الفاتورة</Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>إجمالي المنتجات</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(total, currency)}</Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>رسوم التوصيل</Text>
+            <Text style={[styles.summaryValue, { color: Colors.success, fontFamily: Typography.fontFamilyBold }]}>
+              مجاني
+            </Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>طريقة الدفع</Text>
+            <View style={styles.paymentBadge}>
+              <Icon name="cash-outline" size={15} color={Colors.primary} />
+              <Text style={[styles.summaryValue, { color: Colors.primary, fontFamily: Typography.fontFamilyBold }]}>
+                الدفع عند الاستلام (نقد)
+              </Text>
+            </View>
+          </View>
+
+          <View style={[styles.summaryRow, styles.grandTotalRow]}>
+            <Text style={styles.grandTotalLabel}>المجموع الكلي المطلوب</Text>
+            <Text style={styles.grandTotalValue}>{formatCurrency(total, currency)}</Text>
+          </View>
+        </View>
+        
+         {/* Notes */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionTitleRow}>
+            <Icon name="create-outline" size={17} color={Colors.primary} />
+            <Text style={styles.sectionTitle}>ملاحظات أو تعليمات خاصة للتوصيل</Text>
+          </View>
+          <TextInput
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="مثال: يرجى الاتصال عند الوصول، الاتصال على رقم آخر..."
+            placeholderTextColor={Colors.textMuted}
+            multiline
+            numberOfLines={2}
+            style={styles.notesInput}
+            textAlign="right"
+          />
+        </View>
 
         {/* Address */}
         <View style={styles.sectionCard}>
@@ -282,58 +334,9 @@ export default function CartScreen({ navigation }) {
           )}
         </View>
 
-        {/* Notes */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionTitleRow}>
-            <Icon name="create-outline" size={17} color={Colors.primary} />
-            <Text style={styles.sectionTitle}>ملاحظات أو تعليمات خاصة للتوصيل</Text>
-          </View>
-          <TextInput
-            value={notes}
-            onChangeText={setNotes}
-            placeholder="مثال: يرجى الاتصال عند الوصول، الاتصال على رقم آخر..."
-            placeholderTextColor={Colors.textMuted}
-            multiline
-            numberOfLines={2}
-            style={styles.notesInput}
-            textAlign="right"
-          />
-        </View>
+       
 
-        {/* Summary */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionTitleRow}>
-            <Icon name="receipt-outline" size={17} color={Colors.primary} />
-            <Text style={styles.sectionTitle}>تفاصيل الفاتورة</Text>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>إجمالي المنتجات</Text>
-            <Text style={styles.summaryValue}>{formatCurrency(total, currency)}</Text>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>رسوم التوصيل</Text>
-            <Text style={[styles.summaryValue, { color: Colors.success, fontFamily: Typography.fontFamilyBold }]}>
-              مجاني
-            </Text>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>طريقة الدفع</Text>
-            <View style={styles.paymentBadge}>
-              <Icon name="cash-outline" size={15} color={Colors.primary} />
-              <Text style={[styles.summaryValue, { color: Colors.primary, fontFamily: Typography.fontFamilyBold }]}>
-                الدفع عند الاستلام (نقد)
-              </Text>
-            </View>
-          </View>
-
-          <View style={[styles.summaryRow, styles.grandTotalRow]}>
-            <Text style={styles.grandTotalLabel}>المجموع الكلي المطلوب</Text>
-            <Text style={styles.grandTotalValue}>{formatCurrency(total, currency)}</Text>
-          </View>
-        </View>
+        
 
         {/* Checkout */}
         <TouchableOpacity
