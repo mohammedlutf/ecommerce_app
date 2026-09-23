@@ -89,8 +89,13 @@ function optimisticUom(current = [], { itemCode, newUom, previousUom }) {
   });
 }
 
-function optimisticRemove(current = [], itemCode) {
-  return current.filter((line) => line.item_code !== itemCode);
+function optimisticRemove(current = [], { itemCode, uom }) {
+  // The same item_code can exist as multiple cart lines under different UOMs,
+  // so removal must target the exact line (item_code + uom), never all of them.
+  return current.filter(
+    (line) =>
+      !(line.item_code === itemCode && (line.uom === uom || (!uom && !line.uom)))
+  );
 }
 
 function computeTotal(items) {
@@ -204,11 +209,11 @@ export function CartProvider({ children }) {
     );
   }
 
-  function removeItem(itemCode) {
+  function removeItem(itemCode, uom = null) {
     return runMutation(
       optimisticRemove,
-      itemCode,
-      () => CartAPI.removeFromCart(itemCode)
+      { itemCode, uom },
+      () => CartAPI.removeFromCart(itemCode, uom)
     );
   }
 

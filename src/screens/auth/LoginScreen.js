@@ -11,7 +11,6 @@ import {
   Platform,
   ScrollView,
   LayoutAnimation,
-  UIManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,10 +21,6 @@ import { useToast } from '../../context/ToastContext';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 /**
  * Animated form section — fades + slides up every time the active step changes.

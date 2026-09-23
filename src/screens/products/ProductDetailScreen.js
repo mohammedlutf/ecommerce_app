@@ -253,7 +253,7 @@ export default function ProductDetailScreen({ route, navigation }) {
               }}
               onDecrement={() => {
                 if (inCartQty > 0) {
-                  if (inCartQty <= 1) removeItem(product.item_code);
+                  if (inCartQty <= 1) removeItem(product.item_code, selectedUom);
                   else updateQuantity(product.item_code, inCartQty - 1, selectedUom);
                 } else {
                   if (qty > 1) setQty(qty - 1);

@@ -91,9 +91,9 @@ export default function CartScreen({ navigation }) {
     }
   }
 
-  async function handleRemoveItem(itemCode) {
+  async function handleRemoveItem(itemCode, uom = null) {
     try {
-      await removeItem(itemCode);
+      await removeItem(itemCode, uom);
       toast.info('تم حذف المنتج من السلة');
     } catch (err) {
       toast.error(err?.message || 'تعذر حذف المنتج');
@@ -193,7 +193,7 @@ export default function CartScreen({ navigation }) {
                       {line.item_name || line.item_code}
                     </Text>
                     <TouchableOpacity
-                      onPress={() => handleRemoveItem(line.item_code)}
+                      onPress={() => handleRemoveItem(line.item_code, line.uom)}
                       hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                       style={styles.deleteBtn}
                     >
@@ -224,7 +224,7 @@ export default function CartScreen({ navigation }) {
                       quantity={line.qty}
                       onIncrement={() => updateQuantity(line.item_code, line.qty + 1, line.uom)}
                       onDecrement={() => {
-                        if (line.qty <= 1) handleRemoveItem(line.item_code);
+                        if (line.qty <= 1) handleRemoveItem(line.item_code, line.uom);
                         else updateQuantity(line.item_code, line.qty - 1, line.uom);
                       }}
                       size="sm"

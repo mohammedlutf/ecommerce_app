@@ -173,7 +173,7 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>الأقسام</Text>
           <TouchableOpacity
-            onPress={() => navigation.navigate('ProductsTab')}
+            onPress={() => navigation.navigate('Categories')}
             style={styles.seeAllBtn}
           >
             <Text style={styles.seeAllText}>عرض الكل</Text>
@@ -229,9 +229,8 @@ export default function HomeScreen({ navigation }) {
                 <ProductCard
                   product={product}
                   onPress={() =>
-                    navigation.navigate('ProductsTab', {
-                      screen: 'ProductDetail',
-                      params: { itemCode: product.item_code },
+                    navigation.navigate('ProductDetail', {
+                      itemCode: product.item_code,
                     })
                   }
                 />

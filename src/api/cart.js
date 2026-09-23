@@ -34,10 +34,13 @@ export const CartAPI = {
   },
 
   /**
-   * Remove item from cart
+   * Remove a single cart line. The same item_code can appear as multiple lines
+   * under different UOMs, so uom is required to target exactly one line.
    */
-  removeFromCart(itemCode) {
-    return frappeCall('ecommerce.api.remove_from_cart', { item_code: itemCode }, 'POST');
+  removeFromCart(itemCode, uom = null) {
+    const args = { item_code: itemCode };
+    if (uom) args.uom = uom;
+    return frappeCall('ecommerce.api.remove_from_cart', args, 'POST');
   },
 
   /**

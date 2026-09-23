@@ -109,7 +109,7 @@ export default function ProductCard({
     setCartActionLoading(true);
     try {
       if (inCartQty <= 1) {
-        await removeItem(product.item_code);
+        await removeItem(product.item_code, selectedUom);
       } else {
         await updateQuantity(product.item_code, inCartQty - 1, selectedUom);
       }

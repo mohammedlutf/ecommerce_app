@@ -1,4 +1,9 @@
-import { frappeCall } from './client';
+import { frappeCall, getImageUrl } from './client';
+
+const GROUPS_CACHE_TTL = 5 * 60 * 1000;
+const GROUPS_FAIL_TTL = 30 * 1000;
+let groupsCache = null;
+let groupsCacheAt = 0;
 
 export const CatalogAPI = {
   /**
@@ -39,6 +44,57 @@ export const CatalogAPI = {
       comment: comment || '',
     };
     return frappeCall('ecommerce.api.reviews', args, 'POST');
+  },
+
+  /**
+   * Load the parent/child Item Group structure from the backend's whitelisted
+   * `ecommerce.api.get_groups` (leaf groups only: is_group=0, show_in_website=1).
+   *
+   * Returns a normalized hierarchy:
+   *   [{ name, image, children: [{ name, image }] }]
+   *
+   * Parent groups are derived by grouping the leaf rows on `parent_item_group`,
+   * mirroring the website's `groupby('parent_item_group')` nav. Returns null on
+   * failure so callers can fall back to the flat groups from the catalog call.
+   */
+  async getItemGroupHierarchy() {
+    const elapsed = Date.now() - groupsCacheAt;
+    if (groupsCache && elapsed < GROUPS_CACHE_TTL) return groupsCache;
+    if (groupsCache === null && elapsed < GROUPS_FAIL_TTL) return null;
+
+    try {
+      const leaves = await frappeCall('ecommerce.api.get_groups', {}, 'GET');
+      if (!Array.isArray(leaves) || leaves.length === 0) {
+        groupsCache = null;
+        groupsCacheAt = Date.now();
+        return null;
+      }
+
+      const byParent = {};
+      const parentsOrder = [];
+      for (const leaf of leaves) {
+        const parent = (leaf && leaf.parent_item_group || '').trim();
+        if (!parent) continue;
+        if (!byParent[parent]) {
+          byParent[parent] = { name: parent, image: '', children: [] };
+          parentsOrder.push(parent);
+        }
+        byParent[parent].children.push({
+          name: leaf.name,
+          image: leaf.image ? getImageUrl(leaf.image) : '',
+        });
+      }
+
+      const result = parentsOrder.map((name) => byParent[name]);
+      groupsCache = result;
+      groupsCacheAt = Date.now();
+      return result;
+    } catch (err) {
+      console.warn('Could not load item group hierarchy:', err.message);
+      groupsCache = null;
+      groupsCacheAt = Date.now();
+      return null;
+    }
   },
 };
 
