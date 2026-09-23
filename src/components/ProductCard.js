@@ -119,7 +119,7 @@ export default function ProductCard({
       setCartActionLoading(false);
     }
   }
-
+// console.log('Selected UOM changed:', selectedUom, 'Current Rate:', currentRate);
   return (
     <TouchableOpacity
       activeOpacity={0.92}
@@ -183,7 +183,9 @@ export default function ProductCard({
             uoms={availableUoms}
             stockUom={product.stock_uom}
             selectedUom={selectedUom}
-            onSelectUom={(uom) => setSelectedUom(uom)}
+            onSelectUom={(uomName, unitObj) => {
+            setSelectedUom(uomName);
+          }}
             size="sm"
           />
         

@@ -1,5 +1,6 @@
 import { FrappeApp } from 'frappe-js-sdk';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 /**
  * Frappe SDK bootstrap for React Native.
@@ -15,7 +16,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  * SDK while staying fully authenticated on device.
  */
 
-export const BASE_URL = 'http://192.168.1.35:8000';
+/**
+ * API base URL.
+ *
+ * Native: the Frappe benchmark directly; the browser enforces the
+ * Same-Origin Policy, so on web we use a relative URL and let the Metro dev
+ * server proxy `/api` & `/files` to the benchmark (see metro.config.js).
+ * This sidesteps CORS completely when testing in a browser.
+ */
+export const BASE_URL = Platform.OS === 'web' ? '' : 'http://192.168.1.33:8000';
 
 const COOKIE_KEY = '@ecommerce_session_cookie';
 const USER_KEY = '@ecommerce_logged_user';
@@ -118,7 +127,11 @@ async function rnFetchAdapter(config) {
     });
   }
   headers.Accept = headers.Accept || 'application/json';
-  if (currentCookie) headers.Cookie = currentCookie;
+  // Browsers refuse to let JS set the `Cookie` header directly; the browser
+  // cookie jar handles it (needs `credentials: 'include'` below). On native
+  // there is no cookie jar, so we re-attach the persisted `sid` manually.
+  const isWeb = Platform.OS === 'web';
+  if (currentCookie && !isWeb) headers.Cookie = currentCookie;
 
   let body;
   if (method !== 'GET' && method !== 'HEAD' && config.data !== undefined) {
@@ -130,7 +143,12 @@ async function rnFetchAdapter(config) {
     }
   }
 
-  const response = await fetch(finalUrl, { method, headers, body });
+  const response = await fetch(finalUrl, {
+    method,
+    headers,
+    body,
+    ...(isWeb ? { credentials: 'include' } : {}),
+  });
 
   const setCookieHeader = response.headers && response.headers.get
     ? response.headers.get('set-cookie')

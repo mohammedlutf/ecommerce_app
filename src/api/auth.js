@@ -30,7 +30,7 @@ export const AuthAPI = {
       });
       return res;
     } catch {
-      return await frappeCall('ecommerce_website.www.login.register_user_by_phone', {
+      return await frappeCall('ecommerce.www.login.register_user_by_phone', {
         phone: cleanPhone,
         full_name: fullName,
         new_password: newPassword,

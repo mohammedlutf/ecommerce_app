@@ -13,7 +13,6 @@ export const CatalogAPI = {
     if (offset > 0) args.offset = offset;
     if (itemGroup && itemGroup !== 'all') args.item_group = itemGroup;
     if (search) args.search = search;
-
     try {
       return await frappeCall('ecommerce.api.catalog', args, 'GET');
     } catch {

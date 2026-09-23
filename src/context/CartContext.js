@@ -56,6 +56,17 @@ function optimisticQuantity(current = [], { itemCode, qty, uom }) {
   });
 }
 
+function resolveLineBaseRate(line) {
+  const uoms = line.uoms || [];
+  if (line.stock_uom) {
+    const stock = uoms.find((u) => (u && (u.uom || u)) === line.stock_uom);
+    const stockRate = stock ? parseFloat(stock.rate) : NaN;
+    if (!Number.isNaN(stockRate)) return stockRate;
+    if (line.uom === line.stock_uom) return parseFloat(line.rate) || 0;
+  }
+  return parseFloat(line.rate) || 0;
+}
+
 function optimisticUom(current = [], { itemCode, newUom, previousUom }) {
   return current.map((line) => {
     if (
@@ -63,10 +74,14 @@ function optimisticUom(current = [], { itemCode, newUom, previousUom }) {
       (line.uom === previousUom || (!previousUom && line.uom === newUom))
     ) {
       const next = { ...line, uom: newUom };
-      const found = (line.uoms || []).find((u) => (u.uom || u) === newUom);
-      if (found && typeof found.rate !== 'undefined' && found.rate) {
-        next.rate = parseFloat(found.rate);
-      }
+      const baseRate = resolveLineBaseRate(line);
+      const productLike = {
+        rate: baseRate,
+        price: baseRate,
+        stock_uom: line.stock_uom || line.uom,
+        uoms: line.uoms || [],
+      };
+      next.rate = rateForUom(productLike, newUom);
       next.amount = (parseFloat(next.rate) || 0) * (parseFloat(line.qty) || 0);
       return next;
     }

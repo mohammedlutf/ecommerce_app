@@ -21,7 +21,10 @@ export function useResetOnTabPress(navigation, tabName) {
       if (e.target && typeof e.target === 'string' && !e.target.includes(tabName)) {
         return;
       }
-      navigation.popToTop();
+      const state = navigation.getState();
+      if (state && Array.isArray(state.routes) && state.routes.length > 1) {
+        navigation.popToTop();
+      }
     });
 
     return () => {

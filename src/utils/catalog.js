@@ -7,19 +7,33 @@
  * resolves every case against the product base rate.
  */
 
+function toRate(value) {
+  if (value === undefined || value === null || value === '') return NaN;
+  const n = parseFloat(value);
+  return Number.isNaN(n) ? NaN : n;
+}
+
+function pickRate(...values) {
+  for (const value of values) {
+    const n = toRate(value);
+    if (!Number.isNaN(n)) return n;
+  }
+  return NaN;
+}
+
 export function resolveUoms(product) {
   const list =
     product && Array.isArray(product.uoms) && product.uoms.length
       ? product.uoms
       : [];
-  const baseRate = product ? parseFloat(product.rate || product.price) || 0 : 0;
+  const baseRate = product ? pickRate(product.rate, product.price, product.price_list_rate) || 0 : 0;
   const baseUom = product ? product.stock_uom : null;
 
   const normalized = list.map((u) => {
     const uomName = typeof u === 'string' ? u : u && u.uom ? u.uom : '';
     const explicitRate =
-      u && typeof u.rate !== 'undefined' && u.rate !== null
-        ? parseFloat(u.rate)
+      u && typeof u === 'object'
+        ? pickRate(u.rate, u.price, u.price_list_rate)
         : NaN;
     const factor =
       u && u.conversion_factor ? parseFloat(u.conversion_factor) : NaN;
@@ -43,11 +57,15 @@ export function resolveUoms(product) {
 
 export function rateForUom(product, uom) {
   if (!product) return 0;
-  const baseRate = parseFloat(product.rate || product.price) || 0;
+  const baseRate = pickRate(product.rate, product.price, product.price_list_rate) || 0;
   const uoms = resolveUoms(product);
   const found = uoms.find((u) => u.uom === uom);
-  if (found && typeof found.rate === 'number' && found.rate) {
-    return found.rate;
+
+  if (found) {
+    const parsedRate = toRate(found.rate);
+    if (!Number.isNaN(parsedRate)) {
+      return parsedRate;
+    }
   }
   return baseRate;
 }
