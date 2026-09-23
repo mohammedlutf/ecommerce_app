@@ -136,23 +136,26 @@ export function CartProvider({ children }) {
   // user actions only.
   useLiveRefresh(() => fetchCart(true), { intervalMs: 0, isEnabled: true });
 
-  // Apply a locally-computed next cart immediately (optimistic UI), then let
-  // the server round-trip reconcile with the authoritative payload.
+  // Apply a locally-computed next cart immediately (optimistic UI). Updates are
+  // always functional (`setItems(prev => ...)`) so rapid taps build on the
+  // latest state instead of stale closures.
   function applyOptimistic(updateFn, payload) {
     setItems((cur) => updateFn(cur, payload));
   }
 
-  // Reconcile after an API mutation: apply a full cart payload when the server
-  // returns one and no newer mutation happened in the meantime.
+  // Reconcile after an API mutation. A mutation response can arrive before the
+  // server's quote document is fully recomputed, so we NEVER replace the local
+  // (optimistically applied) cart from a mutation response — doing so made items
+  // visually "snap back", forced double taps, and resurrected deleted lines.
+  // The local cart is the source of truth during a session; it is reconciled
+  // with the server on initial mount / foreground refresh instead.
   function reconcile(data, startedVersion) {
-    if (!data || !Array.isArray(data.items)) return;
     if (startedVersion !== mutationVersion.current) return;
-    setItems(data.items);
-    if (data.currency) setCurrency(data.currency);
+    if (data && data.currency) setCurrency(data.currency);
   }
 
-  // Apply a mutation optimistically to the local cart instantly, then reconcile
-  // with the server response when it lands. If the request fails, the exact
+  // Apply a mutation optimistically to the local cart instantly, then run the
+  // network request concurrently in the background. If it fails, the exact
   // pre-mutation snapshot is restored — no extra network round-trip required.
   async function runMutation(updateFn, payload, apiFn) {
     setActionLoading(true);
@@ -160,10 +163,10 @@ export function CartProvider({ children }) {
     const version = ++mutationVersion.current;
     applyOptimistic(updateFn, payload);
     try {
-      const data = await apiFn();
-      reconcile(data, version);
-      return data;
+      await apiFn();
+      return;
     } catch (err) {
+      // Only roll back if no newer mutation built on top of ours.
       if (mutationVersion.current === version) {
         setItems(snapshot);
       }

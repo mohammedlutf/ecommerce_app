@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from './Icon';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
@@ -25,32 +25,28 @@ export default function QuantityStepper({
       <TouchableOpacity
         activeOpacity={0.7}
         onPress={onDecrement}
-        disabled={isMin || loading}
+        disabled={isMin}
         style={[styles.button, isSm && styles.buttonSm, isLg && styles.buttonLg, isMin && styles.buttonDisabled]}
       >
         <Icon name="remove" size={isSm ? 14 : 18} color={isMin ? Colors.outline : Colors.primary} />
       </TouchableOpacity>
 
       <View style={[styles.quantityWrapper, isSm && styles.quantityWrapperSm]}>
-        {loading ? (
-          <ActivityIndicator size="small" color={Colors.primary} />
-        ) : (
-          <Text
-            style={[
-              styles.quantityText,
-              isSm && styles.quantityTextSm,
-              isLg && styles.quantityTextLg,
-            ]}
-          >
-            {quantity}
-          </Text>
-        )}
+        <Text
+          style={[
+            styles.quantityText,
+            isSm && styles.quantityTextSm,
+            isLg && styles.quantityTextLg,
+          ]}
+        >
+          {quantity}
+        </Text>
       </View>
 
       <TouchableOpacity
         activeOpacity={0.7}
         onPress={onIncrement}
-        disabled={isMax || loading}
+        disabled={isMax}
         style={[styles.button, isSm && styles.buttonSm, isLg && styles.buttonLg, isMax && styles.buttonDisabled]}
       >
         <Icon name="add" size={isSm ? 14 : 18} color={isMax ? Colors.outline : Colors.primary} />

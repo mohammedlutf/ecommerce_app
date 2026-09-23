@@ -104,21 +104,19 @@ function ToastItem({ toast, onDone }) {
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const insets = useSafeAreaInsets();
-  const queue = useRef([]);
 
   const removeToast = useCallback((id) => {
+    // Functional update — never reads a possibly-stale closure array, and a
+    // dismissed toast is gone from state for good (no ghost reappears).
     setToasts((current) => current.filter((t) => t.id !== id));
   }, []);
 
-  const show = useCallback(
-    (type = 'info', text, duration = 3200) => {
-      const id = ++toastCounter;
-      queue.current.push({ id, type, text, duration });
-      if (queue.current.length > 3) queue.current.shift();
-      setToasts([...queue.current]);
-    },
-    []
-  );
+  const show = useCallback((type = 'info', text, duration = 3200) => {
+    const id = ++toastCounter;
+    // Functional update so rapid toasts never race; keep only the latest few
+    // (oldest is overwritten instead of stacking).
+    setToasts((current) => [...current, { id, type, text, duration }].slice(-3));
+  }, []);
 
   const success = useCallback((text, duration) => show('success', text, duration), [show]);
   const error = useCallback((text, duration) => show('error', text, duration), [show]);
