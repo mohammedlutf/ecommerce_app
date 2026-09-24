@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -93,20 +94,11 @@ export default function HomeScreen({ navigation }) {
     <SafeAreaView style={styles.safeArea}>
       {/* Top App Header */}
       <View style={styles.topHeader}>
-        <View style={styles.brandRow}>
-          <LinearGradient
-            colors={['#22C55E', '#16A34A', Colors.primaryDark]}
-            style={styles.brandLogo}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <Icon name="storefront" size={20} color="#ffffff" />
-          </LinearGradient>
-          <View>
-            <Text style={styles.brandName}>سوبرماركت حضرموت</Text>
-            <Text style={styles.brandTagline}>تسوق طازج يومياً</Text>
-          </View>
-        </View>
+        <Image
+          source={require('../../../assets/rtlrecologo.png')}
+          style={styles.brandImage}
+          resizeMode="contain"
+        />
 
         <TouchableOpacity
           activeOpacity={0.8}
@@ -277,30 +269,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderSubtle,
   },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  brandLogo: {
-    width: 42,
+  brandImage: {
+    width: 150,
     height: 42,
-    borderRadius: Radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Shadows.sm,
-  },
-  brandName: {
-    fontSize: Typography.sizes.titleMd,
-    fontFamily: Typography.fontFamilyExtraBold,
-    color: Colors.onSurface,
-    textAlign: 'left',
-  },
-  brandTagline: {
-    fontSize: Typography.sizes.labelSm,
-    color: Colors.textMuted,
-    fontFamily: Typography.fontFamilyMedium,
-    textAlign: 'left',
   },
   cartBtn: {
     position: 'relative',

@@ -25,7 +25,7 @@ export default function OrderConfirmationScreen({ route, navigation }) {
 
         <Text style={styles.title}>تم استلام طلبك بنجاح!</Text>
         <Text style={styles.subtitle}>
-          شكراً لتسوقك معنا في سوبرماركت حضرموت. نقوم الآن بتجهيز طلبيتك بعناية لتصلك في أسرع وقت.
+          شكراً لتسوقك معنا في زاد ماركت. نقوم الآن بتجهيز طلبيتك بعناية لتصلك في أسرع وقت.
         </Text>
 
         {/* Order Details */}

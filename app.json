@@ -1,23 +1,19 @@
 {
   "expo": {
-    "name": "سوبرماركت حضرموت",
+    "name": "زاد ماركت",
     "slug": "hadramout-ecommerce",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#16A34A"
-    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#16A34A"
+        "backgroundImage": "./assets/adaptive-icon-bg.png",
+        "backgroundColor": "#E7F6EC"
       },
       "package": "com.mohammedlutfdalal.hadramoutecommerce"
     },
@@ -28,7 +24,15 @@
       }
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#E7F6EC",
+          "image": "./assets/splash.png",
+          "resizeMode": "cover"
+        }
+      ]
     ]
   }
 }

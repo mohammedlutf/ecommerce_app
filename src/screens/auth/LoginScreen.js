@@ -216,8 +216,8 @@ export default function LoginScreen({ navigation }) {
                   <Icon name="storefront" size={38} color="#ffffff" />
                 </LinearGradient>
               </View>
-              <Text style={styles.brandTitle}>سوبرماركت حضرموت</Text>
-              <Text style={styles.brandTagline}>تسوق طازج وتوصيل سريع حتى باب منزلك</Text>
+              <Text style={styles.brandTitle}>زاد ماركت</Text>
+             <Text style={styles.brandTagline}>تسوق طازج وتوصيل سريع حتى باب منزلك</Text>
             </View>
 
             {/* Card */}
