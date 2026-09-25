@@ -292,11 +292,11 @@ export default function ProductsScreen({ route, navigation }) {
   // --- Custom gesture-driven pager --------------------------------------------
   // A native horizontal pager flips direction unexpectedly in RTL context, so
   // the page transitions are driven by translateX + PanResponder with an
-  // explicit, deterministic rule: swipe LEFT = next child, swipe RIGHT = back.
+  // explicit, deterministic rule: swipe RIGHT = next child, swipe LEFT = back.
   const baseOffset = useRef(new Animated.Value(0)).current;
   const dragOffset = useRef(new Animated.Value(0)).current;
   const translateX = Animated.add(baseOffset, dragOffset);
-
+  
   const activeIndexRef = useRef(activeChildIndex);
   activeIndexRef.current = activeChildIndex;
   const childPagesRef = useRef(childPages);
@@ -313,13 +313,13 @@ export default function ProductsScreen({ route, navigation }) {
       Animated.parallel([
         Animated.timing(baseOffset, {
           toValue: x,
-          duration: 300,
+          duration: 220,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.timing(dragOffset, {
           toValue: 0,
-          duration: 300,
+          duration: 220,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
@@ -348,14 +348,17 @@ export default function ProductsScreen({ route, navigation }) {
         // in from the left (dragging right). Blocks rubber-banding past edges.
         const lower = -(count - 1 - startIndex) * width;
         const upper = startIndex * width;
+        // The drag is mirrored so a rightward swipe pulls the NEXT page in
+        // (reversed scrolling): as the finger moves right, the track glides
+        // left and the following page is revealed from the right edge.
         dragOffset.setValue(Math.max(lower, Math.min(upper, g.dx)));
       },
       onPanResponderRelease: (_, g) => {
         const start = activeIndexRef.current;
-        const threshold = width * 0.25;
+        const threshold = width * 0.15;
         let target = start;
-        if (g.dx < -threshold || g.vx < -0.5) target = start + 1; // swipe left → next
-        else if (g.dx > threshold || g.vx > 0.5) target = start - 1; // swipe right → previous
+        if (g.dx > threshold || g.vx > 0.5) target = start + 1; // swipe right → next
+        else if (g.dx < -threshold || g.vx < -0.5) target = start - 1; // swipe left → previous
         target = Math.max(0, Math.min(target, childPagesRef.current.length - 1));
         if (target !== start) {
           // Commit immediately so the chips + counter react while the track is
@@ -527,9 +530,68 @@ export default function ProductsScreen({ route, navigation }) {
               // Only the active page mounts its product list. Other pages are
               // lightweight placeholders so a parent with many children does not
               // mount dozens of nested FlatLists / product cards at once.
-              if (!isActive) {
-                return (
-                  <View key={`${idx}-${key}`} style={[styles.page, { width }]}>
+              return (
+                <View
+                  key={`${idx}-${key}`}
+                  style={[styles.page, { width }]}
+                >
+                  {isActive ? (
+                    <PageContent>
+                      <FlatList
+                        data={pageProducts}
+                        keyExtractor={(item, index) => item.item_code || String(index)}
+                        numColumns={2}
+                        columnWrapperStyle={styles.columnWrapper}
+                        contentContainerStyle={styles.listContent}
+                        initialNumToRender={6}
+                        maxToRenderPerBatch={10}
+                        updateCellsBatchingPeriod={60}
+                        windowSize={7}
+                        removeClippedSubviews
+                        renderItem={({ item }) => (
+                          <ProductGridCell product={item} onOpen={onOpen} />
+                        )}
+                        onEndReached={() => loadMoreKey(key)}
+                        onEndReachedThreshold={0.4}
+                        refreshControl={
+                          <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={() => refreshKey(key)}
+                            colors={[Colors.primary]}
+                            tintColor={Colors.primary}
+                          />
+                        }
+                        ListFooterComponent={
+                          <View style={styles.footer}>
+                            {loadingMore ? (
+                              <>
+                                <ActivityIndicator size="small" color={Colors.primary} />
+                                <Text style={styles.footerText}>جاري تحميل المزيد...</Text>
+                              </>
+                            ) : !hasMoreByKey[key] && pageProducts.length > 0 ? (
+                              <Text style={styles.footerText}>— لقد وصلت إلى نهاية القائمة —</Text>
+                            ) : null}
+                          </View>
+                        }
+                        ListEmptyComponent={
+                          loadedKeys[key] ? (
+                            <EmptyState
+                              icon="search-outline"
+                              title="لم يتم العثور على منتجات"
+                              description="جرب البحث بكلمات أخرى أو اختر فئة مختلفة."
+                              actionLabel="عرض كل المنتجات"
+                              onAction={showAll}
+                            />
+                          ) : initialLoading ? (
+                            <View style={styles.pageLoader}>
+                              <ActivityIndicator size="small" color={Colors.primary} />
+                              <Text style={styles.pageLoaderText}>جاري تحميل المنتجات...</Text>
+                            </View>
+                          ) : null
+                        }
+                      />
+                    </PageContent>
+                  ) : (
                     <View style={styles.pagePlaceholder}>
                       {pageProducts.length > 0 ? (
                         <Text style={styles.pagePlaceholderText}>
@@ -537,67 +599,7 @@ export default function ProductsScreen({ route, navigation }) {
                         </Text>
                       ) : null}
                     </View>
-                  </View>
-                );
-              }
-
-              return (
-                <View key={`${idx}-${key}`} style={[styles.page, { width }]}>
-                  <PageContent>
-                    <FlatList
-                      data={pageProducts}
-                      keyExtractor={(item, index) => item.item_code || String(index)}
-                      numColumns={2}
-                      columnWrapperStyle={styles.columnWrapper}
-                      contentContainerStyle={styles.listContent}
-                      initialNumToRender={6}
-                      maxToRenderPerBatch={10}
-                      updateCellsBatchingPeriod={60}
-                      windowSize={7}
-                      removeClippedSubviews
-                      renderItem={({ item }) => (
-                        <ProductGridCell product={item} onOpen={onOpen} />
-                      )}
-                      onEndReached={() => loadMoreKey(key)}
-                      onEndReachedThreshold={0.4}
-                      refreshControl={
-                        <RefreshControl
-                          refreshing={refreshing}
-                          onRefresh={() => refreshKey(key)}
-                          colors={[Colors.primary]}
-                          tintColor={Colors.primary}
-                        />
-                      }
-                      ListFooterComponent={
-                        <View style={styles.footer}>
-                          {loadingMore ? (
-                            <>
-                              <ActivityIndicator size="small" color={Colors.primary} />
-                              <Text style={styles.footerText}>جاري تحميل المزيد...</Text>
-                            </>
-                          ) : !hasMoreByKey[key] && pageProducts.length > 0 ? (
-                            <Text style={styles.footerText}>— لقد وصلت إلى نهاية القائمة —</Text>
-                          ) : null}
-                        </View>
-                      }
-                      ListEmptyComponent={
-                        loadedKeys[key] ? (
-                          <EmptyState
-                            icon="search-outline"
-                            title="لم يتم العثور على منتجات"
-                            description="جرب البحث بكلمات أخرى أو اختر فئة مختلفة."
-                            actionLabel="عرض كل المنتجات"
-                            onAction={showAll}
-                          />
-                        ) : initialLoading ? (
-                          <View style={styles.pageLoader}>
-                            <ActivityIndicator size="small" color={Colors.primary} />
-                            <Text style={styles.pageLoaderText}>جاري تحميل المنتجات...</Text>
-                          </View>
-                        ) : null
-                      }
-                    />
-                  </PageContent>
+                  )}
                 </View>
               );
             })}
@@ -658,6 +660,7 @@ const styles = StyleSheet.create({
   },
   pager: {
     flex: 1,
+    overflow: 'hidden',
   },
   pagerTrack: {
     flexDirection: 'row',
@@ -665,6 +668,7 @@ const styles = StyleSheet.create({
   },
   page: {
     flex: 1,
+    backgroundColor: Colors.background,
   },
   pagePlaceholder: {
     flex: 1,

@@ -4,7 +4,7 @@
  */
 export const Colors = {
   // Brand — Fresh Emerald
-  primary: '#16A34A',
+  primary: '#004129',
   primaryDark: '#15803D',
   primaryPress: '#0F7A3D',
   onPrimary: '#FFFFFF',

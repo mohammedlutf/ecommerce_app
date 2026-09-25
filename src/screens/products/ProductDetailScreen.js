@@ -34,6 +34,8 @@ export default function ProductDetailScreen({ route, navigation }) {
   const { isAuthenticated } = useAuth();
   const toast = useToast();
 
+  const [pkgdetail, setPackage] = useState('');
+
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedUom, setSelectedUom] = useState('حبة');
@@ -52,6 +54,7 @@ export default function ProductDetailScreen({ route, navigation }) {
       if (data) {
         setProduct(data);
         if (data.uoms && data.uoms.length > 0) {
+          
           setSelectedUom(data.uoms[0].uom);
         } else if (data.stock_uom) {
           setSelectedUom(data.stock_uom);
@@ -110,16 +113,26 @@ export default function ProductDetailScreen({ route, navigation }) {
   }
 
   function handleSelectUom(uom) {
-    const previousUom = selectedUom;
+    // const previousUom = selectedUom;
     setSelectedUom(uom);
     // If this product is already in the cart under a different UOM, migrate
     // the cart line immediately so the cart reflects the change live.
-    const line = cartItems.find(
-      (i) => i.item_code === product.item_code && i.uom === previousUom
-    );
-    if (line) {
-      updateUOM(product.item_code, uom, previousUom);
+    // console.log(uom)
+    // console.log(product.uoms.find((u) => u.uom === uom).package)
+    // console.log(product.uoms)
+    if (product.stock_uom != uom){
+      setPackage(product.uoms.find((u) => u.uom === uom).package);
+    }else{
+      setPackage('');
     }
+    
+
+    // const line = cartItems.find(
+    //   (i) => i.item_code === product.item_code && i.uom === previousUom
+    // );
+    // if (line) {
+    //   updateUOM(product.item_code, uom, previousUom);
+    // }
   }
 
   async function handleToggleWishlist() {
@@ -217,6 +230,8 @@ export default function ProductDetailScreen({ route, navigation }) {
             <Text style={styles.stockText}>متوفر في المخزون</Text>
           </View>
 
+          
+
           {/* Price */}
           <View style={styles.priceRow}>
             <Text style={styles.priceText}>{formatCurrency(currentRate)}</Text>
@@ -238,6 +253,15 @@ export default function ProductDetailScreen({ route, navigation }) {
               />
             </View>
           )}
+
+          {pkgdetail != '' && (
+            <View style={styles.stockRow}>
+            <View style={styles.stockDot} />
+            <Text style={styles.stockText}>{pkgdetail}</Text>
+          </View>
+          )}
+          
+
 
           {/* Qty */}
           <View style={styles.sectionBlock}>
