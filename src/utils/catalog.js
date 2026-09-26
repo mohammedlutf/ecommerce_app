@@ -71,3 +71,5 @@ export function rateForUom(product, uom) {
 }
 
 export default { resolveUoms, rateForUom };
+
+

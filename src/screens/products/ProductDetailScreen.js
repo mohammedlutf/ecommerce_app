@@ -89,9 +89,15 @@ export default function ProductDetailScreen({ route, navigation }) {
       : [{ uom: product.stock_uom || 'حبة', rate: product.rate || product.price || 0 }];
 
   const currentRate = rateForUom(product, selectedUom);
-  const originalPrice = product.original_rate || null;
+  const originalPrice = product.price - 1000 || product.original_rate || null;
   const discountPercent = calculateDiscount(currentRate, originalPrice);
-
+  
+  console.log("originalPrice",originalPrice)
+  console.log("discountPercent",discountPercent)
+  // console.log(product)
+  console.log("currentRate",currentRate)
+  
+  
   const cartLine = cartItems.find(
     (item) =>
       item.item_code === product.item_code && (item.uom === selectedUom || !item.uom)
@@ -119,7 +125,7 @@ export default function ProductDetailScreen({ route, navigation }) {
     // the cart line immediately so the cart reflects the change live.
     // console.log(uom)
     // console.log(product.uoms.find((u) => u.uom === uom).package)
-    // console.log(product.uoms)
+    // console.log(product)
     if (product.stock_uom != uom){
       setPackage(product.uoms.find((u) => u.uom === uom).package);
     }else{
@@ -613,3 +619,7 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyBold,
   },
 });
+
+
+
+

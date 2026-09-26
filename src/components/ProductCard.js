@@ -46,7 +46,7 @@ export default function ProductCard({
   const scale = useRef(new Animated.Value(1)).current;
 
   const currentRate = rateForUom(product, selectedUom);
-  const originalPrice = product.original_rate || product.old_rate || null;
+  const originalPrice = product.price - 100 || product.original_rate || product.old_rate ||  null;
   const discountPercent = calculateDiscount(currentRate, originalPrice);
 
   const cartLine = cartItems.find(
@@ -129,10 +129,10 @@ export default function ProductCard({
         horizontal ? styles.cardHorizontal : styles.cardVertical,
       ]}
     >
-      {/* Media */}
+      {/* Media resizeMode="contain"*/}
       <View style={styles.imageContainer}>
         {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="contain" />
+          <Image source={{ uri: imageUrl }} style={styles.image}  />
         ) : (
           <View style={styles.placeholderImage}>
             <Icon name="bag-handle-outline" size={42} color={Colors.textMuted} />

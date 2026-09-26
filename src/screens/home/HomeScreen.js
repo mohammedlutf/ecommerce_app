@@ -215,6 +215,7 @@ export default function HomeScreen({ navigation }) {
             ))}
           </View>
         ) : (
+         
           <View style={styles.grid}>
             {products.map((product, idx) => (
               <View key={product.item_code || idx} style={styles.gridItem}>
@@ -229,6 +230,7 @@ export default function HomeScreen({ navigation }) {
               </View>
             ))}
           </View>
+          
         )}
 
         {/* Trust */}
