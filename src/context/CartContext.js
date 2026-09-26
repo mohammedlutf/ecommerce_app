@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import CartAPI from '../api/cart';
 import { rateForUom } from '../utils/catalog';
+import { useAuth } from './AuthContext';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
 const CartContext = createContext(null);
@@ -106,6 +107,13 @@ function computeTotal(items) {
 }
 
 export function CartProvider({ children }) {
+  const { user } = useAuth();
+  // Identity of the signed-in customer. Every cart read is scoped to this, so
+  // logging out and back in as somebody else must never reuse the previous
+  // user's cart (the server derives the cart from the session, but our local
+  // state would otherwise keep showing the old lines).
+  const userKey = user?.email || null;
+
   const [items, setItems] = useState([]);
   const [currency, setCurrency] = useState('ر.ي');
   const [loading, setLoading] = useState(false);
@@ -115,12 +123,21 @@ export function CartProvider({ children }) {
   // mutation must NOT overwrite the newer (optimistic) state when it lands.
   const mutationVersion = useRef(0);
 
+  // The identity a fetch was started for. Any response that lands after the
+  // user changed belongs to the old session and must be dropped, otherwise
+  // user B briefly (or permanently) sees user A's cart.
+  const fetchUserRef = useRef(userKey);
+
   const fetchCart = useCallback(async (silent = false) => {
+    const requestedUser = fetchUserRef.current;
+    if (!requestedUser) return; // no session → nothing to fetch
     if (!silent) setLoading(true);
     const startedVersion = mutationVersion.current;
     try {
       const data = await CartAPI.getCart();
-      if (startedVersion !== mutationVersion.current) return; // stale response
+      // Stale response: a mutation landed, or the user changed mid-flight.
+      if (startedVersion !== mutationVersion.current) return;
+      if (requestedUser !== fetchUserRef.current) return;
       if (data && Array.isArray(data.items)) {
         setItems(data.items);
         if (data.currency) setCurrency(data.currency);
@@ -128,18 +145,27 @@ export function CartProvider({ children }) {
     } catch (err) {
       console.warn('Could not fetch cart:', err.message);
     } finally {
-      if (!silent) setLoading(false);
+      if (!silent && requestedUser === fetchUserRef.current) setLoading(false);
     }
   }, []);
 
+  // Identity change (login as another user, or logout): invalidate every
+  // in-flight response, wipe the previous user's lines immediately, then load
+  // the new session's cart. Doing it in this order is what stops the old data
+  // from flashing or persisting.
   useEffect(() => {
-    fetchCart();
-  }, [fetchCart]);
+    fetchUserRef.current = userKey;
+    ++mutationVersion.current;
+    setItems([]);
+    setCurrency('ر.ي');
+    setActionLoading(false);
+    if (userKey) fetchCart();
+  }, [userKey, fetchCart]);
 
   // Foreground sync: re-fetch the cart once when the app returns to the
   // foreground. No background polling — data loads on mount and on explicit
   // user actions only.
-  useLiveRefresh(() => fetchCart(true), { intervalMs: 0, isEnabled: true });
+  useLiveRefresh(() => fetchCart(true), { intervalMs: 0, isEnabled: !!userKey });
 
   // Apply a locally-computed next cart immediately (optimistic UI). Updates are
   // always functional (`setItems(prev => ...)`) so rapid taps build on the

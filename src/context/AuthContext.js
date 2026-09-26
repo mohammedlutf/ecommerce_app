@@ -19,8 +19,16 @@ export function AuthProvider({ children }) {
       await initClientSession();
       const cached = await AsyncStorage.getItem(USER_STORAGE_KEY);
 
+      // Show the cached profile immediately so the app does not flash the
+      // login screen while the network check runs. It is revoked below if the
+      // server says the session is gone.
       if (cached) {
-        setUser(JSON.parse(cached));
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed.email === 'string' && parsed.email) {
+          setUser(parsed);
+        } else {
+          await AsyncStorage.removeItem(USER_STORAGE_KEY);
+        }
       }
 
       // Check active session with server
@@ -32,9 +40,11 @@ export function AuthProvider({ children }) {
         setUser(profile);
         await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(profile));
       } else {
-        if (!cached) {
-          setUser(null);
-        }
+        // The session is no longer valid on the server (expired sid, signed out
+        // elsewhere, guest). The cached profile MUST be dropped, otherwise the
+        // app keeps rendering the previous customer's account, cart and orders.
+        setUser(null);
+        await AsyncStorage.removeItem(USER_STORAGE_KEY);
       }
     } catch (err) {
       console.warn('Session bootstrap warning:', err);

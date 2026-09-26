@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   Modal,
   Alert,
+  Platform,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from '../../components/Icon';
@@ -21,6 +23,7 @@ import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useResetOnTabPress } from '../../hooks/useResetOnTabPress';
+import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
 import CartAPI from '../../api/cart';
 import AddressAPI from '../../api/address';
 import { Colors } from '../../theme/colors';
@@ -32,9 +35,15 @@ import { getImageUrl } from '../../api/client';
 export default function CartScreen({ navigation }) {
   useResetOnTabPress(navigation, 'CartTab');
 
+  // Used to lift the add-address sheet above the keyboard and switch it to a
+  // compact layout, so the keyboard can never cover the form (see the Modal).
+  const keyboardHeight = useKeyboardHeight();
+  const keyboardOpen = keyboardHeight > 0;
+
   const { items, total, currency, loading, updateQuantity, updateUOM, removeItem, clearCart } = useCart();
   const { isAuthenticated, user } = useAuth();
   const toast = useToast();
+  const userKey = (user && user.email) || null;
 
   const [addresses, setAddresses] = useState([]);
   const [selectedAddress, setSelectedAddress] = useState(null);
@@ -47,23 +56,40 @@ export default function CartScreen({ navigation }) {
   const [newAddressPhone, setNewAddressPhone] = useState('');
   const [savingAddress, setSavingAddress] = useState(false);
 
+  // Scope addresses to the signed-in customer, not merely to "logged in", and
+  // clear them first so the previous user's list is never briefly visible.
   useEffect(() => {
-    if (isAuthenticated) {
+    setAddresses([]);
+    setSelectedAddress(null);
+    if (userKey) {
       loadAddresses();
     }
-  }, [isAuthenticated]);
+  }, [userKey]);
 
   async function loadAddresses() {
     try {
       const data = await AddressAPI.getAddresses();
-      if (Array.isArray(data) && data.length > 0) {
-        setAddresses(data);
-        const primary = data.find((a) => a.is_primary_address) || data[0];
+      const list = Array.isArray(data) ? data : [];
+      // Always replace the list, including with an empty one. Skipping the
+      // update for an empty response left the PREVIOUS user's addresses on
+      // screen after logging in as somebody else.
+      setAddresses(list);
+      if (list.length > 0) {
+        const primary = list.find((a) => a.is_primary_address) || list[0];
         setSelectedAddress(primary);
+      } else {
+        setSelectedAddress(null);
       }
     } catch (err) {
       console.warn('Could not load addresses:', err);
     }
+  }
+
+  function closeAddAddressModal() {
+    // Dismiss the keyboard first, otherwise it lingers over the cart for a
+    // moment after the sheet is gone.
+    Keyboard.dismiss();
+    setShowAddAddressModal(false);
   }
 
   async function handleAddAddress() {
@@ -79,7 +105,7 @@ export default function CartScreen({ navigation }) {
         phone: newAddressPhone || (user && user.email),
         addressTitle: 'عنوان التوصيل',
       });
-      setShowAddAddressModal(false);
+      closeAddAddressModal();
       setNewAddressLine('');
       setNewAddressPhone('');
       toast.success('تم إضافة العنوان بنجاح');
@@ -358,73 +384,101 @@ export default function CartScreen({ navigation }) {
 
       {/* Add Address Modal */}
       <Modal visible={showAddAddressModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>إضافة عنوان توصيل جديد</Text>
-              <TouchableOpacity onPress={() => setShowAddAddressModal(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Icon name="close" size={22} color={Colors.textMuted} />
-              </TouchableOpacity>
-            </View>
+        {/*
+          A React Native <Modal> is its own window, and on Android that window
+          does NOT resize when the keyboard opens — so the sheet stayed centred
+          and the keyboard covered everything below the first field. Padding the
+          overlay by the measured keyboard height lifts it into the visible
+          area, and the compact styles below shrink the sheet enough that all
+          three fields AND the buttons fit on screen at once instead of one
+          field at a time.
+        */}
+        <View
+          style={[
+            styles.modalOverlay,
+            { paddingBottom: keyboardHeight + 12 },
+            keyboardOpen && styles.modalOverlayCompact,
+          ]}
+        >
+          <ScrollView
+            contentContainerStyle={[
+              styles.modalScrollContent,
+              keyboardOpen && styles.modalScrollContentCompact,
+            ]}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
+            <View style={[styles.modalContent, keyboardOpen && styles.modalContentCompact]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>إضافة عنوان توصيل جديد</Text>
+                <TouchableOpacity onPress={closeAddAddressModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Icon name="close" size={22} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
 
-            <View style={styles.modalInputGroup}>
-              <Text style={styles.modalLabel}>المدينة / المنطقة</Text>
-              <TextInput
-                value={newAddressCity}
-                onChangeText={setNewAddressCity}
-                placeholder="مأرب، حي الروضة، إلخ..."
-                placeholderTextColor={Colors.textMuted}
-                style={styles.modalInput}
-                textAlign="right"
-              />
-            </View>
+              <View style={styles.modalInputGroup}>
+                {!keyboardOpen && <Text style={styles.modalLabel}>المدينة / المنطقة</Text>}
+                <TextInput
+                  value={newAddressCity}
+                  onChangeText={setNewAddressCity}
+                  placeholder="المدينة / المنطقة — مثال: مأرب، حي الروضة"
+                  placeholderTextColor={Colors.textMuted}
+                  style={[styles.modalInput, keyboardOpen && styles.modalInputCompact]}
+                  textAlign="right"
+                />
+              </View>
 
-            <View style={styles.modalInputGroup}>
-              <Text style={styles.modalLabel}>العنوان بالتفصيل (الشارع، المعلم القريب)</Text>
-              <TextInput
-                value={newAddressLine}
-                onChangeText={setNewAddressLine}
-                placeholder="الشارع العام، بجوار مسجد..."
-                placeholderTextColor={Colors.textMuted}
-                style={styles.modalInput}
-                textAlign="right"
-              />
-            </View>
+              <View style={styles.modalInputGroup}>
+                {!keyboardOpen && <Text style={styles.modalLabel}>العنوان بالتفصيل (الشارع، المعلم القريب)</Text>}
+                <TextInput
+                  value={newAddressLine}
+                  onChangeText={setNewAddressLine}
+                  placeholder="العنوان بالتفصيل — الشارع العام، بجوار مسجد"
+                  placeholderTextColor={Colors.textMuted}
+                  style={[styles.modalInput, keyboardOpen && styles.modalInputCompact]}
+                  textAlign="right"
+                />
+              </View>
 
-            <View style={styles.modalInputGroup}>
-              <Text style={styles.modalLabel}>رقم هاتف المستلم</Text>
-              <TextInput
-                value={newAddressPhone}
-                onChangeText={setNewAddressPhone}
-                placeholder="77XXXXXXX"
-                placeholderTextColor={Colors.textMuted}
-                keyboardType="phone-pad"
-                style={styles.modalInput}
-                textAlign="right"
-              />
-            </View>
+              <View style={styles.modalInputGroup}>
+                {!keyboardOpen && <Text style={styles.modalLabel}>رقم هاتف المستلم</Text>}
+                <TextInput
+                  value={newAddressPhone}
+                  onChangeText={setNewAddressPhone}
+                  placeholder="رقم هاتف المستلم — 77XXXXXXX"
+                  placeholderTextColor={Colors.textMuted}
+                  keyboardType="phone-pad"
+                  returnKeyType="done"
+                  onSubmitEditing={handleAddAddress}
+                  style={[styles.modalInput, keyboardOpen && styles.modalInputCompact]}
+                  textAlign="right"
+                />
+              </View>
 
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                onPress={() => setShowAddAddressModal(false)}
-                style={styles.modalCancelBtn}
-              >
-                <Text style={styles.modalCancelText}>إلغاء</Text>
-              </TouchableOpacity>
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  onPress={closeAddAddressModal}
+                  style={styles.modalCancelBtn}
+                >
+                  <Text style={styles.modalCancelText}>إلغاء</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={handleAddAddress}
-                disabled={savingAddress}
-                style={styles.modalSaveBtn}
-              >
-                {savingAddress ? (
-                  <ActivityIndicator color="#ffffff" size="small" />
-                ) : (
-                  <Text style={styles.modalSaveText}>حفظ العنوان</Text>
-                )}
-              </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleAddAddress}
+                  disabled={savingAddress}
+                  style={styles.modalSaveBtn}
+                >
+                  {savingAddress ? (
+                    <ActivityIndicator color="#ffffff" size="small" />
+                  ) : (
+                    <Text style={styles.modalSaveText}>حفظ العنوان</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
     </SafeAreaView>
@@ -683,11 +737,37 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 20,
   },
+  modalOverlayCompact: {
+    padding: 12,
+  },
+  modalScrollContent: {
+    // `flexGrow` keeps the sheet vertically centred when it fits, and lets the
+    // container grow (and scroll) instead of clipping when it does not.
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+  modalScrollContentCompact: {
+    // With the keyboard up, glue the sheet to the bottom of the visible area so
+    // it rests directly on top of it.
+    justifyContent: 'flex-end',
+  },
   modalContent: {
     backgroundColor: Colors.surfaceContainerLowest,
     borderRadius: Radius.xxl,
     padding: 20,
     gap: 14,
+  },
+  modalContentCompact: {
+    // Shrink the sheet so all three fields and the buttons are visible at once
+    // rather than one field at a time.
+    padding: 14,
+    borderRadius: Radius.xl,
+    gap: 8,
+  },
+  modalInputCompact: {
+    height: 42,
+    paddingHorizontal: 10,
+    fontSize: Typography.sizes.bodySm,
   },
   modalHeader: {
     flexDirection: 'row',

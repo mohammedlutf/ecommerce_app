@@ -15,6 +15,7 @@
         "backgroundImage": "./assets/adaptive-icon-bg.png",
         "backgroundColor": "#E7F6EC"
       },
+      "softwareKeyboardLayoutMode": "resize",
       "package": "com.mohammedlutfdalal.hadramoutecommerce"
     },
     "extra": {

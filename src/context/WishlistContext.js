@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import WishlistAPI from '../api/wishlist';
 import { useAuth } from './AuthContext';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
@@ -6,32 +6,42 @@ import { useLiveRefresh } from '../hooks/useLiveRefresh';
 const WishlistContext = createContext(null);
 
 export function WishlistProvider({ children }) {
-  const { isAuthenticated } = useAuth();
+  const { user } = useAuth();
+  // Scope the wishlist to the signed-in customer, not merely to "logged in".
+  // Two different users are both logged in at different times, and the old
+  // boolean dependency never fired when one replaced the other.
+  const userKey = user?.email || null;
+
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // The identity each fetch was started for, so a response that arrives after a
+  // user switch is discarded instead of overwriting the new user's list.
+  const fetchUserRef = useRef(userKey);
+
   const fetchWishlist = useCallback(async () => {
+    const requestedUser = fetchUserRef.current;
+    if (!requestedUser) return;
     setLoading(true);
     try {
       const data = await WishlistAPI.getWishlistItems();
+      if (requestedUser !== fetchUserRef.current) return;
       setItems(Array.isArray(data) ? data : []);
     } catch (err) {
       console.warn('Could not load wishlist:', err.message);
     } finally {
-      setLoading(false);
+      if (requestedUser === fetchUserRef.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchWishlist();
-    } else {
-      setItems([]);
-    }
-  }, [isAuthenticated, fetchWishlist]);
+    fetchUserRef.current = userKey;
+    setItems([]);
+    if (userKey) fetchWishlist();
+  }, [userKey, fetchWishlist]);
 
   // Keep the wishlist in sync when the app returns to the foreground.
-  useLiveRefresh(fetchWishlist, { intervalMs: 0, isEnabled: isAuthenticated });
+  useLiveRefresh(fetchWishlist, { intervalMs: 0, isEnabled: !!userKey });
 
   function isWishlisted(itemCode) {
     if (!itemCode) return false;

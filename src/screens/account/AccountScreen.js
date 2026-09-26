@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from '../../components/Icon';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
@@ -21,9 +22,47 @@ import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
 import { useResetOnTabPress } from '../../hooks/useResetOnTabPress';
-import OrdersAPI from '../../api/orders';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
+import OrdersAPI, { ORDERS_PAGE_SIZE } from '../../api/orders';
 import AddressAPI from '../../api/address';
 import LoginScreen from '../auth/LoginScreen';
+
+// `transaction_date` is date-only, so several orders placed on the same day come
+// back from the server in an arbitrary order. Sorting again on the client with
+// `creation`/`modified` as a tiebreaker guarantees the newest order is always
+// the first card, which is what "recent order on top" needs.
+const ORDER_DATE_FIELDS = ['transaction_date', 'creation', 'modified', 'posting_date'];
+
+function orderTimestamp(order) {
+  for (let i = 0; i < ORDER_DATE_FIELDS.length; i += 1) {
+    const value = order && order[ORDER_DATE_FIELDS[i]];
+    if (!value) continue;
+    const parsed = new Date(value).getTime();
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return 0;
+}
+
+function sortByNewest(list) {
+  return list.slice().sort((a, b) => {
+    const diff = orderTimestamp(b) - orderTimestamp(a);
+    if (diff !== 0) return diff;
+    return String((b && b.name) || '').localeCompare(String((a && a.name) || ''));
+  });
+}
+
+// An order can legitimately appear on two pages: placing a new order shifts the
+// list by one, so the last order of page 1 reappears at the top of page 2.
+function dedupeOrders(list) {
+  const seen = new Set();
+  return list.filter((order) => {
+    const key = order && order.name;
+    if (!key) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
 export default function AccountScreen({ navigation }) {
   useResetOnTabPress(navigation, 'AccountTab');
@@ -32,35 +71,150 @@ export default function AccountScreen({ navigation }) {
   const { fetchCart } = useCart();
   const toast = useToast();
 
+  // Scope everything to the signed-in customer. Keying on the email (not just
+  // "is logged in") is what makes a logout → login as somebody else start from
+  // a clean slate instead of the previous user's data.
+  const userKey = (user && user.email) || null;
+
   const [activeTab, setActiveTab] = useState('orders'); // 'orders' | 'addresses'
   const [orders, setOrders] = useState([]);
+  const [ordersTotal, setOrdersTotal] = useState(0);
+  // The endpoint only started reporting a real total once it supported paging.
+  // Until we have loaded a page successfully, fall back to what we hold.
+  const [totalKnown, setTotalKnown] = useState(false);
+  const [hasMoreOrders, setHasMoreOrders] = useState(false);
   const [addresses, setAddresses] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadAccountData();
-    }
-  }, [isAuthenticated, activeTab]);
+  // Bumped on every request; a response whose id is stale (user switched, tab
+  // switched, a newer request started) is dropped instead of overwriting state.
+  const requestRef = useRef(0);
+  // Latest values readable from callbacks without becoming effect dependencies.
+  const userKeyRef = useRef(userKey);
+  userKeyRef.current = userKey;
+  const dataRef = useRef({ orders: [], addresses: [] });
+  dataRef.current = { orders, addresses };
+  const hasLoadedRef = useRef(false);
 
-  async function loadAccountData() {
-    setLoading(true);
-    try {
-      if (activeTab === 'orders') {
-        const orderData = await OrdersAPI.getOrders();
-        setOrders(Array.isArray(orderData) ? orderData : []);
-      } else {
-        const addrData = await AddressAPI.getAddresses();
-        setAddresses(Array.isArray(addrData) ? addrData : []);
+  const loadOrders = useCallback(
+    async ({ start = 0, append = false, showSpinner = true } = {}) => {
+      const requestId = ++requestRef.current;
+      const requestedUser = userKeyRef.current;
+      if (!requestedUser) return;
+
+      if (append) setLoadingMore(true);
+      else if (showSpinner) setLoading(true);
+
+      try {
+        const data = await OrdersAPI.getOrders({ start, pageSize: ORDERS_PAGE_SIZE });
+        if (requestId !== requestRef.current) return;
+        if (requestedUser !== userKeyRef.current) return;
+
+        const page = sortByNewest(data.orders);
+        if (append) {
+          setOrders((prev) => sortByNewest(dedupeOrders([...prev, ...page])));
+        } else {
+          setOrders(page);
+        }
+        setOrdersTotal(data.total);
+        setTotalKnown(true);
+        setHasMoreOrders(data.hasMore);
+      } catch (err) {
+        console.warn('Error loading orders:', err);
+      } finally {
+        if (requestId === requestRef.current) {
+          if (append) setLoadingMore(false);
+          else if (showSpinner) setLoading(false);
+          setRefreshing(false);
+        }
       }
+    },
+    []
+  );
+
+  const loadAddresses = useCallback(async ({ showSpinner = true } = {}) => {
+    const requestId = ++requestRef.current;
+    const requestedUser = userKeyRef.current;
+    if (!requestedUser) return;
+
+    if (showSpinner) setLoading(true);
+    try {
+      const data = await AddressAPI.getAddresses();
+      if (requestId !== requestRef.current) return;
+      if (requestedUser !== userKeyRef.current) return;
+      setAddresses(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.warn('Error loading account data:', err);
+      console.warn('Error loading addresses:', err);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestId === requestRef.current) {
+        if (showSpinner) setLoading(false);
+        setRefreshing(false);
+      }
     }
+  }, []);
+
+  const loadAccountData = useCallback(
+    (options = {}) => {
+      if (activeTab === 'orders') return loadOrders(options);
+      return loadAddresses(options);
+    },
+    [activeTab, loadOrders, loadAddresses]
+  );
+
+  // A different user (or a logout) must never see the previous customer's
+  // orders or addresses. Clear the cached lists and invalidate any in-flight
+  // request before the reload below runs.
+  useEffect(() => {
+    ++requestRef.current;
+    hasLoadedRef.current = false;
+    setOrders([]);
+    setOrdersTotal(0);
+    setTotalKnown(false);
+    setHasMoreOrders(false);
+    setAddresses([]);
+    // A request dropped by the bump above will never reach its own `finally`,
+    // so clear its spinners here or they spin forever.
+    setLoading(false);
+    setLoadingMore(false);
+    setRefreshing(false);
+  }, [userKey]);
+
+  // Auto-refresh whenever this tab regains focus, and whenever the user or the
+  // active tab changes. This is what makes a newly placed order show up the
+  // moment you tap "show my orders" on the confirmation screen, instead of the
+  // stale list you previously had to pull-to-refresh.
+  useFocusEffect(
+    useCallback(() => {
+      if (!userKeyRef.current) return undefined;
+      const currentList =
+        activeTab === 'orders' ? dataRef.current.orders : dataRef.current.addresses;
+      // Spinner only when there is nothing to show yet, so a background
+      // refresh never blanks out a list the user is already reading.
+      const showSpinner = !hasLoadedRef.current || currentList.length === 0;
+      hasLoadedRef.current = true;
+      loadAccountData({ showSpinner });
+      return undefined;
+    }, [activeTab, userKey, loadAccountData])
+  );
+
+  // …and again when the app comes back to the foreground.
+  useLiveRefresh(
+    useCallback(() => loadAccountData({ showSpinner: false }), [loadAccountData]),
+    { intervalMs: 0, isEnabled: !!userKey }
+  );
+
+  function handleLoadMore() {
+    if (loadingMore) return;
+    const start = dataRef.current.orders.length;
+    loadOrders({ start, append: true, showSpinner: false });
+  }
+
+  function handleRefresh() {
+    setRefreshing(true);
+    loadAccountData({ showSpinner: false });
   }
 
   async function handleCancelOrder(orderName) {
@@ -74,7 +228,9 @@ export default function AccountScreen({ navigation }) {
           try {
             await OrdersAPI.cancelOrder(orderName);
             toast.success('تم إلغاء الطلب بنجاح');
-            await loadAccountData();
+            // Reload the first page so a cancelled order drops out of the list
+            // (and the total updates) without blanking the screen.
+            await loadOrders({ showSpinner: false });
           } catch (err) {
             toast.error(err.message || 'تعذر إلغاء الطلب');
           } finally {
@@ -122,10 +278,7 @@ export default function AccountScreen({ navigation }) {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => {
-              setRefreshing(true);
-              loadAccountData();
-            }}
+            onRefresh={handleRefresh}
             colors={[Colors.primaryContainer]}
           />
         }
@@ -158,7 +311,7 @@ export default function AccountScreen({ navigation }) {
             style={[styles.tabButton, activeTab === 'orders' && styles.tabButtonActive]}
           >
             <Text style={[styles.tabButtonText, activeTab === 'orders' && styles.tabButtonTextActive]}>
-              طلباتي ({orders.length})
+              طلباتي ({totalKnown ? ordersTotal : orders.length})
             </Text>
           </TouchableOpacity>
 
@@ -188,15 +341,37 @@ export default function AccountScreen({ navigation }) {
               onAction={() => navigation.navigate('HomeTab')}
             />
           ) : (
-            orders.map((order) => (
-              <OrderCard
-                key={order.name}
-                order={order}
-                actionLoading={actionLoading}
-                onCancelOrder={handleCancelOrder}
-                onReorder={handleReorder}
-              />
-            ))
+            <>
+              {orders.map((order) => (
+                <OrderCard
+                  key={order.name}
+                  order={order}
+                  actionLoading={actionLoading}
+                  onCancelOrder={handleCancelOrder}
+                  onReorder={handleReorder}
+                />
+              ))}
+
+              {hasMoreOrders && (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={handleLoadMore}
+                  disabled={loadingMore}
+                  style={[styles.loadMoreBtn, loadingMore && styles.loadMoreBtnDisabled]}
+                >
+                  {loadingMore ? (
+                    <ActivityIndicator size="small" color={Colors.primary} />
+                  ) : (
+                    <>
+                      <Text style={styles.loadMoreText}>عرض المزيد من الطلبات</Text>
+                      <Text style={styles.loadMoreCount}>
+                        {`تم عرض ${orders.length} من ${ordersTotal}`}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </>
           )
         ) : addresses.length === 0 ? (
           <EmptyState
@@ -310,6 +485,29 @@ const styles = StyleSheet.create({
   loadingWrapper: {
     paddingVertical: 40,
     alignItems: 'center',
+  },
+  loadMoreBtn: {
+    marginTop: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.primaryContainer,
+    backgroundColor: Colors.surfaceContainerLowest,
+    alignItems: 'center',
+    gap: 2,
+  },
+  loadMoreBtnDisabled: {
+    opacity: 0.7,
+  },
+  loadMoreText: {
+    color: Colors.primary,
+    fontSize: Typography.sizes.labelLg,
+    fontWeight: '800',
+  },
+  loadMoreCount: {
+    color: Colors.textMuted,
+    fontSize: Typography.sizes.bodySm,
   },
   logoutBtn: {
     marginTop: 24,

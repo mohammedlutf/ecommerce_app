@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
   LayoutAnimation,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,9 +19,22 @@ import * as Haptics from 'expo-haptics';
 import Icon from '../../components/Icon';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
+
+/**
+ * The segmented switcher highlights the ACTIVE BUTTON rather than sliding a
+ * separate absolutely-positioned thumb between the two tabs.
+ *
+ * The sliding thumb had to guess its own geometry (measured width, plus the
+ * sign of the travel depending on `I18nManager.isRTL`, since a row lays out
+ * right-to-left under forced RTL) and got it wrong — the highlight landed on
+ * the tab that was NOT selected. Letting each button paint its own background
+ * cannot be direction-dependent at all, and it matches the account tab switcher
+ * used elsewhere in the app.
+ */
 
 /**
  * Animated form section — fades + slides up every time the active step changes.
@@ -33,8 +47,16 @@ function AnimatedPanel({ triggerKey, children, style }) {
     opacity.setValue(0);
     translateY.setValue(14);
     Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: 280, useNativeDriver: true }),
-      Animated.spring(translateY, { toValue: 0, friction: 7, tension: 60, useNativeDriver: true }),
+      // Both values run on the JS driver on purpose. An Animated.Value is
+      // permanently claimed by whichever driver touches it first, so mixing
+      // `useNativeDriver` across the values in one Animated.parallel throws
+      // "Attempting to run JS driven animation on animated node that has been
+      // moved to native earlier" as soon as the driver flips between code
+      // updates. A 280ms one-shot transition costs nothing measurable on the JS
+      // thread, and the JS driver also guarantees the panel always settles at
+      // opacity 1 instead of being left invisible by an interrupted animation.
+      Animated.timing(opacity, { toValue: 1, duration: 280, useNativeDriver: false }),
+      Animated.spring(translateY, { toValue: 0, friction: 7, tension: 60, useNativeDriver: false }),
     ]).start();
   }, [triggerKey]);
 
@@ -107,19 +129,15 @@ export default function LoginScreen({ navigation }) {
 
   const [loading, setLoading] = useState(false);
 
-  const thumbTranslate = useRef(new Animated.Value(0)).current;
-  const switcherWidth = useRef(0);
+  // Used to collapse the brand block and bottom-anchor the form while typing,
+  // so the keyboard never leaves the screen shrunken and scrollable.
+  const keyboardHeight = useKeyboardHeight();
+  const keyboardOpen = keyboardHeight > 0;
 
   const switchTab = (tab) => {
     if (tab === activeTab) return;
     Haptics.selectionAsync();
     setActiveTab(tab);
-    Animated.spring(thumbTranslate, {
-      toValue: tab === 'login' ? 0 : (switcherWidth.current - 8) / 2,
-      friction: 8,
-      tension: 70,
-      useNativeDriver: true,
-    }).start();
   };
 
   async function handleLogin() {
@@ -197,26 +215,44 @@ export default function LoginScreen({ navigation }) {
     <LinearGradient colors={['#F3FBF6', '#F8FAF9', '#FFFFFF']} style={{ flex: 1 }}>
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
+          // On Android the window itself resizes (`softwareKeyboardLayoutMode:
+          // "resize"` in app.json), so the ScrollView gets shorter and stays
+          // scrollable — no extra offset needed (and adding one would shift the
+          // layout twice). iOS does not resize the window, so it needs padding.
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={{ flex: 1 }}
         >
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              // While typing, sit the form directly on top of the keyboard
+              // instead of centring it inside the shrunken viewport (which is
+              // what made the whole screen appear to jump and scroll).
+              keyboardOpen && styles.scrollContentKeyboardOpen,
+            ]}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+            showsVerticalScrollIndicator={false}
           >
-            {/* Brand */}
-            <View style={styles.brandWrap}>
-              <View style={styles.logoTile}>
-                <LinearGradient
+            {/* Brand — collapsed while typing to free vertical space */}
+            <View style={[styles.brandWrap, keyboardOpen && styles.brandWrapCollapsed]}>
+              
+                {/* <LinearGradient
                   colors={['#22C55E', Colors.primary, Colors.primaryDark]}
                   style={styles.logoGradient}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 >
                   <Icon name="storefront" size={38} color="#ffffff" />
-                </LinearGradient>
-              </View>
-              <Text style={styles.brandTitle}>زاد ماركت</Text>
+                </LinearGradient> */}
+
+                <Image
+                          source={require('../../../assets/icon.png')}
+                          style={styles.brandImage}
+                          resizeMode="contain"
+                        />
+              
+              {/* <Text style={styles.brandTitle}>زاد ماركت</Text> */}
              <Text style={styles.brandTagline}>تسوق طازج وتوصيل سريع حتى باب منزلك</Text>
             </View>
 
@@ -254,11 +290,11 @@ export default function LoginScreen({ navigation }) {
               ) : (
                 <>
                   {/* Segmented switcher */}
-                  <View style={styles.tabSwitcher} onLayout={(e) => (switcherWidth.current = e.nativeEvent.layout.width)}>
+                  <View style={styles.tabSwitcher}>
                     <TouchableOpacity
                       activeOpacity={0.85}
                       onPress={() => switchTab('login')}
-                      style={styles.tabButton}
+                      style={[styles.tabButton, activeTab === 'login' && styles.tabButtonActive]}
                     >
                       <Text
                         style={[
@@ -272,7 +308,7 @@ export default function LoginScreen({ navigation }) {
                     <TouchableOpacity
                       activeOpacity={0.85}
                       onPress={() => switchTab('register')}
-                      style={styles.tabButton}
+                      style={[styles.tabButton, activeTab === 'register' && styles.tabButtonActive]}
                     >
                       <Text
                         style={[
@@ -283,13 +319,6 @@ export default function LoginScreen({ navigation }) {
                         حساب جديد
                       </Text>
                     </TouchableOpacity>
-                    <Animated.View
-                      pointerEvents="none"
-                      style={[
-                        styles.tabThumb,
-                        { transform: [{ translateX: thumbTranslate }] },
-                      ]}
-                    />
                   </View>
 
                   {activeTab === 'login' ? (
@@ -433,12 +462,38 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingTop: 24,
+    // Extra room below the submit button so it can always be scrolled clear of
+    // the keyboard instead of ending up underneath it.
+    paddingBottom: 32,
+    // `flexGrow` is required for the centring below to be safe: without it, a
+    // content column taller than the viewport gets centred and its top half
+    // becomes unreachable by scrolling (the "top of the design is cut off"
+    // bug). With flexGrow the container is at least one screen tall, so
+    // centring only applies when there is actually spare room.
+    flexGrow: 1,
     justifyContent: 'center',
+  },
+  scrollContentKeyboardOpen: {
+    // The brand block is collapsed and the keyboard is eating the bottom half of
+    // the screen, so the form is anchored to the bottom and fits without
+    // scrolling — the keyboard must not be able to push the app around.
+    justifyContent: 'flex-end',
+    paddingTop: 12,
+    paddingBottom: 12,
   },
   brandWrap: {
     alignItems: 'center',
     marginBottom: 24,
     marginTop: 12,
+  },
+  brandWrapCollapsed: {
+    // The logo + title + tagline cost ~150dp, which is the difference between
+    // the form fitting above the keyboard and needing to be scrolled.
+    height: 0,
+    marginTop: 0,
+    marginBottom: 0,
+    opacity: 0,
+    overflow: 'hidden',
   },
   logoTile: {
     width: 76,
@@ -472,7 +527,6 @@ const styles = StyleSheet.create({
   },
   tabSwitcher: {
     flexDirection: 'row',
-    position: 'relative',
     backgroundColor: Colors.surfaceContainerLow,
     borderRadius: Radius.full,
     padding: 4,
@@ -483,16 +537,9 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     alignItems: 'center',
     borderRadius: Radius.full,
-    zIndex: 2,
   },
-  tabThumb: {
-    position: 'absolute',
-    top: 4,
-    bottom: 4,
-    left: 4,
-    width: '50%',
+  tabButtonActive: {
     backgroundColor: Colors.surfaceContainerLowest,
-    borderRadius: Radius.full,
     ...Shadows.sm,
   },
   tabButtonText: {
@@ -619,5 +666,9 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     backgroundColor: Colors.outlineVariant,
+  },
+  brandImage: {
+    width: 130,
+    height: 130,
   },
 });

@@ -60,7 +60,10 @@ export default function OrderConfirmationScreen({ route, navigation }) {
           <TouchableOpacity
             activeOpacity={0.9}
             onPress={() => {
-              navigation.popToTop();
+              // No popToTop() here: the Account tab is a sibling tab, so popping
+              // the cart stack first only flashed the empty cart on the way out.
+              // AccountScreen refetches on focus, so the order just placed is
+              // already in the list by the time this screen unmounts.
               navigation.navigate('AccountTab');
             }}
             style={styles.primaryBtn}
