@@ -70,6 +70,25 @@ export function rateForUom(product, uom) {
   return baseRate;
 }
 
-export default { resolveUoms, rateForUom };
+/**
+ * normalizeGroupName — canonical form of an Item Group name for comparisons.
+ *
+ * Frappe stores the same Arabic name with inconsistent spacing/diacritics
+ * ("العروض " vs "العروض", "الألبان" vs "الالبان"), and those strings travel
+ * through deep links, so `===` is too strict to match a tapped group with the
+ * group in the catalog.
+ */
+export function normalizeGroupName(value) {
+  return String(value || '')
+    .replace(/[\u064B-\u0652\u0640]/g, '') // harakat + tatweel
+    .replace(/[\u0622\u0623\u0625\u0671]/g, '\u0627') // آ أ إ ٱ -> ا
+    .replace(/[\u0629\u0649]/g, '\u0647') // ة ى -> ه
+    .replace(/[\u0624\u0626]/g, '\u0648') // ؤ ئ -> و
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+export default { resolveUoms, rateForUom, normalizeGroupName };
 
 

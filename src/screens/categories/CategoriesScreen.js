@@ -119,9 +119,11 @@ export default function CategoriesScreen({ navigation }) {
   }
 
   function selectChild(name) {
+    // `search: undefined` clears any search left in the route params, otherwise
+    // react-navigation's param merge would scope this group to that search.
     navigation.navigate('ProductsTab', {
       screen: 'Products',
-      params: { itemGroup: name },
+      params: { itemGroup: name, search: undefined },
     });
   }
 

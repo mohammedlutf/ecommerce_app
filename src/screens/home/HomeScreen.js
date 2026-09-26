@@ -7,6 +7,7 @@ import {
   StyleSheet,
   RefreshControl,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,14 +16,34 @@ import SearchBar from '../../components/SearchBar';
 import CategoryCard from '../../components/CategoryCard';
 import ProductCard from '../../components/ProductCard';
 import TrustBadge from '../../components/TrustBadge';
-import LoadingSkeleton from '../../components/LoadingSkeleton';
 import CatalogAPI from '../../api/catalog';
 import { useCart } from '../../context/CartContext';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import { useResetOnTabPress } from '../../hooks/useResetOnTabPress';
+import { normalizeGroupName } from '../../utils/catalog';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
+
+const OFFERS_PARENT = 'العروض';
+const OFFERS_ITEMS_PER_CHILD = 15;
+const OFFER_CARD_WIDTH = 152;
+const OFFER_CARD_GAP = 10;
+
+/**
+ * Locate the offers parent group in the hierarchy. Exact (normalized) match
+ * first, then a loose "contains عروض" match so a slightly different spelling
+ * ("عروض" / "العروض（T）") still resolves.
+ */
+function findOffersParent(tree) {
+  if (!Array.isArray(tree) || tree.length === 0) return null;
+  const wanted = normalizeGroupName(OFFERS_PARENT);
+  const exact = tree.find((p) => normalizeGroupName(p.name) === wanted);
+  if (exact) return exact;
+  return (
+    tree.find((p) => normalizeGroupName(p.name).includes(wanted)) || null
+  );
+}
 
 export default function HomeScreen({ navigation }) {
   useResetOnTabPress(navigation, 'HomeTab');
@@ -30,38 +51,76 @@ export default function HomeScreen({ navigation }) {
   const { count: cartCount } = useCart();
 
   const [categories, setCategories] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [offerGroups, setOfferGroups] = useState([]); // [{ name, image }]
+  const [offerProducts, setOfferProducts] = useState({}); // child name -> items
+  const [offersLoading, setOffersLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const openProduct = useCallback(
+    (product) => {
+      const itemCode = product && (product.item_code || product.name);
+      if (!itemCode) return;
+      navigation.navigate('ProductDetail', { itemCode });
+    },
+    [navigation]
+  );
+
   const fetchHome = useCallback(async () => {
+    setOffersLoading(true);
     try {
-      const data = await CatalogAPI.getCatalog({
-        itemGroup: 'all',
-        limit: 20,
-      });
-      if (data) {
-        setProducts(data.items || []);
-        if (data.groups && data.groups.length > 0) {
-          setCategories(data.groups);
-        }
+      // The flat group list for the "الأقسام" rail.
+      const catalog = await CatalogAPI.getCatalog({ itemGroup: 'all', limit: 20 });
+      if (catalog && Array.isArray(catalog.groups) && catalog.groups.length > 0) {
+        setCategories(catalog.groups);
       }
+
+      // "عروضي" — the العروض parent group, its children, and 15 products each.
+      const hierarchy = await CatalogAPI.getItemGroupHierarchy();
+      const parent = findOffersParent(hierarchy);
+      const children = (parent && parent.children) || [];
+      setOfferGroups(children);
+
+      if (children.length === 0) {
+        setOfferProducts({});
+        return;
+      }
+
+      const fetchItems = async (itemGroup) => {
+        const data = await CatalogAPI.getCatalog({
+          itemGroup,
+          limit: OFFERS_ITEMS_PER_CHILD,
+        });
+        return data && Array.isArray(data.items) ? data.items : [];
+      };
+
+      const results = await Promise.all(
+        children.map(async (child) => {
+          try {
+            let items = await fetchItems(child.name);
+            if (items.length === 0) {
+              // Same fallback as the Products screen: the backend often keeps
+              // the products on the parent (or an intermediate) item group, so a
+              // child can come back empty while its parent has items.
+              items = parent ? await fetchItems(parent.name) : [];
+            }
+            return [child.name, items.slice(0, OFFERS_ITEMS_PER_CHILD)];
+          } catch (err) {
+            console.warn(`Could not load offers for "${child.name}":`, err);
+            return [child.name, []];
+          }
+        })
+      );
+      setOfferProducts(Object.fromEntries(results));
     } catch (err) {
       console.warn('Could not load home catalog:', err);
+    } finally {
+      setOffersLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      setInitialLoading(true);
-      await fetchHome();
-      if (mounted) setInitialLoading(false);
-    })();
-    return () => {
-      mounted = false;
-    };
+    fetchHome();
   }, [fetchHome]);
 
   // Live: re-fetch the home strip whenever the app returns to the foreground
@@ -76,9 +135,12 @@ export default function HomeScreen({ navigation }) {
 
   function handleSearchSubmit() {
     if (searchQuery.trim()) {
+      // `itemGroup: undefined` is explicit on purpose: react-navigation MERGES
+      // params, so omitting it would keep the previously deep-linked group and
+      // the results would be filtered by that group instead of the search.
       navigation.navigate('ProductsTab', {
         screen: 'Products',
-        params: { search: searchQuery },
+        params: { search: searchQuery.trim(), itemGroup: undefined },
       });
     }
   }
@@ -86,7 +148,10 @@ export default function HomeScreen({ navigation }) {
   function handleSelectCategory(catName) {
     navigation.navigate('ProductsTab', {
       screen: 'Products',
-      params: { itemGroup: catName === 'الكل' ? undefined : catName },
+      params: {
+        itemGroup: catName === 'الكل' ? undefined : catName,
+        search: undefined,
+      },
     });
   }
 
@@ -196,41 +261,71 @@ export default function HomeScreen({ navigation }) {
           })}
         </ScrollView>
 
-        {/* Products */}
+        {/* عروضي — one scrollable rail per child of the العروض group */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>أحدث المنتجات</Text>
-          <Text style={styles.productCount}>{products.length} منتج</Text>
+          <Text style={styles.sectionTitle}>عروضي</Text>
+          <TouchableOpacity
+            onPress={() => handleSelectCategory(OFFERS_PARENT)}
+            style={styles.seeAllBtn}
+          >
+            <Text style={styles.seeAllText}>عرض الكل</Text>
+            <Icon name="chevron-back" size={14} color={Colors.primary} />
+          </TouchableOpacity>
         </View>
 
-        {initialLoading ? (
-          <View style={styles.grid}>
-            {[1, 2, 3, 4].map((i) => (
-              <View key={i} style={styles.gridItem}>
-                <LoadingSkeleton height={150} borderRadius={Radius.xl} />
-                <View style={{ marginTop: 8 }}>
-                  <LoadingSkeleton height={16} width="80%" />
-                  <LoadingSkeleton height={14} width="40%" style={{ marginTop: 6 }} />
-                </View>
-              </View>
-            ))}
+        {offersLoading ? (
+          <View style={styles.offerRailLoader}>
+            <ActivityIndicator size="small" color={Colors.primary} />
+          </View>
+        ) : offerGroups.length === 0 ? (
+          <View style={styles.offersEmpty}>
+            <Icon name="pricetags-outline" size={20} color={Colors.textMuted} />
+            <Text style={styles.offersEmptyText}>لا توجد عروض متاحة حالياً</Text>
           </View>
         ) : (
-         
-          <View style={styles.grid}>
-            {products.map((product, idx) => (
-              <View key={product.item_code || idx} style={styles.gridItem}>
-                <ProductCard
-                  product={product}
-                  onPress={() =>
-                    navigation.navigate('ProductDetail', {
-                      itemCode: product.item_code,
-                    })
-                  }
-                />
+          offerGroups.map((child) => {
+            const items = offerProducts[child.name] || [];
+            return (
+              <View key={child.name} style={styles.offerBlock}>
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  onPress={() => handleSelectCategory(child.name)}
+                  style={styles.offerHeader}
+                >
+                  <View style={styles.offerHeaderRight}>
+                    <View style={styles.offerDot} />
+                    <Text style={styles.offerTitle} numberOfLines={1}>
+                      {child.name}
+                    </Text>
+                  </View>
+                  {items.length > 0 && (
+                    <Text style={styles.offerCount}>{items.length} منتج</Text>
+                  )}
+                </TouchableOpacity>
+
+                {items.length > 0 ? (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.offerRail}
+                  >
+                    {items.map((item, idx) => (
+                      <View
+                        key={item.item_code || idx}
+                        style={styles.offerCard}
+                      >
+                        <ProductCard product={item} onPress={openProduct} />
+                      </View>
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <Text style={styles.offerEmptyText}>
+                    لا توجد منتجات في هذا القسم حالياً
+                  </Text>
+                )}
               </View>
-            ))}
-          </View>
-          
+            );
+          })
         )}
 
         {/* Trust */}
@@ -387,24 +482,83 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontFamily: Typography.fontFamilySemiBold,
   },
-  productCount: {
-    fontSize: Typography.sizes.labelSm,
-    color: Colors.textMuted,
-    fontFamily: Typography.fontFamilyMedium,
-  },
   categoriesRow: {
     paddingHorizontal: 16,
     paddingVertical: 4,
     gap: 14,
   },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 10,
+  offerBlock: {
+    marginBottom: 18,
   },
-  gridItem: {
-    width: '50%',
-    padding: 6,
+  offerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  offerHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    flex: 1,
+  },
+  offerDot: {
+    width: 7,
+    height: 7,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.secondary,
+  },
+  offerTitle: {
+    flex: 1,
+    fontSize: Typography.sizes.titleMd,
+    fontFamily: Typography.fontFamilyBold,
+    color: Colors.onSurface,
+    textAlign: 'left',
+  },
+  offerCount: {
+    fontSize: Typography.sizes.labelSm,
+    color: Colors.textMuted,
+    fontFamily: Typography.fontFamilyMedium,
+  },
+  offerRail: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: OFFER_CARD_GAP,
+    paddingHorizontal: 16,
+  },
+  offerCard: {
+    width: OFFER_CARD_WIDTH,
+    marginBottom: 4,
+  },
+  offerRailLoader: {
+    height: 180,
+    marginHorizontal: 16,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.surfaceContainerLow,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  offerEmptyText: {
+    paddingHorizontal: 16,
+    fontSize: Typography.sizes.bodySm,
+    color: Colors.textMuted,
+    fontFamily: Typography.fontFamilyMedium,
+    textAlign: 'left',
+  },
+  offersEmpty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    padding: 18,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.surfaceContainerLow,
+  },
+  offersEmptyText: {
+    fontSize: Typography.sizes.bodySm,
+    color: Colors.textMuted,
+    fontFamily: Typography.fontFamilyMedium,
   },
   trustSection: {
     paddingHorizontal: 16,

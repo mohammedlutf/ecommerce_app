@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  I18nManager,
   PanResponder,
   useWindowDimensions,
 } from 'react-native';
@@ -20,6 +21,7 @@ import ProductCard from '../../components/ProductCard';
 import EmptyState from '../../components/EmptyState';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import CatalogAPI from '../../api/catalog';
+import { normalizeGroupName } from '../../utils/catalog';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import { useResetOnTabPress } from '../../hooks/useResetOnTabPress';
 import { Colors } from '../../theme/colors';
@@ -74,26 +76,109 @@ function PageContent({ children }) {
   );
 }
 
+/**
+ * useAutoRevealRow — keeps the selected chip of a horizontal group row on screen.
+ *
+ * A chip row can hold dozens of groups, so after a swipe (or a deep link that
+ * selects a group off-screen) the active chip is invisible. Chips are measured
+ * from the content's START edge — the right edge in RTL — and mapped onto the
+ * ScrollView's `scrollTo` space, which is start-relative as well.
+ *
+ * `rowKey` should be a stable string for the row's items so unrelated re-renders
+ * (e.g. a product page merging into state) do not yank the row back to center.
+ *
+ * Returns `{ scrollRef, scrollProps, measure }`:
+ *   - spread `scrollProps` on the horizontal ScrollView
+ *   - call `measure(index, layoutEvent)` from each chip wrapper's onLayout
+ */
+function useAutoRevealRow(activeIndex, rowKey) {
+  const scrollRef = useRef(null);
+  const metricsRef = useRef({}); // index -> { x, size } (x measured from the LEFT edge)
+  const viewportRef = useRef({ width: 0, contentWidth: 0 });
+  const lastTargetRef = useRef(-1);
+  const activeIndexRef = useRef(activeIndex);
+  activeIndexRef.current = activeIndex;
+
+  const reveal = useCallback((index) => {
+    const scrollNode = scrollRef.current;
+    const metric = metricsRef.current[index];
+    const { width: viewportWidth, contentWidth } = viewportRef.current;
+    if (!scrollNode || !metric || viewportWidth <= 0) return;
+
+    const distanceFromStart = I18nManager.isRTL
+      ? Math.max(0, contentWidth - metric.x - metric.size)
+      : metric.x;
+
+    // Center the chip, then clamp so the row never over-scrolls its bounds.
+    const maxOffset = Math.max(0, contentWidth - viewportWidth);
+    const target = Math.max(
+      0,
+      Math.min(maxOffset, distanceFromStart + metric.size / 2 - viewportWidth / 2)
+    );
+
+    // Layout arrives as a burst of events; ignoring sub-pixel deltas keeps the
+    // row from being re-scrolled (and re-animated) several times in a row.
+    if (Math.abs(target - lastTargetRef.current) < 1) return;
+    lastTargetRef.current = target;
+    scrollNode.scrollTo({ x: target, y: 0, animated: true });
+  }, []);
+
+  useEffect(() => {
+    reveal(activeIndex);
+  }, [activeIndex, rowKey, reveal]);
+
+  const measure = useCallback(
+    (index, event) => {
+      const { x, width } = event.nativeEvent.layout;
+      metricsRef.current[index] = { x, size: width };
+      // `onContentSizeChange` can land before the chip `onLayout` events, so the
+      // active chip also re-centres from here.
+      if (index === activeIndexRef.current) reveal(index);
+    },
+    [reveal]
+  );
+
+  const scrollProps = useMemo(
+    () => ({
+      onLayout: (event) => {
+        viewportRef.current.width = event.nativeEvent.layout.width;
+      },
+      onContentSizeChange: (contentWidth) => {
+        const changed = viewportRef.current.contentWidth !== contentWidth;
+        viewportRef.current.contentWidth = contentWidth;
+        if (changed) reveal(activeIndexRef.current);
+      },
+    }),
+    [reveal]
+  );
+
+  return { scrollRef, scrollProps, measure };
+}
+
 export default function ProductsScreen({ route, navigation }) {
   useResetOnTabPress(navigation, 'ProductsTab');
   const { width } = useWindowDimensions();
 
-  const initialTargetRef = useRef(
+  // The tab stack keeps this screen mounted, so the deep link is read live from
+  // `route.params` instead of being captured once on mount. Otherwise a second
+  // tap on a group (Home / Categories) would re-navigate with new params while
+  // the screen silently kept the first group it ever resolved.
+  const deepLinkTarget =
     route.params?.itemGroup ||
-      (route.params?.category && route.params.category !== ALL_KEY
-        ? route.params.category
-        : null) ||
-      null
-  );
-  const resolvedRef = useRef(false);
+    (route.params?.category && route.params.category !== ALL_KEY
+      ? route.params.category
+      : null) ||
+    null;
+  const deepLinkSearch = route.params?.search || '';
 
   const [tree, setTree] = useState(null); // [{ name, image, children }]
+  const [hierarchyLoading, setHierarchyLoading] = useState(true);
   const [categories, setCategories] = useState([]); // flat fallback groups
   const [activeParent, setActiveParent] = useState(ALL_KEY); // 'all' | parent name
   const [activeChildIndex, setActiveChildIndex] = useState(0);
 
-  const [searchQuery, setSearchQuery] = useState(route.params?.search || '');
-  const [activeSearch, setActiveSearch] = useState(route.params?.search || '');
+  const [searchQuery, setSearchQuery] = useState(deepLinkSearch);
+  const [activeSearch, setActiveSearch] = useState(deepLinkSearch);
 
   // Products are cached per child-group page so swiping back is instant.
   const [productsByKey, setProductsByKey] = useState({});
@@ -237,40 +322,111 @@ export default function ProductsScreen({ route, navigation }) {
   // Live: re-sync the current page when the app returns to the foreground.
   useLiveRefresh(() => loadKey(activeKey), { intervalMs: 0, isEnabled: true });
 
-  // Resolve deep links (category / search from Home) once the hierarchy loads.
-  useEffect(() => {
-    if (resolvedRef.current) return;
-    const target = initialTargetRef.current;
+  // Resolve deep links (category / search from Home or Categories).
+  //
+  // This screen stays mounted inside the tab stack, so this must react to EVERY
+  // new deep link, not just the first one. `handledDeepLinkRef` remembers the
+  // last target that was applied so a re-render (or the hierarchy arriving late)
+  // does not fight the user's own chip/pager selection.
+  const handledDeepLinkRef = useRef(null);
 
-    if (tree) {
-      if (target) {
-        const p = tree.find((x) => x.children.some((c) => c.name === target));
-        if (p) {
-          const kids = p.children.map((c) => c.name);
-          const idx = kids.findIndex((k) => k === target);
-          setActiveParent(p.name);
-          setActiveChildIndex(idx >= 0 ? idx : 0);
-          resolvedRef.current = true;
-          return;
+  const applyDeepLink = useCallback(
+    (target) => {
+      if (!target) return false;
+
+      const wanted = normalizeGroupName(target);
+      if (!wanted) return false;
+
+      if (tree) {
+        // 1) The link points at a leaf (child) group -> open its parent tab and
+        //    land on that child.
+        for (const parent of tree) {
+          const kids = parent.children || [];
+          const idx = kids.findIndex((c) => normalizeGroupName(c.name) === wanted);
+          if (idx >= 0) {
+            setActiveParent(parent.name);
+            setActiveChildIndex(idx);
+            return true;
+          }
         }
+        // 2) The link points at a parent group itself -> open its first child.
+        const parentHit = tree.find((p) => normalizeGroupName(p.name) === wanted);
+        if (parentHit) {
+          setActiveParent(parentHit.name);
+          setActiveChildIndex(0);
+          return true;
+        }
+        return false;
       }
+
+      // 3) No hierarchy available: fall back to the flat group list, where the
+      //    first page is the synthetic "الكل" chip.
+      const idx = categories.findIndex((c) => normalizeGroupName(catName(c)) === wanted);
+      if (idx >= 0) {
+        setActiveParent(ALL_KEY);
+        setActiveChildIndex(idx + 1);
+        return true;
+      }
+      return false;
+    },
+    [tree, categories]
+  );
+
+  useEffect(() => {
+    if (hierarchyLoading) return;
+
+    if (!deepLinkTarget) {
+      // Plain visit (tab press) -> always reset to the "الكل" page so the screen
+      // does not open on whatever group was last deep-linked.
+      if (handledDeepLinkRef.current !== null) {
+        handledDeepLinkRef.current = null;
+        setActiveParent(ALL_KEY);
+        setActiveChildIndex(0);
+        setSearchQuery('');
+        setActiveSearch('');
+      }
+      return;
+    }
+
+    if (handledDeepLinkRef.current === deepLinkTarget) return;
+
+    // Nothing to match against yet: stay pending (the default view is already
+    // "الكل") and retry as soon as the hierarchy or the flat groups arrive.
+    if (tree === null && categories.length === 0) return;
+
+    if (applyDeepLink(deepLinkTarget)) {
+      handledDeepLinkRef.current = deepLinkTarget;
+      // A category link always clears any previous search so the tapped group
+      // shows its own items instead of a filtered subset.
+      setSearchQuery('');
+      setActiveSearch('');
+    } else {
+      // Unresolvable link: fall back to "الكل" instead of leaving a stale page.
+      console.warn(`Item group "${deepLinkTarget}" was not found in the catalog`);
+      handledDeepLinkRef.current = deepLinkTarget;
       setActiveParent(ALL_KEY);
       setActiveChildIndex(0);
-      resolvedRef.current = true;
-    } else if (categories.length > 0) {
-      if (target) {
-        const idx = categories.findIndex((c) => catName(c) === target);
-        setActiveChildIndex(idx >= 0 ? idx + 1 : 0);
-      }
-      resolvedRef.current = true;
     }
-  }, [tree, categories]);
+  }, [deepLinkTarget, hierarchyLoading, tree, categories, applyDeepLink]);
+
+  // A search arriving from Home while this screen is already mounted.
+  const handledSearchRef = useRef(deepLinkSearch);
+  useEffect(() => {
+    if (deepLinkSearch === handledSearchRef.current) return;
+    handledSearchRef.current = deepLinkSearch;
+    setSearchQuery(deepLinkSearch);
+    setActiveSearch(deepLinkSearch);
+  }, [deepLinkSearch]);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const hierarchy = await CatalogAPI.getItemGroupHierarchy();
-      if (mounted) setTree(hierarchy);
+      try {
+        const hierarchy = await CatalogAPI.getItemGroupHierarchy();
+        if (mounted) setTree(hierarchy);
+      } finally {
+        if (mounted) setHierarchyLoading(false);
+      }
     })();
     return () => {
       mounted = false;
@@ -331,6 +487,15 @@ export default function ProductsScreen({ route, navigation }) {
   useEffect(() => {
     settleSlide(activeChildIndex);
   }, [activeChildIndex, childPages.length, settleSlide]);
+
+  // Keep the selected chip of both group rows on screen after a swipe, a chip
+  // press or a deep link. `childPages` is a fresh array on every catalog merge,
+  // so a string signature is used to avoid re-centring while browsing.
+  const childRow = useAutoRevealRow(activeChildIndex, childPages.join('\u0001'));
+  const parentRow = useAutoRevealRow(
+    parentList.indexOf(activeParent),
+    parentList.join('\u0001')
+  );
 
   const panResponder = useRef(
     PanResponder.create({
@@ -441,19 +606,22 @@ export default function ProductsScreen({ route, navigation }) {
           <Text style={styles.chipsLabel}>الأقسام الرئيسية</Text>
         </View> */}
         <ScrollView
+          ref={parentRow.scrollRef}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.chipsRow}
+          {...parentRow.scrollProps}
         >
-          {parentList.map((key) => (
-            <CategoryCard
-              key={key}
-              category={key === ALL_KEY ? 'الكل' : key}
-              variant="chip"
-              chipActiveStyle="underline"
-              isSelected={activeParent === key}
-              onSelect={() => handleSelectParent(key)}
-            />
+          {parentList.map((key, idx) => (
+            <View key={key} onLayout={(event) => parentRow.measure(idx, event)}>
+              <CategoryCard
+                category={key === ALL_KEY ? 'الكل' : key}
+                variant="chip"
+                chipActiveStyle="underline"
+                isSelected={activeParent === key}
+                onSelect={() => handleSelectParent(key)}
+              />
+            </View>
           ))}
         </ScrollView>
       </View>
@@ -474,19 +642,25 @@ export default function ProductsScreen({ route, navigation }) {
           }}
         >
           <ScrollView
+            ref={childRow.scrollRef}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.chipsRow}
             keyboardShouldPersistTaps="handled"
+            {...childRow.scrollProps}
           >
             {childPages.map((key, idx) => (
-              <CategoryCard
+              <View
                 key={`${key}`}
-                category={key === ALL_KEY ? 'الكل' : key}
-                variant="chip"
-                isSelected={idx === activeChildIndex}
-                onSelect={() => handleSelectChild(key)}
-              />
+                onLayout={(event) => childRow.measure(idx, event)}
+              >
+                <CategoryCard
+                  category={key === ALL_KEY ? 'الكل' : key}
+                  variant="chip"
+                  isSelected={idx === activeChildIndex}
+                  onSelect={() => handleSelectChild(key)}
+                />
+              </View>
             ))}
           </ScrollView>
         </Animated.View>
