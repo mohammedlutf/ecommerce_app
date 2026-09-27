@@ -37,36 +37,10 @@ import { Radius, Shadows } from '../../theme/spacing';
  */
 
 /**
- * Animated form section — fades + slides up every time the active step changes.
+ * PrimaryButton — the only animation left on this screen: a subtle press
+ * scale. The form panels are deliberately NOT animated when you switch between
+ * login and create-account, so the content swaps instantly.
  */
-function AnimatedPanel({ triggerKey, children, style }) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(14)).current;
-
-  React.useEffect(() => {
-    opacity.setValue(0);
-    translateY.setValue(14);
-    Animated.parallel([
-      // Both values run on the JS driver on purpose. An Animated.Value is
-      // permanently claimed by whichever driver touches it first, so mixing
-      // `useNativeDriver` across the values in one Animated.parallel throws
-      // "Attempting to run JS driven animation on animated node that has been
-      // moved to native earlier" as soon as the driver flips between code
-      // updates. A 280ms one-shot transition costs nothing measurable on the JS
-      // thread, and the JS driver also guarantees the panel always settles at
-      // opacity 1 instead of being left invisible by an interrupted animation.
-      Animated.timing(opacity, { toValue: 1, duration: 280, useNativeDriver: false }),
-      Animated.spring(translateY, { toValue: 0, friction: 7, tension: 60, useNativeDriver: false }),
-    ]).start();
-  }, [triggerKey]);
-
-  return (
-    <Animated.View style={[{ opacity, transform: [{ translateY }] }, style]}>
-      {children}
-    </Animated.View>
-  );
-}
-
 function PrimaryButton({ onPress, loading, children }) {
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -100,7 +74,7 @@ function PrimaryButton({ onPress, loading, children }) {
 function AuthInput({ icon, ...props }) {
   return (
     <View style={styles.inputWrapper}>
-      <Animated.View pointerEvents="none">{icon}</Animated.View>
+      <View pointerEvents="none">{icon}</View>
       <TextInput
         {...props}
         placeholderTextColor={Colors.textMuted}
@@ -215,20 +189,24 @@ export default function LoginScreen({ navigation }) {
     <LinearGradient colors={['#F3FBF6', '#F8FAF9', '#FFFFFF']} style={{ flex: 1 }}>
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
-          // On Android the window itself resizes (`softwareKeyboardLayoutMode:
-          // "resize"` in app.json), so the ScrollView gets shorter and stays
-          // scrollable — no extra offset needed (and adding one would shift the
-          // layout twice). iOS does not resize the window, so it needs padding.
+          // Android uses `softwareKeyboardLayoutMode: "pan"`, so the window is
+          // never resized and no extra offset is needed here. iOS does resize
+          // the window, so it needs the padding to keep the form visible.
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={{ flex: 1 }}
         >
           <ScrollView
             contentContainerStyle={[
               styles.scrollContent,
-              // While typing, sit the form directly on top of the keyboard
-              // instead of centring it inside the shrunken viewport (which is
-              // what made the whole screen appear to jump and scroll).
-              keyboardOpen && styles.scrollContentKeyboardOpen,
+              // Android runs `softwareKeyboardLayoutMode: "pan"`, so opening the
+              // keyboard no longer resizes the window — the app keeps its exact
+              // layout. The form is padded up by the measured keyboard height
+              // and anchored to the bottom, so it sits just above the keyboard
+              // instead of the keyboard shoving the whole app around.
+              keyboardOpen && {
+                ...styles.scrollContentKeyboardOpen,
+                paddingBottom: keyboardHeight + 16,
+              },
             ]}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
@@ -259,7 +237,7 @@ export default function LoginScreen({ navigation }) {
             {/* Card */}
             <View style={styles.card}>
               {showForgot ? (
-                <AnimatedPanel triggerKey="forgot">
+                <View>
                   <Text style={styles.cardHeadline}>استعادة كلمة المرور</Text>
                   <Text style={styles.cardSubheadline}>
                     أدخل بريدك الإلكتروني وسنرسل لك تعليمات الاستعادة.
@@ -286,7 +264,7 @@ export default function LoginScreen({ navigation }) {
                   >
                     <Text style={styles.linkText}>العودة لتسجيل الدخول</Text>
                   </TouchableOpacity>
-                </AnimatedPanel>
+                </View>
               ) : (
                 <>
                   {/* Segmented switcher */}
@@ -322,7 +300,7 @@ export default function LoginScreen({ navigation }) {
                   </View>
 
                   {activeTab === 'login' ? (
-                    <AnimatedPanel triggerKey="login">
+                    <View>
                       <Text style={styles.cardHeadline}>أهلاً بعودتك 👋</Text>
                       <Text style={styles.cardSubheadline}>
                         سجّل دخولك لتتابع طلباتك ومفضلتك.
@@ -375,9 +353,9 @@ export default function LoginScreen({ navigation }) {
                       <PrimaryButton onPress={handleLogin} loading={loading}>
                         تسجيل الدخول
                       </PrimaryButton>
-                    </AnimatedPanel>
+                    </View>
                   ) : (
-                    <AnimatedPanel triggerKey="register">
+                    <View>
                       <Text style={styles.cardHeadline}>إنشاء حساب جديد ✨</Text>
                       <Text style={styles.cardSubheadline}>
                         ابدأ التسوق واستمتع بالعروض الحصرية.
@@ -432,7 +410,7 @@ export default function LoginScreen({ navigation }) {
                       <PrimaryButton onPress={handleRegister} loading={loading}>
                         إنشاء الحساب
                       </PrimaryButton>
-                    </AnimatedPanel>
+                    </View>
                   )}
                 </>
               )}
@@ -474,12 +452,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   scrollContentKeyboardOpen: {
-    // The brand block is collapsed and the keyboard is eating the bottom half of
-    // the screen, so the form is anchored to the bottom and fits without
-    // scrolling — the keyboard must not be able to push the app around.
+    // The brand block is collapsed, and the container is padded by the keyboard
+    // height inline, so `flex-end` lands the form directly on top of the
+    // keyboard. Nothing below it is reachable-but-hidden, and the window itself
+    // is never resized, so the app never shifts.
     justifyContent: 'flex-end',
     paddingTop: 12,
-    paddingBottom: 12,
   },
   brandWrap: {
     alignItems: 'center',
