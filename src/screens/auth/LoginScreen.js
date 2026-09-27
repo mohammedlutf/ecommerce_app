@@ -248,7 +248,7 @@ export default function LoginScreen({ navigation }) {
                 </LinearGradient> */}
 
                 <Image
-                          source={require('../../../assets/icon.png')}
+                          source={require('../../../assets/login_icon.png')}
                           style={styles.brandImage}
                           resizeMode="contain"
                         />
