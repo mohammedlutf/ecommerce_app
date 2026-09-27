@@ -4,6 +4,7 @@ import {
   initSession,
   saveSessionCookie,
   clearSession as clearSdkSession,
+  hasSessionCookie,
   BASE_URL,
 } from './frappe';
 
@@ -37,6 +38,13 @@ export async function setSessionCookie(cookie) {
 export async function clearSession() {
   await clearSdkSession();
 }
+
+/**
+ * True when a real (non-Guest) session cookie is currently loaded. Used to
+ * detect a login that succeeded without capturing a cookie, which would
+ * otherwise only surface as a sign-out on the next app start.
+ */
+export { hasSessionCookie };
 
 /**
  * Call a Frappe whitelisted method through the SDK.

@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AuthAPI from '../api/auth';
-import { initClientSession, clearSession } from '../api/client';
+import { initClientSession, clearSession, hasSessionCookie } from '../api/client';
+import { USER_STORAGE_KEY } from '../api/sessionKeys';
 
 const AuthContext = createContext(null);
-const USER_STORAGE_KEY = '@ecommerce_user_profile';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -40,9 +40,10 @@ export function AuthProvider({ children }) {
         setUser(profile);
         await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(profile));
       } else {
-        // The session is no longer valid on the server (expired sid, signed out
-        // elsewhere, guest). The cached profile MUST be dropped, otherwise the
-        // app keeps rendering the previous customer's account, cart and orders.
+        // The server does not consider us signed in. That is either a genuinely
+        // expired session or a cookie that was never captured, so drop the
+        // cached profile too — otherwise the app renders the previous
+        // customer's account, cart and orders while every request runs as Guest.
         setUser(null);
         await AsyncStorage.removeItem(USER_STORAGE_KEY);
       }
@@ -58,6 +59,15 @@ export function AuthProvider({ children }) {
     const currentUser = await AuthAPI.getCurrentUser();
     const fallbackId = `${String(combinedNumber).replace(/[^0-9]/g, '')}@yemen.local`;
     const identifierStr = typeof currentUser === 'string' ? currentUser : fallbackId;
+
+    // A login that did not yield a capturable session cookie looks like it
+    // works, then silently signs the user out on the next app start. Surface it
+    // instead of letting it fail invisibly a restart later.
+    if (!hasSessionCookie()) {
+      console.warn(
+        'Login succeeded but no session cookie was captured. The session will not survive a restart.'
+      );
+    }
 
     const profile = {
       email: identifierStr,

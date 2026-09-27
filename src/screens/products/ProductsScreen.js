@@ -667,12 +667,12 @@ export default function ProductsScreen({ route, navigation }) {
       </View>
 
       {/* Results info */}
-      <View style={styles.resultsInfo}>
+      {/* <View style={styles.resultsInfo}>
         <Text style={styles.resultsText}>
           {activeSearch ? `نتائج البحث عن: "${activeSearch}" — ` : ''}
           عرض {activeProducts.length} من المنتجات
         </Text>
-      </View>
+      </View> */}
 
       {showSkeleton ? (
         <View style={styles.skeletonGrid}>

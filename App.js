@@ -11,7 +11,7 @@ import {
 } from '@expo-google-fonts/cairo';
 import { useFonts } from 'expo-font';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AuthProvider } from './src/context/AuthContext';
+import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { CartProvider } from './src/context/CartContext';
 import { WishlistProvider } from './src/context/WishlistContext';
 import { ToastProvider } from './src/context/ToastContext';
@@ -24,7 +24,7 @@ import { Colors } from './src/theme/colors';
  * splash, so a full-bleed image is physically impossible to show there — the OS
  * crops it into `splashscreen_logo.png`. The full-screen artwork is therefore
  * rendered by us instead, layered over the native splash, which we hold open
- * until fonts are ready so there is never a flash of bare background.
+ * until we are ready to show real content.
  */
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -32,14 +32,18 @@ const SPLASH_IMAGE = require('./assets/splash.png');
 const SPLASH_MIN_VISIBLE_MS = 700;
 const SPLASH_FADE_MS = 380;
 
-export default function App() {
-  const [fontsLoaded] = useFonts({
-    Cairo_400Regular,
-    Cairo_500Medium,
-    Cairo_600SemiBold,
-    Cairo_700Bold,
-    Cairo_800ExtraBold,
-  });
+/**
+ * Rendered only once BOTH the fonts and the session bootstrap are done.
+ *
+ * Nothing below this point may issue a request before the persisted `sid` has
+ * been read back out of AsyncStorage: an unauthenticated request sent during
+ * that window gets a `sid=Guest` response, and the app used to react to that by
+ * treating the restore as a sign-out — which is what made every cold start ask
+ * for a fresh login.
+ */
+function AppContent({ fontsReady }) {
+  const { loading: authLoading } = useAuth();
+  const ready = fontsReady && !authLoading;
 
   const splashOpacity = useRef(new Animated.Value(1)).current;
   const [splashMounted, setSplashMounted] = useState(true);
@@ -49,7 +53,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!fontsLoaded) return undefined;
+    if (!ready) return undefined;
 
     let cancelled = false;
     const fade = setTimeout(() => {
@@ -71,32 +75,43 @@ export default function App() {
       cancelled = true;
       clearTimeout(fade);
     };
-  }, [fontsLoaded, splashOpacity]);
+  }, [ready, splashOpacity]);
 
   return (
     <View style={styles.root}>
-      <SafeAreaProvider>
-        <ToastProvider>
-          <AuthProvider>
-            <CartProvider>
-              <WishlistProvider>
-                <StatusBar style="dark" backgroundColor={Colors.background} />
-                <RootNavigator />
-              </WishlistProvider>
-            </CartProvider>
-          </AuthProvider>
-        </ToastProvider>
-      </SafeAreaProvider>
+      <StatusBar style="dark" backgroundColor={Colors.background} />
+      <RootNavigator />
 
       {splashMounted ? (
-        <Animated.View
-          pointerEvents="auto"
-          style={[StyleSheet.absoluteFill, { opacity: splashOpacity }]}
-        >
+        <Animated.View pointerEvents="auto" style={[StyleSheet.absoluteFill, { opacity: splashOpacity }]}>
           <Image source={SPLASH_IMAGE} style={StyleSheet.absoluteFill} resizeMode="cover" />
         </Animated.View>
       ) : null}
     </View>
+  );
+}
+
+export default function App() {
+  const [fontsLoaded] = useFonts({
+    Cairo_400Regular,
+    Cairo_500Medium,
+    Cairo_600SemiBold,
+    Cairo_700Bold,
+    Cairo_800ExtraBold,
+  });
+
+  return (
+    <SafeAreaProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <CartProvider>
+            <WishlistProvider>
+              <AppContent fontsReady={fontsLoaded} />
+            </WishlistProvider>
+          </CartProvider>
+        </AuthProvider>
+      </ToastProvider>
+    </SafeAreaProvider>
   );
 }
 

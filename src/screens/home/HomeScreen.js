@@ -263,7 +263,7 @@ export default function HomeScreen({ navigation }) {
 
         {/* عروضي — one scrollable rail per child of the العروض group */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>عروضي</Text>
+          <Text style={styles.sectionTitle}>العروض الحصرية</Text>
           <TouchableOpacity
             onPress={() => handleSelectCategory(OFFERS_PARENT)}
             style={styles.seeAllBtn}

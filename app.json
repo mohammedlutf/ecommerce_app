@@ -39,8 +39,16 @@
           "imageWidth": 180,
           "resizeMode": "contain"
         }
+      ],
+      [
+      "expo-build-properties",
+      {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
       ]
-    ],
+      ],
     "updates": {
       "url": "https://u.expo.dev/1ea621da-1e71-4e8a-90e4-cd60b706ffcf"
     }

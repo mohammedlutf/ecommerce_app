@@ -8,7 +8,13 @@ import React, {
 } from 'react';
 import CartAPI from '../api/cart';
 import { rateForUom } from '../utils/catalog';
+import {
+  saveCartSnapshot,
+  readCartSnapshot,
+  clearCartSnapshot,
+} from '../utils/cartRecovery';
 import { useAuth } from './AuthContext';
+import { useToast } from './ToastContext';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
 const CartContext = createContext(null);
@@ -128,32 +134,117 @@ export function CartProvider({ children }) {
   // user B briefly (or permanently) sees user A's cart.
   const fetchUserRef = useRef(userKey);
 
-  const fetchCart = useCallback(async (silent = false) => {
-    const requestedUser = fetchUserRef.current;
-    if (!requestedUser) return; // no session → nothing to fetch
-    if (!silent) setLoading(true);
-    const startedVersion = mutationVersion.current;
-    try {
-      const data = await CartAPI.getCart();
-      // Stale response: a mutation landed, or the user changed mid-flight.
-      if (startedVersion !== mutationVersion.current) return;
-      if (requestedUser !== fetchUserRef.current) return;
-      if (data && Array.isArray(data.items)) {
-        setItems(data.items);
-        if (data.currency) setCurrency(data.currency);
+  // Mirror of `items` so the identity-change effect can read the outgoing cart
+  // without taking `items` as a dependency (which would re-run that effect on
+  // every quantity change and refetch the cart in a loop).
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
+  // A recovery is attempted at most once per customer per login, so a
+  // permanently failing restore can never be retried on every cart refresh.
+  const recoveryAttemptedRef = useRef(new Set());
+
+  // Held in a ref: the toast context object is recreated on every toast render,
+  // and depending on it would make fetchCart unstable and refetch the cart
+  // whenever a toast appeared.
+  const toastApi = useToast();
+  const toastRef = useRef(toastApi);
+  toastRef.current = toastApi;
+
+  /**
+   * The server cart is bound to the session, so it does not survive a logout.
+   * When the server comes back empty for a customer who has just signed in,
+   * re-push the snapshot taken when they left so the server rebuilds it.
+   * Returns true when at least one line made it back.
+   */
+  const rebuildFromSnapshot = useCallback(async (targetUser) => {
+    if (!targetUser) return false;
+    if (recoveryAttemptedRef.current.has(targetUser)) return false;
+    recoveryAttemptedRef.current.add(targetUser);
+
+    const snapshot = await readCartSnapshot(targetUser);
+    if (!snapshot) return false;
+
+    let pushed = 0;
+    for (const line of snapshot.lines) {
+      try {
+        await CartAPI.addToCart(line.item_code, line.qty, line.uom);
+        pushed += 1;
+      } catch (err) {
+        // A single item that is no longer sellable must not abandon the rest.
+        console.warn('cartRecovery: could not restore', line.item_code, err?.message);
       }
-    } catch (err) {
-      console.warn('Could not fetch cart:', err.message);
-    } finally {
-      if (!silent && requestedUser === fetchUserRef.current) setLoading(false);
     }
+
+    if (!pushed) return false;
+
+    // Only drop the snapshot once something actually landed, so a failed run
+    // can still be retried on the next login.
+    await clearCartSnapshot(targetUser);
+    return true;
   }, []);
+
+  const fetchCart = useCallback(
+    async (silent = false) => {
+      const requestedUser = fetchUserRef.current;
+      if (!requestedUser) return; // no session → nothing to fetch
+      if (!silent) setLoading(true);
+      const startedVersion = mutationVersion.current;
+
+      // Stale response: a mutation landed, or the user changed mid-flight.
+      const stillRelevant = () =>
+        startedVersion === mutationVersion.current && requestedUser === fetchUserRef.current;
+
+      try {
+        let data = await CartAPI.getCart();
+        if (!stillRelevant()) return;
+
+        if (data && Array.isArray(data.items)) {
+          if (data.items.length === 0) {
+            const rebuilt = await rebuildFromSnapshot(requestedUser);
+            if (rebuilt && stillRelevant()) {
+              // Re-read so the server re-prices the rebuilt cart instead of us
+              // inventing rates locally.
+              data = await CartAPI.getCart();
+              if (!stillRelevant()) return;
+              toastRef.current?.info('رجعنا سلة التسوق السابقة إلى جهازك', 3600);
+            }
+          } else if (data.items.length > 0) {
+            // The server has the real cart, so any snapshot is obsolete.
+            clearCartSnapshot(requestedUser);
+          }
+        }
+
+        if (data && Array.isArray(data.items)) {
+          setItems(data.items);
+          if (data.currency) setCurrency(data.currency);
+        }
+      } catch (err) {
+        console.warn('Could not fetch cart:', err.message);
+      } finally {
+        if (!silent && requestedUser === fetchUserRef.current) setLoading(false);
+      }
+    },
+    [rebuildFromSnapshot]
+  );
 
   // Identity change (login as another user, or logout): invalidate every
   // in-flight response, wipe the previous user's lines immediately, then load
   // the new session's cart. Doing it in this order is what stops the old data
   // from flashing or persisting.
   useEffect(() => {
+    const previousUser = fetchUserRef.current;
+
+    // Snapshot the outgoing cart before it is wiped. The server copy will not
+    // outlive the session, so this is what makes the next login feel continuous.
+    if (previousUser && !userKey && itemsRef.current.length) {
+      saveCartSnapshot(previousUser, itemsRef.current);
+    }
+    // Allow one recovery attempt per login, not per app launch.
+    if (previousUser && !userKey) {
+      recoveryAttemptedRef.current.delete(previousUser);
+    }
+
     fetchUserRef.current = userKey;
     ++mutationVersion.current;
     setItems([]);
