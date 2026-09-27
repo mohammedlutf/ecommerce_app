@@ -12,7 +12,7 @@ const config = getDefaultConfig(__dirname);
  * the benchmark, making every /api and /files call same-origin.
  * Native builds never run Metro's dev server, so this is a no-op for devices.
  */
-const PROXY_TARGET = 'http://192.168.1.34:8000';
+const PROXY_TARGET = 'http://192.168.1.36:8000';
 const PROXY_PREFIXES = ['/api/', '/files/', '/private/files/'];
 
 config.server.enhanceMiddleware = (middleware) => {

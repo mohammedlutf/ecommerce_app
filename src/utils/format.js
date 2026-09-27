@@ -23,7 +23,9 @@ export function formatCurrency(amount, currency = 'ر.ي') {
  * @returns {number|null}
  */
 export function calculateDiscount(currentPrice, originalPrice) {
-  if (!originalPrice || originalPrice <= currentPrice) return null;
+  if (!originalPrice || originalPrice <= currentPrice){ 
+    return null;
+  }
   const percent = Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
   return percent > 0 ? percent : null;
 }
