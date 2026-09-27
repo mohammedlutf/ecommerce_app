@@ -27,7 +27,7 @@ import { Radius, Shadows } from '../../theme/spacing';
 
 const OFFERS_PARENT = 'العروض';
 const OFFERS_ITEMS_PER_CHILD = 15;
-const OFFER_CARD_WIDTH = 152;
+const OFFER_CARD_WIDTH = 170;
 const OFFER_CARD_GAP = 10;
 
 /**

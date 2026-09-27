@@ -270,7 +270,7 @@ export default function AccountScreen({ navigation }) {
   if (!isAuthenticated) {
     return <LoginScreen navigation={navigation} />;
   }
-
+  
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -291,8 +291,8 @@ export default function AccountScreen({ navigation }) {
             </Text>
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{user?.name || 'مستخدم حضرموت'}</Text>
-            <Text style={styles.profileEmail}>{user?.email}</Text>
+            <Text style={styles.profileName}>{user?.fullName || 'مستخدم حضرموت'}</Text>
+            <Text style={styles.profileEmail}>{user?.name}</Text>
           </View>
           <TouchableOpacity
             onPress={handleLogout}

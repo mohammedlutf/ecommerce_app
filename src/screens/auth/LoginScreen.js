@@ -334,7 +334,7 @@ export default function LoginScreen({ navigation }) {
                         onChangeText={setLoginPhone}
                         country={loginCountry}
                         onChangeCountry={setLoginCountry}
-                        placeholder="771234567"
+                        placeholder="ادخل رقم الهاتف"
                         maxLength={loginCountry.code === 'YE' ? 9 : MAX_DIGITS}
                       />
 
@@ -396,7 +396,7 @@ export default function LoginScreen({ navigation }) {
                         onChangeText={setRegisterPhone}
                         country={registerCountry}
                         onChangeCountry={setRegisterCountry}
-                        placeholder="771234567"
+                        placeholder="ادخل رقم الهاتف"
                         maxLength={registerCountry.code === 'YE' ? 9 : MAX_DIGITS}
                       />
 

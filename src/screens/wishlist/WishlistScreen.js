@@ -38,7 +38,7 @@ export default function WishlistScreen({ navigation }) {
       </SafeAreaView>
     );
   }
-
+ 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>

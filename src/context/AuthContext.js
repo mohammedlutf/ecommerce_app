@@ -24,7 +24,7 @@ export function AuthProvider({ children }) {
       // server says the session is gone.
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (parsed && typeof parsed.email === 'string' && parsed.email) {
+        if (parsed && typeof parsed.email === 'string' && parsed.email && parsed.fullName) {
           setUser(parsed);
         } else {
           await AsyncStorage.removeItem(USER_STORAGE_KEY);
@@ -33,10 +33,10 @@ export function AuthProvider({ children }) {
 
       // Check active session with server
       const currentUser = await AuthAPI.getCurrentUser();
-
+      
       // Ensure currentUser is a valid string/email and not an empty object or Guest
       if (currentUser && typeof currentUser === 'string' && currentUser !== 'Guest') {
-        const profile = { email: currentUser, name: currentUser.split('@')[0] };
+        const profile = { email: currentUser, name: currentUser.split('@')[0] , fullName:currentUser.full_name };
         setUser(profile);
         await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(profile));
       } else {
@@ -72,6 +72,7 @@ export function AuthProvider({ children }) {
     const profile = {
       email: identifierStr,
       name: identifierStr.split('@')[0],
+      fullName:currentUser.full_name
     };
     setUser(profile);
     await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(profile));
