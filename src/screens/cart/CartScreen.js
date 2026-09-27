@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,9 @@ import {
   Alert,
   Platform,
   Keyboard,
+  Pressable,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from '../../components/Icon';
 import QuantityStepper from '../../components/QuantityStepper';
 import UOMSelector from '../../components/UOMSelector';
@@ -40,6 +41,42 @@ export default function CartScreen({ navigation }) {
   const keyboardHeight = useKeyboardHeight();
   const keyboardOpen = keyboardHeight > 0;
 
+  // Keeps the bottom of the sheet clear of the gesture bar / home button.
+  const insets = useSafeAreaInsets();
+
+  // How tall the modal's own container actually is, and how tall it gets when
+  // the keyboard is down. Android is inconsistent here: sometimes the modal
+  // window resizes for the keyboard, sometimes it does not and the keyboard
+  // just overlays it. Rather than assume, measure it — if the container has
+  // already shrunk by roughly the keyboard height, the platform resized it for
+  // us and adding another offset would double-count and shove the sheet to the
+  // top of the screen.
+  const [overlayHeight, setOverlayHeight] = useState(0);
+  const fullOverlayHeight = useRef(0);
+
+  function handleOverlayLayout(e) {
+    const height = e.nativeEvent.layout.height;
+    setOverlayHeight(height);
+    if (keyboardHeight === 0 && height > fullOverlayHeight.current) {
+      fullOverlayHeight.current = height;
+    }
+  }
+
+  const windowResized =
+    keyboardOpen &&
+    fullOverlayHeight.current > 0 &&
+    fullOverlayHeight.current - overlayHeight > keyboardHeight * 0.5;
+
+  // Where the sheet's lower edge goes, and how much room it actually has.
+  const sheetBottom = windowResized ? 0 : keyboardHeight;
+  const usableHeight = windowResized
+    ? overlayHeight
+    : Math.max(0, overlayHeight - keyboardHeight);
+  // Left uncapped until the first layout lands, otherwise the sheet would be
+  // squeezed to its minimum for one frame and flash on open.
+  const sheetMaxHeight =
+    overlayHeight === 0 ? undefined : Math.max(220, usableHeight - insets.top - 12);
+
   const { items, total, currency, loading, updateQuantity, updateUOM, removeItem, clearCart } = useCart();
   const { isAuthenticated, user } = useAuth();
   const toast = useToast();
@@ -52,7 +89,7 @@ export default function CartScreen({ navigation }) {
 
   const [showAddAddressModal, setShowAddAddressModal] = useState(false);
   const [newAddressLine, setNewAddressLine] = useState('');
-  const [newAddressCity, setNewAddressCity] = useState('مأرب');
+  const [newAddressCity, setNewAddressCity] = useState('صنعاء');
   const [newAddressPhone, setNewAddressPhone] = useState('');
   const [savingAddress, setSavingAddress] = useState(false);
 
@@ -90,6 +127,17 @@ export default function CartScreen({ navigation }) {
     // moment after the sheet is gone.
     Keyboard.dismiss();
     setShowAddAddressModal(false);
+  }
+
+  function handleBackdropPress() {
+    // With the keyboard up, a tap on the dimmed area should only put the
+    // keyboard away and leave the form open with everything the user typed
+    // intact. A second tap (keyboard already down) closes the sheet.
+    if (keyboardHeight > 0) {
+      Keyboard.dismiss();
+      return;
+    }
+    closeAddAddressModal();
   }
 
   async function handleAddAddress() {
@@ -382,48 +430,86 @@ export default function CartScreen({ navigation }) {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Add Address Modal */}
-      <Modal visible={showAddAddressModal} animationType="slide" transparent>
+      {/* Add Address Modal — bottom sheet */}
+      <Modal
+        visible={showAddAddressModal}
+        animationType="slide"
+        transparent
+        statusBarTranslucent
+        onRequestClose={closeAddAddressModal}
+      >
         {/*
-          A React Native <Modal> is its own window, and on Android that window
-          does NOT resize when the keyboard opens — so the sheet stayed centred
-          and the keyboard covered everything below the first field. Padding the
-          overlay by the measured keyboard height lifts it into the visible
-          area, and the compact styles below shrink the sheet enough that all
-          three fields AND the buttons fit on screen at once instead of one
-          field at a time.
+          A React Native <Modal> is its own window, and Android does not treat it
+          consistently: on some versions the modal window resizes for the
+          keyboard, on others the keyboard simply overlays it. The sheet is
+          absolutely positioned, and `handleOverlayLayout` measures which of the
+          two is happening so `bottom` is only applied when the platform did not
+          already account for the keyboard. That keeps the sheet's lower edge
+          exactly on top of the keyboard instead of overshooting to the top of
+          the screen.
         */}
-        <View
-          style={[
-            styles.modalOverlay,
-            { paddingBottom: keyboardHeight + 12 },
-            keyboardOpen && styles.modalOverlayCompact,
-          ]}
-        >
-          <ScrollView
-            contentContainerStyle={[
-              styles.modalScrollContent,
-              keyboardOpen && styles.modalScrollContentCompact,
-            ]}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-            showsVerticalScrollIndicator={false}
-            bounces={false}
-          >
-            <View style={[styles.modalContent, keyboardOpen && styles.modalContentCompact]}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>إضافة عنوان توصيل جديد</Text>
-                <TouchableOpacity onPress={closeAddAddressModal} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Icon name="close" size={22} color={Colors.textMuted} />
-                </TouchableOpacity>
-              </View>
+        <View style={styles.modalOverlay} onLayout={handleOverlayLayout}>
+          {/* Tap the dimmed area to dismiss. With the keyboard up, the first tap
+              only hides the keyboard so the sheet is not thrown away by a stray
+              touch while typing. */}
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={handleBackdropPress}
+            accessibilityRole="button"
+            accessibilityLabel="إغلاق"
+          />
 
+          <View
+            style={[
+              styles.modalSheet,
+              keyboardOpen && styles.modalSheetCompact,
+              {
+                bottom: sheetBottom,
+                maxHeight: sheetMaxHeight,
+                // Clear the gesture bar / home button when the sheet is resting on
+                // the screen edge. With the keyboard up there is no safe area to
+                // protect any more, so it just needs a little breathing room.
+                paddingBottom: keyboardOpen ? 16 : insets.bottom + 20,
+              },
+            ]}
+          >
+            <View style={styles.sheetHandle} />
+
+            <View style={styles.modalHeader}>
+              <View style={styles.sheetHeaderText}>
+                <Text style={styles.modalTitle}>إضافة عنوان توصيل</Text>
+                {!keyboardOpen && (
+                  <Text style={styles.sheetSubtitle}>
+                    أدخل تفاصيل الموقع حتى نوصّل طلبك بسهولة
+                  </Text>
+                )}
+              </View>
+              <TouchableOpacity
+                onPress={closeAddAddressModal}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={styles.sheetCloseBtn}
+              >
+                <Icon name="close" size={20} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalScrollContent}
+              // "always" (not "handled") so scrolling the form or tapping a
+              // non-interactive part of the sheet does NOT dismiss the keyboard
+              // — the user has to dismiss it deliberately.
+              keyboardShouldPersistTaps="always"
+              keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
               <View style={styles.modalInputGroup}>
                 {!keyboardOpen && <Text style={styles.modalLabel}>المدينة / المنطقة</Text>}
                 <TextInput
                   value={newAddressCity}
                   onChangeText={setNewAddressCity}
-                  placeholder="المدينة / المنطقة — مثال: مأرب، حي الروضة"
+                  placeholder="المدينة / المنطقة — مثال: صنعاء , حي الروضة"
                   placeholderTextColor={Colors.textMuted}
                   style={[styles.modalInput, keyboardOpen && styles.modalInputCompact]}
                   textAlign="right"
@@ -477,8 +563,8 @@ export default function CartScreen({ navigation }) {
                   )}
                 </TouchableOpacity>
               </View>
-            </View>
-          </ScrollView>
+            </ScrollView>
+          </View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -732,37 +818,76 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyBold,
   },
   modalOverlay: {
+    // Positioning is done by the absolutely-positioned sheet, so the overlay
+    // only paints the scrim.
     flex: 1,
     backgroundColor: Colors.scrim,
-    justifyContent: 'center',
-    padding: 20,
   },
-  modalOverlayCompact: {
-    padding: 12,
+  modalSheet: {
+    // Anchored to the keyboard by the inline `bottom`. The backdrop Pressable
+    // comes first in the tree, so the sheet sits above it and still receives
+    // touches.
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: Colors.surfaceContainerLowest,
+    // Only the top corners are rounded — the sheet is flush with the screen
+    // bottom, which is what makes it read as a bottom sheet.
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 10,
+    paddingHorizontal: 20,
+    // `paddingBottom` and `maxHeight` are applied inline in the JSX because
+    // they depend on hook values, and StyleSheet.create() runs at module load
+    // where no hook value is in scope yet.
+    gap: 14,
+    ...Shadows.lg,
+  },
+  modalSheetCompact: {
+    // Shrink so all three fields and the buttons are visible at once with the
+    // keyboard open, rather than one field at a time.
+    paddingTop: 10,
+    paddingHorizontal: 16,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    gap: 8,
+  },
+  sheetHandle: {
+    // The grabber that signals "this sheet can be dragged".
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.outline,
+    opacity: 0.4,
+    marginBottom: 6,
+  },
+  sheetHeaderText: {
+    flex: 1,
+  },
+  sheetSubtitle: {
+    color: Colors.textMuted,
+    fontSize: Typography.sizes.bodySm,
+    textAlign: 'left',
+    marginTop: 2,
+  },
+  sheetCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceContainerLow,
+  },
+  modalScroll: {
+    // Lets the form area compress (and therefore scroll) when the sheet is
+    // capped by maxHeight, instead of overflowing past the screen edge.
+    flexShrink: 1,
   },
   modalScrollContent: {
-    // `flexGrow` keeps the sheet vertically centred when it fits, and lets the
-    // container grow (and scroll) instead of clipping when it does not.
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
-  modalScrollContentCompact: {
-    // With the keyboard up, glue the sheet to the bottom of the visible area so
-    // it rests directly on top of it.
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: Colors.surfaceContainerLowest,
-    borderRadius: Radius.xxl,
-    padding: 20,
     gap: 14,
-  },
-  modalContentCompact: {
-    // Shrink the sheet so all three fields and the buttons are visible at once
-    // rather than one field at a time.
-    padding: 14,
-    borderRadius: Radius.xl,
-    gap: 8,
+    paddingTop: 2,
   },
   modalInputCompact: {
     height: 42,

@@ -17,6 +17,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Icon from '../../components/Icon';
+import CountryCodeInput from '../../components/CountryCodeInput';
+import { DEFAULT_COUNTRY, minDigitsFor, toFullPhone, MAX_DIGITS } from '../../constants/countries';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
@@ -91,12 +93,14 @@ export default function LoginScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('login');
   const [showForgot, setShowForgot] = useState(false);
 
-  const [loginIdentifier, setLoginIdentifier] = useState('');
+  const [loginPhone, setLoginPhone] = useState('');
+  const [loginCountry, setLoginCountry] = useState(DEFAULT_COUNTRY);
   const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   const [registerName, setRegisterName] = useState('');
   const [registerPhone, setRegisterPhone] = useState('');
+  const [registerCountry, setRegisterCountry] = useState(DEFAULT_COUNTRY);
   const [registerPassword, setRegisterPassword] = useState('');
 
   const [forgotEmail, setForgotEmail] = useState('');
@@ -115,8 +119,14 @@ export default function LoginScreen({ navigation }) {
   };
 
   async function handleLogin() {
-    if (!loginIdentifier.trim()) {
-      toast.error('يرجى إدخال رقم الهاتف أو البريد الإلكتروني');
+    const digits = loginPhone.replace(/[^0-9]/g, '');
+    const min = minDigitsFor(loginCountry);
+    if (digits.length < min) {
+      toast.error(
+        min === 9
+          ? 'يرجى إدخال رقم الهاتف اليمني الصحيح مكون من 9 أرقام'
+          : `يرجى إدخال رقم هاتف صحيح (${min} أرقام على الأقل)`
+      );
       return;
     }
     if (!loginPassword) {
@@ -126,7 +136,10 @@ export default function LoginScreen({ navigation }) {
 
     setLoading(true);
     try {
-      await login(loginIdentifier, loginPassword);
+      // The national number is sent without the dialling code: the Frappe
+      // endpoints identify users as `<national number>@yemen.local`, and that
+      // is what existing accounts are stored under.
+      await login(digits, loginPassword);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       toast.success('تم تسجيل الدخول بنجاح، أهلاً بعودتك');
       if (navigation && navigation.canGoBack()) {
@@ -141,12 +154,17 @@ export default function LoginScreen({ navigation }) {
 
   async function handleRegister() {
     const cleanPhone = registerPhone.replace(/[^0-9]/g, '');
+    const min = minDigitsFor(registerCountry);
     if (!registerName.trim()) {
       toast.error('يرجى إدخال الاسم الكامل');
       return;
     }
-    if (cleanPhone.length < 9) {
-      toast.error('يرجى إدخال رقم هاتف يمني صحيح مكون من 9 أرقام');
+    if (cleanPhone.length < min) {
+      toast.error(
+        min === 9
+          ? 'يرجى إدخال رقم هاتف يمني صحيح مكون من 9 أرقام'
+          : `يرجى إدخال رقم هاتف صحيح (${min} أرقام على الأقل)`
+      );
       return;
     }
     if (!registerPassword || registerPassword.length < 6) {
@@ -156,7 +174,10 @@ export default function LoginScreen({ navigation }) {
 
     setLoading(true);
     try {
-      const res = await register(cleanPhone, registerName, registerPassword);
+      const res = await register(cleanPhone, registerName, registerPassword, {
+        countryCode: registerCountry.dial,
+        fullPhone: toFullPhone(registerCountry, cleanPhone),
+      });
       if (res && res.status === 'error') {
         toast.error(res.message);
         return;
@@ -164,7 +185,8 @@ export default function LoginScreen({ navigation }) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       toast.success('تم إنشاء الحساب بنجاح! يمكنك تسجيل الدخول الآن.');
       switchTab('login');
-      setLoginIdentifier(cleanPhone);
+      setLoginPhone(cleanPhone);
+      setLoginCountry(registerCountry);
       setRegisterName('');
       setRegisterPhone('');
       setRegisterPassword('');
@@ -306,14 +328,13 @@ export default function LoginScreen({ navigation }) {
                         سجّل دخولك لتتابع طلباتك ومفضلتك.
                       </Text>
 
-                      <AuthInput
-                        icon={<Icon name="phone-portrait-outline" size={20} color={Colors.textMuted} />}
-                        value={loginIdentifier}
-                        onChangeText={setLoginIdentifier}
-                        placeholder="رقم الهاتف أو البريد الإلكتروني"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        style={{ textAlign: 'right' }}
+                      <CountryCodeInput
+                        value={loginPhone}
+                        onChangeText={setLoginPhone}
+                        country={loginCountry}
+                        onChangeCountry={setLoginCountry}
+                        placeholder="771234567"
+                        maxLength={loginCountry.code === 'YE' ? 9 : MAX_DIGITS}
                       />
 
                       <View style={styles.inputWrapper}>
@@ -369,20 +390,24 @@ export default function LoginScreen({ navigation }) {
                         style={{ textAlign: 'right' }}
                       />
 
-                      <View style={styles.phoneRow}>
-                        <View style={styles.countryCodePill}>
-                          <Text style={styles.countryCode}>+967</Text>
+                      <CountryCodeInput
+                        value={registerPhone}
+                        onChangeText={setRegisterPhone}
+                        country={registerCountry}
+                        onChangeCountry={setRegisterCountry}
+                        placeholder="771234567"
+                        maxLength={registerCountry.code === 'YE' ? 9 : MAX_DIGITS}
+                      />
+
+                      {registerCountry.code !== 'YE' ? (
+                        <View style={styles.noticeRow}>
+                          <Icon name="alert-circle-outline" size={16} color={Colors.warning} />
+                          <Text style={styles.noticeText}>
+                            الخادم يقبل الأرقام اليمنية فقط حالياً. سيتم حفظ الرقم مع رمز الدولة
+                            {` +${registerCountry.dial}`} بعد تحديث الخادم.
+                          </Text>
                         </View>
-                        <TextInput
-                          value={registerPhone}
-                          onChangeText={(t) => setRegisterPhone(t.replace(/[^0-9]/g, ''))}
-                          placeholder="7XXXXXXX"
-                          placeholderTextColor={Colors.textMuted}
-                          keyboardType="phone-pad"
-                          maxLength={9}
-                          style={[styles.input, styles.phoneInput, { textAlign: 'right' }]}
-                        />
-                      </View>
+                      ) : null}
 
                       <View style={styles.inputWrapper}>
                         <Icon name="lock-closed-outline" size={20} color={Colors.textMuted} />
@@ -562,31 +587,23 @@ const styles = StyleSheet.create({
     color: Colors.onSurface,
     paddingVertical: 0,
   },
-  phoneRow: {
+  noticeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
-  },
-  countryCodePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: Colors.surfaceContainerLow,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.outlineVariant,
+    gap: 8,
+    backgroundColor: Colors.warningContainer,
+    borderRadius: Radius.md,
     paddingHorizontal: 12,
-    height: 52,
+    paddingVertical: 10,
+    marginBottom: 14,
+    marginTop: -4,
   },
-  countryCode: {
-    fontSize: Typography.sizes.bodyMd,
-    fontFamily: Typography.fontFamilyBold,
-    color: Colors.onSurface,
-  },
-  phoneInput: {
+  noticeText: {
     flex: 1,
-    height: 52,
+    fontSize: Typography.sizes.labelSm,
+    fontFamily: Typography.fontFamily,
+    color: Colors.onSurfaceVariant,
+    lineHeight: 18,
   },
   forgotRow: {
     alignItems: 'flex-end',

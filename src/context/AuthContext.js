@@ -67,8 +67,8 @@ export function AuthProvider({ children }) {
     return res;
   }
 
-  async function register(phone, fullName, password) {
-    const res = await AuthAPI.register(phone, fullName, password);
+  async function register(phone, fullName, password, options) {
+    const res = await AuthAPI.register(phone, fullName, password, options);
     return res;
   }
 

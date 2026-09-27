@@ -17,14 +17,23 @@ export const AuthAPI = {
   },
 
   /**
-   * Register a new user using Yemeni phone number
+   * Register a new user by phone number.
+   *
+   * `phone` is the NATIONAL number (no dialling code) and is still truncated to
+   * 9 digits, which is what `register_user_by_phone` expects and what existing
+   * accounts are keyed by. `countryCode` / `fullPhone` are forwarded as extra
+   * fields so the backend can start storing E.164 numbers; Frappe drops keyword
+   * arguments a whitelisted method does not declare, so the current endpoint
+   * keeps working unchanged.
    */
-  async register(phone, fullName, newPassword) {
+  async register(phone, fullName, newPassword, options = {}) {
     const cleanPhone = phone.replace(/[^0-9]/g, '').slice(-9);
     return frappeCall('ecommerce.www.login.register_user_by_phone', {
       phone: cleanPhone,
       full_name: fullName,
       new_password: newPassword,
+      country_code: options.countryCode || null,
+      full_phone: options.fullPhone || null,
     });
   },
 
