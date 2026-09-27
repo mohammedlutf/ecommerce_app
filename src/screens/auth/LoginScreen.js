@@ -18,7 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Icon from '../../components/Icon';
 import CountryCodeInput from '../../components/CountryCodeInput';
-import { DEFAULT_COUNTRY, minDigitsFor, toFullPhone, MAX_DIGITS } from '../../constants/countries';
+import { DEFAULT_COUNTRY, minDigitsFor, toCombinedDigits, MAX_DIGITS } from '../../constants/countries';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
@@ -136,10 +136,10 @@ export default function LoginScreen({ navigation }) {
 
     setLoading(true);
     try {
-      // The national number is sent without the dialling code: the Frappe
-      // endpoints identify users as `<national number>@yemen.local`, and that
-      // is what existing accounts are stored under.
-      await login(digits, loginPassword);
+      // The combined number (dialling code + national number) is the identity we
+      // send. AuthAPI also retries the legacy local-only keys so accounts that
+      // were created before the combined format keep working.
+      await login(toCombinedDigits(loginCountry, digits), digits, loginPassword);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       toast.success('تم تسجيل الدخول بنجاح، أهلاً بعودتك');
       if (navigation && navigation.canGoBack()) {
@@ -174,10 +174,11 @@ export default function LoginScreen({ navigation }) {
 
     setLoading(true);
     try {
-      const res = await register(cleanPhone, registerName, registerPassword, {
-        countryCode: registerCountry.dial,
-        fullPhone: toFullPhone(registerCountry, cleanPhone),
-      });
+      const res = await register(
+        toCombinedDigits(registerCountry, cleanPhone),
+        registerName,
+        registerPassword
+      );
       if (res && res.status === 'error') {
         toast.error(res.message);
         return;
@@ -399,16 +400,6 @@ export default function LoginScreen({ navigation }) {
                         maxLength={registerCountry.code === 'YE' ? 9 : MAX_DIGITS}
                       />
 
-                      {registerCountry.code !== 'YE' ? (
-                        <View style={styles.noticeRow}>
-                          <Icon name="alert-circle-outline" size={16} color={Colors.warning} />
-                          <Text style={styles.noticeText}>
-                            الخادم يقبل الأرقام اليمنية فقط حالياً. سيتم حفظ الرقم مع رمز الدولة
-                            {` +${registerCountry.dial}`} بعد تحديث الخادم.
-                          </Text>
-                        </View>
-                      ) : null}
-
                       <View style={styles.inputWrapper}>
                         <Icon name="lock-closed-outline" size={20} color={Colors.textMuted} />
                         <TextInput
@@ -586,24 +577,6 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyMedium,
     color: Colors.onSurface,
     paddingVertical: 0,
-  },
-  noticeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: Colors.warningContainer,
-    borderRadius: Radius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 14,
-    marginTop: -4,
-  },
-  noticeText: {
-    flex: 1,
-    fontSize: Typography.sizes.labelSm,
-    fontFamily: Typography.fontFamily,
-    color: Colors.onSurfaceVariant,
-    lineHeight: 18,
   },
   forgotRow: {
     alignItems: 'flex-end',

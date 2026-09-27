@@ -177,6 +177,14 @@ export function toFullPhone(country, nationalNumber) {
 }
 
 /**
+ * The same combination as {@link toFullPhone} but digits only, no `+` — this is
+ * the single identity value sent to the server (`967771234567`).
+ */
+export function toCombinedDigits(country, nationalNumber) {
+  return toFullPhone(country, nationalNumber).replace(/^\+/, '');
+}
+
+/**
  * Filter the list by Arabic name, English name, dialling code or flag. Empty
  * search terms return everything.
  */

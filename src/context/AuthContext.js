@@ -53,10 +53,11 @@ export function AuthProvider({ children }) {
     }
   }
 
-  async function login(identifier, password) {
-    const res = await AuthAPI.login(identifier, password);
+  async function login(combinedNumber, nationalNumber, password) {
+    const res = await AuthAPI.login(combinedNumber, nationalNumber, password);
     const currentUser = await AuthAPI.getCurrentUser();
-    const identifierStr = typeof currentUser === 'string' ? currentUser : identifier;
+    const fallbackId = `${String(combinedNumber).replace(/[^0-9]/g, '')}@yemen.local`;
+    const identifierStr = typeof currentUser === 'string' ? currentUser : fallbackId;
 
     const profile = {
       email: identifierStr,
@@ -67,8 +68,8 @@ export function AuthProvider({ children }) {
     return res;
   }
 
-  async function register(phone, fullName, password, options) {
-    const res = await AuthAPI.register(phone, fullName, password, options);
+  async function register(combinedNumber, fullName, password) {
+    const res = await AuthAPI.register(combinedNumber, fullName, password);
     return res;
   }
 
