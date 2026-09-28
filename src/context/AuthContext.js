@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import AuthAPI from '../api/auth';
+import AuthAPI, { fallbackProfile } from '../api/auth';
 import { initClientSession, clearSession, hasSessionCookie } from '../api/client';
 import { USER_STORAGE_KEY } from '../api/sessionKeys';
 
@@ -22,32 +22,48 @@ export function AuthProvider({ children }) {
       // Show the cached profile immediately so the app does not flash the
       // login screen while the network check runs. It is revoked below if the
       // server says the session is gone.
+      let cachedProfile = null;
       if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed && typeof parsed.email === 'string' && parsed.email && parsed.fullName) {
-          setUser(parsed);
-        } else {
-          await AsyncStorage.removeItem(USER_STORAGE_KEY);
+        try {
+          const parsed = JSON.parse(cached);
+          // `email` is the identity key the cart and wishlist caches are filed
+          // under, so it is the only field that has to survive the round trip.
+          cachedProfile =
+            parsed && typeof parsed.email === 'string' && parsed.email.trim()
+              ? {
+                  ...parsed,
+                  fullName: parsed.fullName || parsed.name || parsed.email,
+                }
+              : null;
+        } catch {
+          cachedProfile = null;
         }
+        if (!cachedProfile) await AsyncStorage.removeItem(USER_STORAGE_KEY);
       }
 
-      // Check active session with server
-      const currentUser = await AuthAPI.getCurrentUser();
-      
-      // Ensure currentUser is a valid string/email and not an empty object or Guest
-      if (currentUser && typeof currentUser === 'string' && currentUser !== 'Guest') {
-        const profile = { email: currentUser, name: currentUser.split('@')[0] , fullName:currentUser.full_name };
+      if (cachedProfile) setUser(cachedProfile);
+
+      // Confirm the restored `sid` is still accepted. This normalises the full
+      // Frappe `User` document the endpoint returns, so the check must not be
+      // written against any single response shape.
+      const profile = await AuthAPI.getSessionProfile();
+
+      if (profile) {
         setUser(profile);
         await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(profile));
-      } else {
-        // The server does not consider us signed in. That is either a genuinely
-        // expired session or a cookie that was never captured, so drop the
-        // cached profile too — otherwise the app renders the previous
-        // customer's account, cart and orders while every request runs as Guest.
-        setUser(null);
-        await AsyncStorage.removeItem(USER_STORAGE_KEY);
+        return;
       }
+
+      // The server does not consider us signed in. That is either a genuinely
+      // expired session or a cookie that was never captured, so drop the
+      // cached profile too — otherwise the app renders the previous
+      // customer's account, cart and orders while every request runs as Guest.
+      setUser(null);
+      await AsyncStorage.removeItem(USER_STORAGE_KEY);
     } catch (err) {
+      // The check never reached the server. Whatever was restored from storage
+      // stays in place: an unreachable server is not a sign-out, and clearing
+      // here is what turned a flaky connection into a fresh login form.
       console.warn('Session bootstrap warning:', err);
     } finally {
       setLoading(false);
@@ -56,9 +72,6 @@ export function AuthProvider({ children }) {
 
   async function login(combinedNumber, nationalNumber, password) {
     const res = await AuthAPI.login(combinedNumber, nationalNumber, password);
-    const currentUser = await AuthAPI.getCurrentUser();
-    const fallbackId = `${String(combinedNumber).replace(/[^0-9]/g, '')}@yemen.local`;
-    const identifierStr = typeof currentUser === 'string' ? currentUser : fallbackId;
 
     // A login that did not yield a capturable session cookie looks like it
     // works, then silently signs the user out on the next app start. Surface it
@@ -69,13 +82,23 @@ export function AuthProvider({ children }) {
       );
     }
 
-    const profile = {
-      email: identifierStr,
-      name: identifierStr.split('@')[0],
-      fullName:currentUser.full_name
-    };
-    setUser(profile);
-    await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(profile));
+    // Read the identity back from the server rather than rebuilding it from
+    // what was typed. `AuthAPI.login` tries several candidates, so the account
+    // that actually won is not necessarily the combined number, and `email` is
+    // the key the cart and wishlist caches are filed under — guessing here
+    // orphans a signed-in customer's saved state.
+    let profile = null;
+    try {
+      profile = await AuthAPI.getSessionProfile();
+    } catch (err) {
+      console.warn('Could not read the profile back after login:', err);
+    }
+    if (!profile) profile = fallbackProfile(combinedNumber);
+
+    if (profile) {
+      setUser(profile);
+      await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(profile));
+    }
     return res;
   }
 

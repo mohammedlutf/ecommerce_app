@@ -56,6 +56,86 @@ function isConnectionFailure(message) {
   );
 }
 
+/**
+ * Assemble the app's profile shape from an identity string plus, when we have
+ * one, the Frappe `User` document it came from.
+ *
+ * `email` is the identity key the cart and wishlist caches are filed under, so
+ * it must always be the real account address — never a value reconstructed
+ * from what the user typed.
+ */
+function buildProfile(value, doc) {
+  const source = doc && typeof doc === 'object' ? doc : {};
+
+  if (typeof value !== 'string') return null;
+
+  const email = value.trim();
+  if (!email || email.toLowerCase() === 'guest') return null;
+
+  const clean = (part) => (typeof part === 'string' ? part.trim() : '');
+  // `full_name` is authoritative and already contains the first name, so it is
+  // used on its own — concatenating it with `first_name` would repeat the name
+  // on every Frappe `User` document.
+  const fullName =
+    clean(source.full_name) ||
+    [clean(source.first_name), clean(source.last_name)].filter(Boolean).join(' ') ||
+    email.split('@')[0];
+
+  return { email, name: fullName, fullName };
+}
+
+/**
+ * Normalise whatever `ecommerce.api.get_current_user` answers with.
+ *
+ * The endpoint replies with the full Frappe `User` document for an active
+ * session, but three other shapes are still in the wild:
+ *   - `"Guest"` (and `{ message: 'Guest' }`) when nobody is signed in
+ *   - a bare email string, from older builds of the endpoint
+ *   - a document for some other DocType, if the method name is ever reused
+ *
+ * The previous code tested `typeof raw === 'string'`, which never matched the
+ * real object response — so every cold start classified a perfectly valid
+ * session as a sign-out, deleted the cached profile and asked for a new login.
+ * This function is the single place that decides "is somebody signed in".
+ *
+ * Returns `null` only when the server positively reports that nobody is.
+ */
+export function normalizeUserProfile(raw) {
+  if (raw === null || raw === undefined) return null;
+
+  if (typeof raw === 'string') return buildProfile(raw, {});
+
+  if (typeof raw !== 'object') return null;
+
+  if (typeof raw.message === 'string') return buildProfile(raw.message, {});
+
+  if (raw.doctype && raw.doctype !== 'User') return null;
+
+  return buildProfile(raw.email || raw.name || raw.id, raw);
+}
+
+/**
+ * Profile to use before the server has told us which login candidate matched.
+ *
+ * Only a last resort: `AuthAPI.login` may have succeeded against the national
+ * or last-9 identity, and guessing the combined number here would file the
+ * signed-in customer's cart and wishlist under the wrong key.
+ */
+export function fallbackProfile(combinedNumber) {
+  return normalizeUserProfile(`${digitsOnly(combinedNumber)}@${LOCAL_DOMAIN}`);
+}
+
+/**
+ * Frappe signals "you are not signed in" through the response body rather than
+ * a distinct status code, so match on the wording it uses.
+ */
+const SIGNED_OUT_PATTERN =
+  /guest|not permitted|permission ?error|session (?:expired|does not exist)|login required|unauthor/i;
+
+export function isSignedOutError(message) {
+  return SIGNED_OUT_PATTERN.test(String(message || ''));
+}
+
 export const AuthAPI = {
   /**
    * Log in with a phone number.
@@ -112,21 +192,23 @@ export const AuthAPI = {
   },
 
   /**
-   * Get current logged-in user safely (avoids crashing on guest/permission errors)
+   * Resolve the signed-in profile from the server.
+   *
+   * Returns `null` when the server states that nobody is signed in, but
+   * *throws* when the request never reached it. The caller has to be able to
+   * tell those apart: a dropped connection or a 5xx is not a sign-out, and
+   * reporting it as one silently drops a valid session and sends the user back
+   * to the login screen every time the network hiccups at startup.
    */
-  async getCurrentUser() {
+  async getSessionProfile() {
+    let raw;
     try {
-      const currentUser = await frappeCall(
-        'ecommerce.api.get_current_user',
-        {},
-        'GET'
-      );
-      return currentUser;
-    } catch (error) {
-      // If user is a guest or not logged in, just return null safely
-      console.warn('User is not logged in or session is guest.');
-      return null;
+      raw = await frappeCall('ecommerce.api.get_current_user', {}, 'GET');
+    } catch (err) {
+      if (isSignedOutError(err && err.message)) return null;
+      throw err;
     }
+    return normalizeUserProfile(raw);
   },
 };
 
