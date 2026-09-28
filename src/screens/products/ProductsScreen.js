@@ -24,6 +24,8 @@ import CatalogAPI from '../../api/catalog';
 import { normalizeGroupName } from '../../utils/catalog';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import { useResetOnTabPress } from '../../hooks/useResetOnTabPress';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { formatCount } from '../../utils/format';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius } from '../../theme/spacing';
@@ -31,6 +33,25 @@ import { Radius } from '../../theme/spacing';
 const PAGE_SIZE = 20;
 const ALL_KEY = 'all';
 const ALL_PAGE = '__all__';
+
+/**
+ * Search tuning.
+ *
+ * `DEBOUNCE_MS` is long enough to swallow a burst of keystrokes on a phone
+ * keyboard but short enough that results still feel live. `MIN_LEN` of 1 lets
+ * the app respond to the first character instead of making the user type a
+ * word before anything happens.
+ */
+const SEARCH_DEBOUNCE_MS = 280;
+const SEARCH_MIN_LEN = 1;
+
+const EMPTY_SEARCH = {
+  query: '',
+  items: [],
+  hasMore: false,
+  loading: false,
+  loadingMore: false,
+};
 
 const catName = (cat) => (typeof cat === 'string' ? cat : cat && cat.name);
 
@@ -155,6 +176,108 @@ function useAutoRevealRow(activeIndex, rowKey) {
   return { scrollRef, scrollProps, measure };
 }
 
+/**
+ * SearchResultsHeader — the bar between the search field and the results.
+ *
+ * Replaces the two group-chip rows while a search is active: those chips select
+ * a slice of the catalog, which is meaningless once results span all of it.
+ * Showing the query and the live count is what makes a search feel like a
+ * search instead of a filter.
+ */
+function SearchResultsHeader({ query, count, loading }) {
+  return (
+    <View style={styles.searchHeader}>
+      <View style={styles.searchHeaderText}>
+        <Text style={styles.searchHeaderTitle} numberOfLines={1}>
+          {loading ? 'جارٍ البحث...' : formatCount(count)}
+        </Text>
+        <Text style={styles.searchHeaderQuery} numberOfLines={1}>
+          {`نتائج البحث عن: ${query}`}
+        </Text>
+      </View>
+      {loading ? <ActivityIndicator size="small" color={Colors.primary} /> : null}
+    </View>
+  );
+}
+
+/**
+ * SearchResults — the whole-catalog result list.
+ *
+ * Deliberately a separate tree from the group pager, and it owns its own state
+ * upstream of this component. Two reasons, both load-bearing:
+ *
+ *  1. Group browsing and searching are mutually exclusive, so they cannot share
+ *     a list. Sharing one meant a search overwrote the "الكل" page's slot, and
+ *     clearing the field left those results on screen until a refetch came back.
+ *  2. Search spans every item, so there is no page to swipe through — one
+ *     continuous paginated list is the only honest layout.
+ */
+function SearchResults({ state, onOpen, onLoadMore, refreshing, onRefresh, onClearAll }) {
+  const { items, loading, loadingMore, hasMore, query } = state;
+
+  if (loading && items.length === 0) {
+    return (
+      <View style={styles.skeletonGrid}>
+        {[1, 2, 3, 4].map((i) => (
+          <View key={i} style={styles.gridColumn}>
+            <LoadingSkeleton height={150} borderRadius={Radius.xl} />
+            <View style={{ marginTop: 8 }}>
+              <LoadingSkeleton height={16} width="85%" />
+              <LoadingSkeleton height={14} width="40%" style={{ marginTop: 6 }} />
+            </View>
+          </View>
+        ))}
+      </View>
+    );
+  }
+
+  return (
+    <FlatList
+      data={items}
+      keyExtractor={(item, index) => item.item_code || String(index)}
+      numColumns={2}
+      columnWrapperStyle={styles.columnWrapper}
+      contentContainerStyle={styles.listContent}
+      keyboardShouldPersistTaps="handled"
+      initialNumToRender={8}
+      maxToRenderPerBatch={10}
+      updateCellsBatchingPeriod={60}
+      windowSize={7}
+      removeClippedSubviews
+      renderItem={({ item }) => <ProductGridCell product={item} onOpen={onOpen} />}
+      onEndReached={onLoadMore}
+      onEndReachedThreshold={0.4}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={[Colors.primary]}
+          tintColor={Colors.primary}
+        />
+      }
+      ListFooterComponent={
+        <View style={styles.footer}>
+          {loadingMore ? (
+            <>
+              <ActivityIndicator size="small" color={Colors.primary} />
+              <Text style={styles.footerText}>جاري تحميل المزيد...</Text>
+            </>
+          ) : null}
+        </View>
+      }
+      ListEmptyComponent={
+        <EmptyState
+          icon="search-outline"
+          title="لم يتم العثور على منتجات"
+          description={`لا توجد نتائج لـ "${query}". جرّب كلمات أخرى أو امسح البحث.`}
+          actionLabel="مسح البحث"
+          onAction={onClearAll}
+        />
+      }
+    />
+  );
+}
+
 export default function ProductsScreen({ route, navigation }) {
   useResetOnTabPress(navigation, 'ProductsTab');
   const { width } = useWindowDimensions();
@@ -178,7 +301,25 @@ export default function ProductsScreen({ route, navigation }) {
   const [activeChildIndex, setActiveChildIndex] = useState(0);
 
   const [searchQuery, setSearchQuery] = useState(deepLinkSearch);
-  const [activeSearch, setActiveSearch] = useState(deepLinkSearch);
+
+  // Search lives in its own slice, separate from `productsByKey`. Sharing one
+  // list meant the results were written over the "الكل" page's slot, so clearing
+  // the field had to wait for a refetch to draw the catalog back — and any
+  // search response still in flight could land afterwards and put the old
+  // results back on screen.
+  const [searchState, setSearchState] = useState(EMPTY_SEARCH);
+
+  // The query actually being fetched: what is typed, trimmed, once typing has
+  // paused. `searchQuery` alone must not drive requests or every keystroke
+  // would hit the server.
+  const debouncedQuery = useDebouncedValue(searchQuery.trim(), SEARCH_DEBOUNCE_MS);
+  const isSearchActive = debouncedQuery.length >= SEARCH_MIN_LEN;
+
+  // Monotonic request token. A response is only allowed to write state if its
+  // token is still the newest one issued, which is what makes a slow, stale
+  // response harmless instead of a source of wrong results.
+  const searchTokenRef = useRef(0);
+  const catalogTokenRef = useRef(0);
 
   // Products are cached per child-group page so swiping back is instant.
   const [productsByKey, setProductsByKey] = useState({});
@@ -244,6 +385,9 @@ export default function ProductsScreen({ route, navigation }) {
 
   const loadKey = useCallback(
     async (key) => {
+      const token = ++catalogTokenRef.current;
+      const isStale = () => token !== catalogTokenRef.current;
+
       const firstLoad = !loadedKeys[key];
       if (firstLoad) setInitialLoading(true);
       offsetRef.current[key] = 0;
@@ -256,22 +400,29 @@ export default function ProductsScreen({ route, navigation }) {
         // item group, so a leaf can come back empty while its parent has items.
         // Fetch leaf + parent in PARALLEL so the page resolves in a single
         // round-trip, then prefer the leaf when it actually returned items.
+        //
+        // No `search` is sent here: browsing a group is a different mode from
+        // searching, and mixing the two is what let a live search term narrow
+        // (or empty out) the group the user was browsing.
         const [leafData, parentData] = await Promise.all([
           CatalogAPI.getCatalog({
             itemGroup: leaf,
-            search: activeSearch || null,
             limit: PAGE_SIZE,
             offset: 0,
           }),
-          !activeSearch && leaf !== ALL_KEY && parent !== ALL_KEY && parent !== leaf
+          leaf !== ALL_KEY && parent !== ALL_KEY && parent !== leaf
             ? CatalogAPI.getCatalog({
                 itemGroup: parent,
-                search: null,
                 limit: PAGE_SIZE,
                 offset: 0,
               })
             : Promise.resolve(null),
         ]);
+
+        // A newer request for a different group (or a pull-to-refresh) started
+        // while this one was in the air, so this response is stale and must not
+        // overwrite the page the user is actually looking at.
+        if (isStale()) return;
 
         const leafHasItems =
           leafData && Array.isArray(leafData.items) && leafData.items.length > 0;
@@ -279,32 +430,35 @@ export default function ProductsScreen({ route, navigation }) {
 
         mergePageFor(key, data, true);
       } catch (err) {
-        console.warn('Failed to fetch catalog:', err);
+        if (!isStale()) console.warn('Failed to fetch catalog:', err);
       } finally {
-        setInitialLoading(false);
-        setRefreshing(false);
-        setLoadingMore(false);
+        if (!isStale()) {
+          setInitialLoading(false);
+          setRefreshing(false);
+          setLoadingMore(false);
+        }
       }
     },
-    [activeSearch, activeParent, loadedKeys]
+    [activeParent, loadedKeys]
   );
 
   async function loadMoreKey(key) {
     if (loadingMore || !hasMoreByKey[key]) return;
+    const token = catalogTokenRef.current;
     setLoadingMore(true);
     try {
       const curProducts = productsByKey[key];
       const data = await CatalogAPI.getCatalog({
         itemGroup: key === ALL_PAGE ? ALL_KEY : key,
-        search: activeSearch || null,
         limit: PAGE_SIZE,
         offset: curProducts ? curProducts.length : 0,
       });
+      if (token !== catalogTokenRef.current) return;
       mergePageFor(key, data, false);
     } catch (err) {
-      console.warn('Failed to load more products:', err);
+      if (token === catalogTokenRef.current) console.warn('Failed to load more products:', err);
     } finally {
-      setLoadingMore(false);
+      if (token === catalogTokenRef.current) setLoadingMore(false);
     }
   }
 
@@ -313,14 +467,135 @@ export default function ProductsScreen({ route, navigation }) {
     await loadKey(key);
   }
 
-  // Load/refresh the page whenever the active child group or search changes.
+  /**
+   * The search query. Owns the request lifecycle for the results list:
+   *
+   *  - below `SEARCH_MIN_LEN` (i.e. the field was cleared) the results are
+   *    dropped SYNCHRONOUSLY, so the catalog is back on screen immediately
+   *    instead of after a round-trip, and the bumped token stops any in-flight
+   *    search from writing its results back over the catalog. This is the fix
+   *    for "I deleted the search and the same results were still there".
+   *  - otherwise only the newest request may write; older ones are dropped.
+   */
+  useEffect(() => {
+    const query = debouncedQuery;
+    const token = ++searchTokenRef.current;
+
+    if (query.length < SEARCH_MIN_LEN) {
+      setSearchState(EMPTY_SEARCH);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setSearchState({ query, items: [], hasMore: false, loading: true, loadingMore: false });
+
+    (async () => {
+      try {
+        const data = await CatalogAPI.searchItems({ search: query, limit: PAGE_SIZE, offset: 0 });
+        if (cancelled || token !== searchTokenRef.current) return;
+
+        const items = data && Array.isArray(data.items) ? data.items : [];
+        setSearchState({
+          query,
+          items,
+          hasMore: items.length >= PAGE_SIZE,
+          loading: false,
+          loadingMore: false,
+        });
+      } catch (err) {
+        if (cancelled || token !== searchTokenRef.current) return;
+        console.warn('Search failed:', err);
+        setSearchState({ ...EMPTY_SEARCH, query });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQuery]);
+
+  const loadMoreSearch = useCallback(async () => {
+    const { query, items, hasMore, loading, loadingMore } = searchState;
+    if (loading || loadingMore || !hasMore || query.length < SEARCH_MIN_LEN) return;
+
+    const token = searchTokenRef.current;
+    setSearchState((s) => ({ ...s, loadingMore: true }));
+    try {
+      const data = await CatalogAPI.searchItems({
+        search: query,
+        limit: PAGE_SIZE,
+        offset: items.length,
+      });
+      if (token !== searchTokenRef.current) return;
+
+      const incoming = data && Array.isArray(data.items) ? data.items : [];
+      setSearchState((s) => {
+        // The field was cleared or retyped while this page was loading.
+        if (s.query !== query) return s;
+        const seen = new Set(s.items.map((it) => it.item_code || it.name));
+        const merged = s.items.concat(
+          incoming.filter((it) => !seen.has(it.item_code || it.name))
+        );
+        return {
+          ...s,
+          items: merged,
+          hasMore: incoming.length >= PAGE_SIZE,
+          loadingMore: false,
+        };
+      });
+    } catch (err) {
+      if (token === searchTokenRef.current) {
+        console.warn('Failed to load more results:', err);
+        setSearchState((s) => ({ ...s, loadingMore: false }));
+      }
+    }
+  }, [searchState]);
+
+  const refreshSearch = useCallback(async () => {
+    const query = searchState.query;
+    if (query.length < SEARCH_MIN_LEN) {
+      setRefreshing(false);
+      return;
+    }
+
+    setRefreshing(true);
+    // A fresh token, so a response from the in-flight search effect — or a
+    // "load more" still running — cannot land on top of this refresh.
+    const token = ++searchTokenRef.current;
+    try {
+      const data = await CatalogAPI.searchItems({ search: query, limit: PAGE_SIZE, offset: 0 });
+      if (token !== searchTokenRef.current) return;
+      const items = data && Array.isArray(data.items) ? data.items : [];
+      setSearchState((s) => ({
+        ...s,
+        items,
+        hasMore: items.length >= PAGE_SIZE,
+        loading: false,
+        loadingMore: false,
+      }));
+    } catch (err) {
+      if (token === searchTokenRef.current) {
+        console.warn('Search refresh failed:', err);
+        setSearchState((s) => ({ ...s, loading: false }));
+      }
+    } finally {
+      if (token === searchTokenRef.current) setRefreshing(false);
+    }
+  }, [searchState.query]);
+
+  // Load/refresh the browsed group page whenever the active child group changes.
   useEffect(() => {
     loadKey(activeKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeKey, activeSearch]);
+  }, [activeKey]);
 
   // Live: re-sync the current page when the app returns to the foreground.
-  useLiveRefresh(() => loadKey(activeKey), { intervalMs: 0, isEnabled: true });
+  // Disabled during a search — the foreground sync refetches a group page, and
+  // doing that mid-search would replace the results with a browsed group.
+  useLiveRefresh(() => loadKey(activeKey), {
+    intervalMs: 0,
+    isEnabled: !isSearchActive,
+  });
 
   // Resolve deep links (category / search from Home or Categories).
   //
@@ -383,7 +658,6 @@ export default function ProductsScreen({ route, navigation }) {
         setActiveParent(ALL_KEY);
         setActiveChildIndex(0);
         setSearchQuery('');
-        setActiveSearch('');
       }
       return;
     }
@@ -399,7 +673,6 @@ export default function ProductsScreen({ route, navigation }) {
       // A category link always clears any previous search so the tapped group
       // shows its own items instead of a filtered subset.
       setSearchQuery('');
-      setActiveSearch('');
     } else {
       // Unresolvable link: fall back to "الكل" instead of leaving a stale page.
       console.warn(`Item group "${deepLinkTarget}" was not found in the catalog`);
@@ -410,12 +683,14 @@ export default function ProductsScreen({ route, navigation }) {
   }, [deepLinkTarget, hierarchyLoading, tree, categories, applyDeepLink]);
 
   // A search arriving from Home while this screen is already mounted.
+  // `setSearchQuery` is enough: the debounced search effect above owns the
+  // results, so there is no second copy of "the search being run" to keep in
+  // sync — which is exactly what used to go stale.
   const handledSearchRef = useRef(deepLinkSearch);
   useEffect(() => {
     if (deepLinkSearch === handledSearchRef.current) return;
     handledSearchRef.current = deepLinkSearch;
     setSearchQuery(deepLinkSearch);
-    setActiveSearch(deepLinkSearch);
   }, [deepLinkSearch]);
 
   useEffect(() => {
@@ -567,13 +842,24 @@ export default function ProductsScreen({ route, navigation }) {
     setActiveChildIndex(0);
   }
 
-  function handleSearchSubmit() {
-    setActiveSearch(searchQuery.trim());
-  }
-
+  /**
+   * Clearing the field is a pure local operation.
+   *
+   * There is nothing to wait for and nothing to fetch: the debounced search
+   * effect sees the empty term and drops the results on the next tick, while
+   * the group pager underneath is still holding the full catalog, so the
+   * catalog reappears immediately. Making the old implementation round-trip
+   * through the server is what left the deleted term's results on screen.
+   */
   function handleClearSearch() {
     setSearchQuery('');
-    setActiveSearch('');
+  }
+
+  // The search field submits, but results no longer wait for it: the debounced
+  // effect above starts searching as the user types. Submitting still dismisses
+  // the keyboard, which is the only thing the user actually wants from it.
+  function handleSearchSubmit() {
+    // Intentionally a no-op for the query: it is already live.
   }
 
   const activeProducts = productsByKey[activeKey] || [];
@@ -599,186 +885,205 @@ export default function ProductsScreen({ route, navigation }) {
         />
       </View>
 
-      {/* Parent groups — main departments */}
-      <View style={styles.chipsGroup}>
-        {/* <View style={styles.chipsLabelRow}>
+      {isSearchActive ? (
+        <>
+          <SearchResultsHeader
+            query={searchState.query || debouncedQuery}
+            count={searchState.items.length}
+            loading={searchState.loading}
+          />
+          <SearchResults
+            state={searchState}
+            onOpen={onOpen}
+            onLoadMore={loadMoreSearch}
+            refreshing={refreshing}
+            onRefresh={refreshSearch}
+            onClearAll={handleClearSearch}
+          />
+        </>
+      ) : (
+        <>
+          {/* Parent groups — main departments */}
+          <View style={styles.chipsGroup}>
+            {/* <View style={styles.chipsLabelRow}>
           <Icon name="albums-outline" size={14} color={Colors.primary} />
           <Text style={styles.chipsLabel}>الأقسام الرئيسية</Text>
         </View> */}
-        <ScrollView
-          ref={parentRow.scrollRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsRow}
-          {...parentRow.scrollProps}
-        >
-          {parentList.map((key, idx) => (
-            <View key={key} onLayout={(event) => parentRow.measure(idx, event)}>
-              <CategoryCard
-                category={key === ALL_KEY ? 'الكل' : key}
-                variant="chip"
-                chipActiveStyle="underline"
-                isSelected={activeParent === key}
-                onSelect={() => handleSelectParent(key)}
-              />
-            </View>
-          ))}
+            <ScrollView
+              ref={parentRow.scrollRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.chipsRow}
+              {...parentRow.scrollProps}
+            >
+              {parentList.map((key, idx) => (
+                <View key={key} onLayout={(event) => parentRow.measure(idx, event)}>
+                  <CategoryCard
+                    category={key === ALL_KEY ? 'الكل' : key}
+                    variant="chip"
+                    chipActiveStyle="underline"
+                    isSelected={activeParent === key}
+                    onSelect={() => handleSelectParent(key)}
+                  />
+                </View>
+              ))}
         </ScrollView>
-      </View>
+          </View>
 
-      {/* Child groups — filtered by active parent, first one activated */}
-      <View style={[styles.chipsGroup, styles.chipsGroupSub]}>
-        <Animated.View
-          style={{
-            opacity: childChipsAnim,
-            transform: [
-              {
-                translateX: childChipsAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [26, 0],
-                }),
-              },
-            ],
-          }}
-        >
-          <ScrollView
-            ref={childRow.scrollRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipsRow}
-            keyboardShouldPersistTaps="handled"
-            {...childRow.scrollProps}
-          >
-            {childPages.map((key, idx) => (
-              <View
-                key={`${key}`}
-                onLayout={(event) => childRow.measure(idx, event)}
+          {/* Child groups — filtered by active parent, first one activated */}
+          <View style={[styles.chipsGroup, styles.chipsGroupSub]}>
+            <Animated.View
+              style={{
+                opacity: childChipsAnim,
+                transform: [
+                  {
+                    translateX: childChipsAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [26, 0],
+                    }),
+                  },
+                ],
+              }}
+            >
+              <ScrollView
+                ref={childRow.scrollRef}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chipsRow}
+                keyboardShouldPersistTaps="handled"
+                {...childRow.scrollProps}
               >
-                <CategoryCard
-                  category={key === ALL_KEY ? 'الكل' : key}
-                  variant="chip"
-                  isSelected={idx === activeChildIndex}
-                  onSelect={() => handleSelectChild(key)}
-                />
-              </View>
-            ))}
-          </ScrollView>
-        </Animated.View>
-      </View>
+                {childPages.map((key, idx) => (
+                  <View
+                    key={`${key}`}
+                    onLayout={(event) => childRow.measure(idx, event)}
+                  >
+                    <CategoryCard
+                      category={key === ALL_KEY ? 'الكل' : key}
+                      variant="chip"
+                      isSelected={idx === activeChildIndex}
+                      onSelect={() => handleSelectChild(key)}
+                    />
+                  </View>
+                ))}
+              </ScrollView>
+            </Animated.View>
+          </View>
 
-      {/* Results info */}
-      {/* <View style={styles.resultsInfo}>
+          {/* Results info */}
+          {/* <View style={styles.resultsInfo}>
         <Text style={styles.resultsText}>
-          {activeSearch ? `نتائج البحث عن: "${activeSearch}" — ` : ''}
           عرض {activeProducts.length} من المنتجات
         </Text>
       </View> */}
 
-      {showSkeleton ? (
-        <View style={styles.skeletonGrid}>
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <View key={i} style={styles.gridColumn}>
-              <LoadingSkeleton height={150} borderRadius={Radius.xl} />
-              <View style={{ marginTop: 8 }}>
-                <LoadingSkeleton height={16} width="85%" />
-                <LoadingSkeleton height={14} width="40%" style={{ marginTop: 6 }} />
-              </View>
-            </View>
-          ))}
-        </View>
-      ) : (
-        <View
-          {...panResponder.panHandlers}
-          style={styles.pager}
-        >
-          <Animated.View
-            style={[
-              styles.pagerTrack,
-              { width: childPages.length * width, transform: [{ translateX }] },
-            ]}
-          >
-            {childPages.map((key, idx) => {
-              const pageProducts = productsByKey[key] || [];
-              const isActive = key === activeKey;
-
-              // Only the active page mounts its product list. Other pages are
-              // lightweight placeholders so a parent with many children does not
-              // mount dozens of nested FlatLists / product cards at once.
-              return (
-                <View
-                  key={`${idx}-${key}`}
-                  style={[styles.page, { width }]}
-                >
-                  {isActive ? (
-                    <PageContent>
-                      <FlatList
-                        data={pageProducts}
-                        keyExtractor={(item, index) => item.item_code || String(index)}
-                        numColumns={2}
-                        columnWrapperStyle={styles.columnWrapper}
-                        contentContainerStyle={styles.listContent}
-                        initialNumToRender={6}
-                        maxToRenderPerBatch={10}
-                        updateCellsBatchingPeriod={60}
-                        windowSize={7}
-                        removeClippedSubviews
-                        renderItem={({ item }) => (
-                          <ProductGridCell product={item} onOpen={onOpen} />
-                        )}
-                        onEndReached={() => loadMoreKey(key)}
-                        onEndReachedThreshold={0.4}
-                        refreshControl={
-                          <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={() => refreshKey(key)}
-                            colors={[Colors.primary]}
-                            tintColor={Colors.primary}
-                          />
-                        }
-                        ListFooterComponent={
-                          <View style={styles.footer}>
-                            {loadingMore ? (
-                              <>
-                                <ActivityIndicator size="small" color={Colors.primary} />
-                                <Text style={styles.footerText}>جاري تحميل المزيد...</Text>
-                              </>
-                            ) : !hasMoreByKey[key] && pageProducts.length > 0 ? (
-                              <Text style={styles.footerText}>— لقد وصلت إلى نهاية القائمة —</Text>
-                            ) : null}
-                          </View>
-                        }
-                        ListEmptyComponent={
-                          loadedKeys[key] ? (
-                            <EmptyState
-                              icon="search-outline"
-                              title="لم يتم العثور على منتجات"
-                              description="جرب البحث بكلمات أخرى أو اختر فئة مختلفة."
-                              actionLabel="عرض كل المنتجات"
-                              onAction={showAll}
-                            />
-                          ) : initialLoading ? (
-                            <View style={styles.pageLoader}>
-                              <ActivityIndicator size="small" color={Colors.primary} />
-                              <Text style={styles.pageLoaderText}>جاري تحميل المنتجات...</Text>
-                            </View>
-                          ) : null
-                        }
-                      />
-                    </PageContent>
-                  ) : (
-                    <View style={styles.pagePlaceholder}>
-                      {pageProducts.length > 0 ? (
-                        <Text style={styles.pagePlaceholderText}>
-                          {key === ALL_KEY ? 'الكل' : key}
-                        </Text>
-                      ) : null}
-                    </View>
-                  )}
+          {showSkeleton ? (
+            <View style={styles.skeletonGrid}>
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <View key={i} style={styles.gridColumn}>
+                  <LoadingSkeleton height={150} borderRadius={Radius.xl} />
+                  <View style={{ marginTop: 8 }}>
+                    <LoadingSkeleton height={16} width="85%" />
+                    <LoadingSkeleton height={14} width="40%" style={{ marginTop: 6 }} />
+                  </View>
                 </View>
-              );
-            })}
-          </Animated.View>
-        </View>
+              ))}
+            </View>
+          ) : (
+            <View
+              {...panResponder.panHandlers}
+              style={styles.pager}
+            >
+              <Animated.View
+                style={[
+                  styles.pagerTrack,
+                  { width: childPages.length * width, transform: [{ translateX }] },
+                ]}
+              >
+                {childPages.map((key, idx) => {
+                  const pageProducts = productsByKey[key] || [];
+                  const isActive = key === activeKey;
+
+                  // Only the active page mounts its product list. Other pages are
+                  // lightweight placeholders so a parent with many children does not
+                  // mount dozens of nested FlatLists / product cards at once.
+                  return (
+                    <View
+                      key={`${idx}-${key}`}
+                      style={[styles.page, { width }]}
+                    >
+                      {isActive ? (
+                        <PageContent>
+                          <FlatList
+                            data={pageProducts}
+                            keyExtractor={(item, index) => item.item_code || String(index)}
+                            numColumns={2}
+                            columnWrapperStyle={styles.columnWrapper}
+                            contentContainerStyle={styles.listContent}
+                            initialNumToRender={6}
+                            maxToRenderPerBatch={10}
+                            updateCellsBatchingPeriod={60}
+                            windowSize={7}
+                            removeClippedSubviews
+                            renderItem={({ item }) => (
+                              <ProductGridCell product={item} onOpen={onOpen} />
+                            )}
+                            onEndReached={() => loadMoreKey(key)}
+                            onEndReachedThreshold={0.4}
+                            refreshControl={
+                              <RefreshControl
+                                refreshing={refreshing}
+                                onRefresh={() => refreshKey(key)}
+                                colors={[Colors.primary]}
+                                tintColor={Colors.primary}
+                              />
+                            }
+                            ListFooterComponent={
+                              <View style={styles.footer}>
+                                {loadingMore ? (
+                                  <>
+                                    <ActivityIndicator size="small" color={Colors.primary} />
+                                    <Text style={styles.footerText}>جاري تحميل المزيد...</Text>
+                                  </>
+                                ) : !hasMoreByKey[key] && pageProducts.length > 0 ? (
+                                  <Text style={styles.footerText}>— لقد وصلت إلى نهاية القائمة —</Text>
+                                ) : null}
+                              </View>
+                            }
+                            ListEmptyComponent={
+                              loadedKeys[key] ? (
+                                <EmptyState
+                                  icon="search-outline"
+                                  title="لم يتم العثور على منتجات"
+                                  description="جرب البحث بكلمات أخرى أو اختر فئة مختلفة."
+                                  actionLabel="عرض كل المنتجات"
+                                  onAction={showAll}
+                                />
+                              ) : initialLoading ? (
+                                <View style={styles.pageLoader}>
+                                  <ActivityIndicator size="small" color={Colors.primary} />
+                                  <Text style={styles.pageLoaderText}>جاري تحميل المنتجات...</Text>
+                                </View>
+                              ) : null
+                            }
+                          />
+                        </PageContent>
+                      ) : (
+                        <View style={styles.pagePlaceholder}>
+                          {pageProducts.length > 0 ? (
+                            <Text style={styles.pagePlaceholderText}>
+                              {key === ALL_KEY ? 'الكل' : key}
+                            </Text>
+                          ) : null}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </Animated.View>
+            </View>
+          )}
+        </>
       )}
     </SafeAreaView>
   );
@@ -794,6 +1099,31 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 8,
     backgroundColor: Colors.surface,
+  },
+  searchHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderSubtle,
+  },
+  searchHeaderText: {
+    flex: 1,
+  },
+  searchHeaderTitle: {
+    fontSize: Typography.sizes.labelLg,
+    color: Colors.onSurface,
+    fontFamily: Typography.fontFamilySemiBold,
+  },
+  searchHeaderQuery: {
+    fontSize: Typography.sizes.labelSm,
+    color: Colors.textMuted,
+    fontFamily: Typography.fontFamilyMedium,
+    textAlign: 'left',
   },
   chipsGroup: {
     backgroundColor: Colors.surface,

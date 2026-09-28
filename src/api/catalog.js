@@ -8,16 +8,40 @@ let groupsCacheAt = 0;
 export const CatalogAPI = {
   /**
    * Fetch product catalog with categories
+   *
+   * Browsing only: this deliberately has no `search` parameter. Group browsing
+   * and searching are mutually exclusive, and sharing one request builder for
+   * both is what allowed a group chip to silently narrow a search (or a live
+   * search term to leak into the browsed group's page).
+   *
    * @param {Object} params
-   * @param {string} [params.item_group]
-   * @param {string} [params.search]
+   * @param {string} [params.itemGroup]
    * @param {number} [params.limit]
+   * @param {number} [params.offset]
    */
-  async getCatalog({ itemGroup = null, search = null, limit = 20, offset = 0 } = {}) {
+  async getCatalog({ itemGroup = null, limit = 20, offset = 0 } = {}) {
     const args = { limit };
     if (offset > 0) args.offset = offset;
     if (itemGroup && itemGroup !== 'all') args.item_group = itemGroup;
-    if (search) args.search = search;
+    return frappeCall('ecommerce.api.catalog', args, 'GET');
+  },
+
+  /**
+   * Search the whole catalog.
+   *
+   * `item_group` is never sent, by construction: a query spans every item
+   * regardless of which group chip happens to be selected. There is no
+   * `itemGroup` parameter to pass, so the scoping bug cannot come back.
+   *
+   * An empty term short-circuits instead of hitting the server, so a cleared
+   * search field never fires a "match everything" query.
+   */
+  async searchItems({ search, limit = 20, offset = 0 } = {}) {
+    const term = String(search || '').trim();
+    if (!term) return { items: [], groups: [] };
+
+    const args = { search: term, limit };
+    if (offset > 0) args.offset = offset;
     return frappeCall('ecommerce.api.catalog', args, 'GET');
   },
 

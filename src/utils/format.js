@@ -41,6 +41,35 @@ export function cleanPhoneNumber(phone) {
 }
 
 /**
+ * Format a result count as a short Arabic noun phrase.
+ *
+ * Arabic counts nouns by number, so "1 منتج / 2 منتج / 3 منتجات" cannot be
+ * produced by appending a suffix. Reporting every count as "منتج" reads as a
+ * translation bug in a list the user is actively scanning.
+ *
+ * @param {number} count
+ * @param {string} [noun] singular noun, e.g. 'منتج'
+ * @param {string} [dual] dual form, e.g. 'منتجان'
+ * @param {string} [plural] plural form, e.g. 'منتجات'
+ * @returns {string}
+ */
+export function formatCount(count, noun = 'منتج', dual = 'منتجان', plural = 'منتجات') {
+  const raw = Number(count);
+  if (!Number.isFinite(raw) || raw < 0) return '';
+
+  // A count is always whole: rendering "3.7 منتجات" is nonsense, and flooring
+  // also keeps the 1 / 2 / 3-10 / 11+ branches below on integer inputs.
+  const n = Math.floor(raw);
+  if (n === 0) return `لا ${plural}`;
+  if (n === 1) return `${noun} واحد`;
+  if (n === 2) return `${dual}`;
+  if (n <= 10) return `${n} ${plural}`;
+
+  // 11+ takes the accusative singular.
+  return `${n} ${noun}اً`;
+}
+
+/**
  * Format ERPNext date to friendly Arabic string
  * @param {string} dateStr
  * @returns {string}
