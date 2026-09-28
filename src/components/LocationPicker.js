@@ -48,6 +48,10 @@ export default function LocationPicker({
   // read the old `false` and start a second GPS request. The ref is the guard
   // that is correct within a single frame.
   const locatingRef = useRef(false);
+  // Read from the deferred auto-locate callback, where a `hasPin` captured in the
+  // closure would already be stale.
+  const hasPinRef = useRef(hasPin);
+  hasPinRef.current = hasPin;
   // The camera position the map is already showing, as "lat,lng". `initialRegion`
   // is only honoured on mount, so this is what lets us tell "a pin arrived from
   // the saved record and the camera must go to it" apart from "the user just
@@ -171,12 +175,25 @@ export default function LocationPicker({
     );
   }, [mapReady, hasPin, value]);
 
-  // No automatic "locate me" on open. Requesting the GPS position the moment a
-  // form appears is wrong twice over: it asks for a sensitive permission before
-  // the shopper has asked for it, and on an address that already has a stored
-  // pin it silently replaces their chosen location with wherever the phone
-  // happens to be standing. Current location is only ever taken from the
-  // explicit button, below.
+  // Offer the GPS fix automatically, but ONLY when there is nothing stored to
+  // open on. Two failure modes are being avoided at once:
+  //   - with a stored pin, auto-locating would silently replace the customer's
+  //     deliberately chosen location with wherever the phone is standing now;
+  //   - reading `hasPin` at render time is not enough even to decide that, since
+  //     a child's effects run before the parent's and the form seeds a saved pin
+  //     in an effect. On the first pass `value` is still null, so the check has
+  //     to happen after that seeding has landed, via the ref and a deferral.
+  const offeredRef = useRef(false);
+  useEffect(() => {
+    if (hasPinRef.current || offeredRef.current) return;
+    offeredRef.current = true;
+    const timer = setTimeout(() => {
+      if (!hasPinRef.current) locateMe();
+    }, 350);
+    return () => clearTimeout(timer);
+    // Once per mount: the picker is remounted each time the sheet opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** Dragging the marker, or tapping the map, both re-place the pin. */
   const handlePress = useCallback(
@@ -282,7 +299,7 @@ export default function LocationPicker({
       {/* Confirmation strip: the pin is only useful if the user can see that it
           was accepted, so this always reflects the current state. */}
       <View style={[styles.status, hasPin ? styles.statusSet : styles.statusEmpty]}>
-        {geocoding ? (
+        {geocoding || locating ? (
           <ActivityIndicator size="small" color={Colors.primary} style={styles.statusSpinner} />
         ) : (
           <Icon
@@ -293,7 +310,9 @@ export default function LocationPicker({
         )}
 
         <View style={styles.statusTextWrap}>
-          {geocoding ? (
+          {locating ? (
+            <Text style={styles.statusTitle}>جارٍ تحديد موقعك الحالي...</Text>
+          ) : geocoding ? (
             <Text style={styles.statusTitle}>جارٍ تحديد وصف الموقع...</Text>
           ) : hasPin ? (
             <>

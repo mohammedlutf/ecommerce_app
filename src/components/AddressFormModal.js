@@ -18,9 +18,8 @@ import Icon from './Icon';
 import LocationPicker from './LocationPicker';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
-import { Radius, Shadows, Spacing } from '../theme/spacing';
+import { Radius, Spacing } from '../theme/spacing';
 import { parseCoords } from '../utils/geo';
-import { useKeyboardHeight } from '../hooks/useKeyboardHeight';
 
 const DEFAULT_CITY = 'صنعاء';
 
@@ -46,7 +45,6 @@ function AddressFormModal({
   onSubmit,
 }) {
   const isEdit = !!initial;
-  const keyboardHeight = useKeyboardHeight();
 
   const [addressTitle, setAddressTitle] = useState('المنزل');
   const [addressLine1, setAddressLine1] = useState('');
@@ -163,15 +161,7 @@ function AddressFormModal({
 
           <ScrollView
             style={styles.flex}
-            contentContainerStyle={[
-              styles.content,
-              // A Modal's own window does not resize for the keyboard on Android,
-              // so the scroll area is padded by the measured height — otherwise
-              // the last field stays trapped behind the keyboard.
-              Platform.OS === 'android' && keyboardHeight > 0
-                ? { paddingBottom: Spacing.xxxl + keyboardHeight }
-                : null,
-            ]}
+            contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'none'}
             showsVerticalScrollIndicator={false}
@@ -307,18 +297,15 @@ function AddressFormModal({
             </Pressable>
           </ScrollView>
 
-          {/* Sticky footer so Save is always reachable above the keyboard. */}
-          <View
-            style={[
-              styles.footer,
-              keyboardHeight > 0 && styles.footerRaised,
-              // iOS: KeyboardAvoidingView already lifted everything, so the
-              // footer's own padding is untouched.
-              Platform.OS === 'android' && keyboardHeight > 0
-                ? { paddingBottom: Spacing.md + keyboardHeight }
-                : null,
-            ]}
-          >
+          {/* Sticky footer. It needs no keyboard handling of its own: on Android
+              the app is configured with `softwareKeyboardLayoutMode: "resize"`,
+              so this window shrinks when the keyboard opens and a plain flex
+              layout puts the buttons directly on top of it. The earlier version
+              padded this by the measured keyboard height as well, which stacked
+              on top of the platform's own adjustment and threw the whole form
+              to the top of the screen. On iOS the KeyboardAvoidingView above
+              does the lifting. */}
+          <View style={styles.footer}>
             <Pressable
               onPress={onClose}
               disabled={saving}
@@ -587,9 +574,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.borderSubtle,
     backgroundColor: Colors.surface,
-  },
-  footerRaised: {
-    ...Shadows.lg,
   },
   cancelBtn: {
     height: 50,
