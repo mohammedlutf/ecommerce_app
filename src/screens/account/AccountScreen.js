@@ -17,6 +17,7 @@ import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
 import OrderCard from '../../components/OrderCard';
 import AddressCard from '../../components/AddressCard';
+import AddressFormModal from '../../components/AddressFormModal';
 import EmptyState from '../../components/EmptyState';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
@@ -75,6 +76,13 @@ export default function AccountScreen({ navigation }) {
   // "is logged in") is what makes a logout → login as somebody else start from
   // a clean slate instead of the previous user's data.
   const userKey = (user && user.email) || null;
+
+  // The address form offers the customer's own number as the default recipient
+  // phone. These accounts are registered by phone number, so the local part of
+  // the login address is used when `mobile_no` was never filled in on the User
+  // document — the same fallback the server applies.
+  const defaultPhone =
+    (user && user.mobileNo) || (userKey ? userKey.split('@')[0].replace(/[^\d]/g, '') : '');
 
   const [activeTab, setActiveTab] = useState('orders'); // 'orders' | 'addresses'
   const [orders, setOrders] = useState([]);
@@ -267,6 +275,96 @@ export default function AccountScreen({ navigation }) {
     ]);
   }
 
+  // --- Addresses ------------------------------------------------------------
+  // `formMode` drives one modal for both create and edit; keeping them separate
+  // meant the two forms could validate and send different payloads.
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingAddress, setEditingAddress] = useState(null);
+  const [savingAddress, setSavingAddress] = useState(false);
+  const [addressBusy, setAddressBusy] = useState(false);
+
+  function handleAddAddressPress() {
+    setEditingAddress(null);
+    setFormOpen(true);
+  }
+
+  function handleEditAddress(address) {
+    setEditingAddress(address);
+    setFormOpen(true);
+  }
+
+  function handleCloseForm() {
+    if (savingAddress) return;
+    setFormOpen(false);
+    setEditingAddress(null);
+  }
+
+  async function handleSubmitAddress(values) {
+    setSavingAddress(true);
+    try {
+      if (editingAddress) {
+        await AddressAPI.updateAddress({
+          addressName: editingAddress.name,
+          ...values,
+        });
+        toast.success('تم تحديث العنوان');
+      } else {
+        await AddressAPI.addAddress(values);
+        toast.success('تم إضافة العنوان');
+      }
+      setFormOpen(false);
+      setEditingAddress(null);
+      // Reload without a spinner: the list is already on screen, and blanking it
+      // for a fraction of a second reads as a glitch.
+      await loadAddresses({ showSpinner: false });
+    } catch (err) {
+      toast.error(err?.message || (editingAddress ? 'تعذر تحديث العنوان' : 'تعذر إضافة العنوان'));
+    } finally {
+      setSavingAddress(false);
+    }
+  }
+
+  function handleDeleteAddress(address) {
+    Alert.alert(
+      'حذف العنوان',
+      `سيتم حذف "${address.address_title || 'عنوان التوصيل'}" نهائياً. هل أنت متأكد؟`,
+      [
+        { text: 'تراجع', style: 'cancel' },
+        {
+          text: 'نعم، احذف',
+          style: 'destructive',
+          onPress: () => deleteAddress(address),
+        },
+      ]
+    );
+  }
+
+  async function deleteAddress(address) {
+    setAddressBusy(true);
+    try {
+      await AddressAPI.deleteAddress(address.name);
+      toast.success('تم حذف العنوان');
+      await loadAddresses({ showSpinner: false });
+    } catch (err) {
+      toast.error(err?.message || 'تعذر حذف العنوان');
+    } finally {
+      setAddressBusy(false);
+    }
+  }
+
+  async function handleSetDefaultAddress(address) {
+    setAddressBusy(true);
+    try {
+      await AddressAPI.setDefaultAddress(address.name);
+      toast.success('تم تعيين العنوان الأساسي');
+      await loadAddresses({ showSpinner: false });
+    } catch (err) {
+      toast.error(err?.message || 'تعذر تعيين العنوان الأساسي');
+    } finally {
+      setAddressBusy(false);
+    }
+  }
+
   if (!isAuthenticated) {
     return <LoginScreen navigation={navigation} />;
   }
@@ -373,23 +471,46 @@ export default function AccountScreen({ navigation }) {
               )}
             </>
           )
-        ) : addresses.length === 0 ? (
-          <EmptyState
-            icon="location-outline"
-            title="لا توجد عناوين مسجلة"
-            description="يمكنك إضافة عناوين التوصيل أثناء تأكيد طلبك في السلة."
-            actionLabel="تصفح السلة"
-            onAction={() => navigation.navigate('CartTab')}
-          />
         ) : (
-          addresses.map((addr) => (
-            <AddressCard
-              key={addr.name}
-              address={addr}
-              isSelected={false}
-              onSelect={() => {}}
-            />
-          ))
+          <>
+            {/* The add button is always reachable, including when the list is
+                empty — an empty state that only points at the cart is a dead
+                end for someone who came here to manage their addresses. */}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={handleAddAddressPress}
+              style={({ pressed }) => [styles.addAddressBtn, pressed && styles.addAddressBtnPressed]}
+              accessibilityRole="button"
+              accessibilityLabel="إضافة عنوان جديد"
+            >
+              <Icon name="add" size={20} color={Colors.onPrimary} />
+              <Text style={styles.addAddressBtnText}>إضافة عنوان جديد</Text>
+            </TouchableOpacity>
+
+            {addresses.length === 0 ? (
+              <View style={styles.addressesEmpty}>
+                <EmptyState
+                  icon="location-outline"
+                  title="لا توجد عناوين مسجلة"
+                  description="أضف عنوان التسليم الخاص بك لتوصيل طلباتك بسهولة، أو حدّد موقعك على الخريطة."
+                  actionLabel="إضافة عنوان"
+                  onAction={handleAddAddressPress}
+                />
+              </View>
+            ) : (
+              addresses.map((addr) => (
+                <AddressCard
+                  key={addr.name}
+                  address={addr}
+                  isSelected={false}
+                  onEdit={handleEditAddress}
+                  onDelete={handleDeleteAddress}
+                  onSetDefault={handleSetDefaultAddress}
+                  busy={addressBusy || savingAddress}
+                />
+              ))
+            )}
+          </>
         )}
 
         {/* Logout Bottom Button */}
@@ -398,6 +519,15 @@ export default function AccountScreen({ navigation }) {
           <Text style={styles.logoutBtnText}>تسجيل الخروج من الحساب</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <AddressFormModal
+        visible={formOpen}
+        initial={editingAddress}
+        defaultPhone={defaultPhone}
+        saving={savingAddress}
+        onClose={handleCloseForm}
+        onSubmit={handleSubmitAddress}
+      />
     </SafeAreaView>
   );
 }
@@ -508,6 +638,27 @@ const styles = StyleSheet.create({
   loadMoreCount: {
     color: Colors.textMuted,
     fontSize: Typography.sizes.bodySm,
+  },
+  addAddressBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.lg,
+    paddingVertical: 14,
+    marginBottom: 14,
+  },
+  addAddressBtnPressed: {
+    backgroundColor: Colors.primaryPress,
+  },
+  addAddressBtnText: {
+    color: Colors.onPrimary,
+    fontSize: Typography.sizes.bodyMd,
+    fontFamily: Typography.fontFamilyBold,
+  },
+  addressesEmpty: {
+    marginBottom: 8,
   },
   logoutBtn: {
     marginTop: 24,

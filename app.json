@@ -11,6 +11,9 @@
       "supportsTablet": true,
       "runtimeVersion": {
         "policy": "appVersion"
+      },
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "نحتاج موقعك لتحديد عنوان التسليم بدقة على الخريطة."
       }
     },
     "android": {
@@ -21,7 +24,16 @@
       },
       "softwareKeyboardLayoutMode": "pan",
       "package": "com.mohammedlutfdalal.hadramoutecommerce",
-      "runtimeVersion": "1.0.0"
+      "runtimeVersion": "1.0.0",
+      "config": {
+        "googleMaps": {
+          "apiKey": "REPLACE_WITH_YOUR_GOOGLE_MAPS_API_KEY"
+        }
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
     },
     "extra": {
       "apiUrl": "http://192.168.1.35:8000",
@@ -47,8 +59,15 @@
             "usesCleartextTraffic": true
           }
         }
-      ]
       ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "نحتاج موقعك لتحديد عنوان التسليم بدقة على الخريطة."
+        }
+      ]
+    ],
+
     "updates": {
       "url": "https://u.expo.dev/1ea621da-1e71-4e8a-90e4-cd60b706ffcf"
     }

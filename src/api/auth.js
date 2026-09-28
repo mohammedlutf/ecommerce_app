@@ -81,7 +81,15 @@ function buildProfile(value, doc) {
     [clean(source.first_name), clean(source.last_name)].filter(Boolean).join(' ') ||
     email.split('@')[0];
 
-  return { email, name: fullName, fullName };
+  // The account's own number, so the address form can offer it as the default
+  // recipient phone. These accounts are created from a phone number, so the
+  // local part of the login address is a reliable fallback when `mobile_no` was
+  // never filled in.
+  const mobileNo =
+    clean(source.mobile_no) ||
+    (email.includes('@') ? email.split('@')[0].replace(/[^\d]/g, '') : '');
+
+  return { email, name: fullName, fullName, mobileNo };
 }
 
 /**
