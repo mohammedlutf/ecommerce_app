@@ -10,6 +10,9 @@ import { DEFAULT_REGION, buildPlaceLabel, formatCoordsForDisplay } from '../util
 
 const MAP_HEIGHT = 220;
 const GEOFENCE_METERS = 4000;
+// Camera span used when opening on a pin. ~1.3 km reads as "this building" on a
+// city map without being so tight that the pin fills the frame.
+const PIN_VIEW_DELTA = 0.012;
 
 /**
  * LocationPicker — choose the delivery point on a map, or use the device's
@@ -45,6 +48,12 @@ export default function LocationPicker({
   // read the old `false` and start a second GPS request. The ref is the guard
   // that is correct within a single frame.
   const locatingRef = useRef(false);
+  // The camera position the map is already showing, as "lat,lng". `initialRegion`
+  // is only honoured on mount, so this is what lets us tell "a pin arrived from
+  // the saved record and the camera must go to it" apart from "the user just
+  // tapped the map, where the camera already is" — the second case must not
+  // re-animate, or every tap would zoom the map in a notch.
+  const positionedRef = useRef(null);
 
   // Reverse-geocode token, so a slow geocode for an old point cannot land after
   // a newer one and label the wrong pin.
@@ -83,6 +92,9 @@ export default function LocationPicker({
         setRegion(nextRegion);
         if (mapRef.current) mapRef.current.animateToRegion(nextRegion, 350);
       }
+      // Either way the camera is now on this point, so the effect below must not
+      // animate to it a second time.
+      positionedRef.current = `${latitude},${longitude}`;
 
       const token = ++geocodeTokenRef.current;
       setGeocoding(true);
@@ -137,16 +149,34 @@ export default function LocationPicker({
     }
   }, [ensurePermission, placePin, onError]);
 
-  // Offer the GPS fix up front on a NEW address, which is what most people want
-  // and saves a trip through the map. Skipped when editing, so re-opening a form
-  // never overrides a deliberately chosen pin.
-  const offeredRef = useRef(false);
+  // Put the camera on a pin that arrived from outside — in practice, a saved
+  // address the form just seeded. `initialRegion` cannot do this job: it is read
+  // once at mount, and a child's effects run before the parent's, so on opening
+  // an existing address this map is already mounted on the default region by the
+  // time the pin exists. Without this the map sat over Sana'a showing nothing
+  // while the card said the address had coordinates.
   useEffect(() => {
-    if (hasPin || offeredRef.current) return;
-    offeredRef.current = true;
-    locateMe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasPin]);
+    if (!mapReady || !hasPin || !mapRef.current) return;
+    const key = `${value.latitude},${value.longitude}`;
+    if (positionedRef.current === key) return;
+    positionedRef.current = key;
+    mapRef.current.animateToRegion(
+      {
+        latitude: value.latitude,
+        longitude: value.longitude,
+        latitudeDelta: PIN_VIEW_DELTA,
+        longitudeDelta: PIN_VIEW_DELTA,
+      },
+      350
+    );
+  }, [mapReady, hasPin, value]);
+
+  // No automatic "locate me" on open. Requesting the GPS position the moment a
+  // form appears is wrong twice over: it asks for a sensitive permission before
+  // the shopper has asked for it, and on an address that already has a stored
+  // pin it silently replaces their chosen location with wherever the phone
+  // happens to be standing. Current location is only ever taken from the
+  // explicit button, below.
 
   /** Dragging the marker, or tapping the map, both re-place the pin. */
   const handlePress = useCallback(
@@ -184,7 +214,16 @@ export default function LocationPicker({
         <MapView
           ref={mapRef}
           style={styles.map}
-          initialRegion={hasPin ? { ...value, latitudeDelta: 0.01, longitudeDelta: 0.01 } : DEFAULT_REGION}
+          initialRegion={
+            hasPin
+              ? {
+                  latitude: value.latitude,
+                  longitude: value.longitude,
+                  latitudeDelta: PIN_VIEW_DELTA,
+                  longitudeDelta: PIN_VIEW_DELTA,
+                }
+              : DEFAULT_REGION
+          }
           onMapReady={() => setMapReady(true)}
           onPress={handlePress}
           onRegionChangeComplete={setRegion}
@@ -199,10 +238,9 @@ export default function LocationPicker({
         >
           {hasPin ? (
             <Marker
-              coordinate={value}
+              coordinate={{ latitude: value.latitude, longitude: value.longitude }}
               draggable={!disabled}
               onDragEnd={handleMarkerDrag}
-              tracksViewChanges={false}
             />
           ) : null}
         </MapView>
