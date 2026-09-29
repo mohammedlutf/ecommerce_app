@@ -60,7 +60,7 @@ export default function AddressCard({
         </View>
 
         <Text style={styles.addressLine}>{address.address_line1}</Text>
-        {address.address_line2 ? (
+        {/* {address.address_line2 ? (
           <Text style={styles.addressLineMuted}>{address.address_line2}</Text>
         ) : null}
         {placeName ? (
@@ -70,7 +70,7 @@ export default function AddressCard({
               {placeName}
             </Text>
           </View>
-        ) : null}
+        ) : null} */}
 
         <View style={styles.footerRow}>
           {address.city ? (
@@ -87,9 +87,9 @@ export default function AddressCard({
           ) : null}
         </View>
 
-        {coords ? (
+        {/* {coords ? (
           <Text style={styles.coords}>{formatCoordsForDisplay(coords)}</Text>
-        ) : null}
+        ) : null} */}
       </TouchableOpacity>
 
       {manageable ? (
