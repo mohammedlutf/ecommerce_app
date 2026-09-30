@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable } from 'react-native';
 import Icon from '../Icon';
 import styles from './editorStyles';
+import { normaliseDecimalInput } from '../../utils/numbers';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius } from '../../theme/spacing';
@@ -109,8 +110,10 @@ export default function UomEditor({ uoms, onChange, onAddPress, stockUom }) {
                     isStock && { backgroundColor: Colors.surfaceContainer },
                   ]}
                   value={String(row.conversion_factor ?? '')}
-                  onChangeText={(text) => patch(index, 'conversion_factor', text.replace(/[^0-9.]/g, ''))}
-                  keyboardType="numeric"
+                  onChangeText={(text) =>
+                    patch(index, 'conversion_factor', normaliseDecimalInput(text))
+                  }
+                  keyboardType="decimal-pad"
                   editable={!isStock}
                   selectTextOnFocus
                   placeholderTextColor={Colors.textMuted}
@@ -159,8 +162,10 @@ export default function UomEditor({ uoms, onChange, onAddPress, stockUom }) {
                     <TextInput
                       style={styles.uomInput}
                       value={String(row.price_list_rate ?? '')}
-                      onChangeText={(text) => patch(index, 'price_list_rate', text.replace(/[^0-9.]/g, ''))}
-                      keyboardType="numeric"
+                      onChangeText={(text) =>
+                        patch(index, 'price_list_rate', normaliseDecimalInput(text))
+                      }
+                      keyboardType="decimal-pad"
                       selectTextOnFocus
                       placeholderTextColor={Colors.textMuted}
                     />

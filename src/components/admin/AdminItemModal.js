@@ -20,6 +20,7 @@ import UomPicker from './UomPicker';
 import styles from './editorStyles';
 import AdminAPI from '../../api/admin';
 import { captureProductImage } from '../../utils/productImage';
+import { parseDecimal } from '../../utils/numbers';
 import { getImageUrl } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
 import { Colors } from '../../theme/colors';
@@ -112,7 +113,7 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
         // detected" cannot disagree with the payload that actually gets sent.
         uoms: rows.map(
           (row) =>
-            `${row.uom}:${Number(row.conversion_factor)}:${Number(row.has_item_price) === 1 ? 1 : 0}:${Number(row.price_list_rate)}`
+            `${row.uom}:${parseDecimal(row.conversion_factor) ?? ''}:${Number(row.has_item_price) === 1 ? 1 : 0}:${parseDecimal(row.price_list_rate) ?? ''}`
         ),
         recommended: (payload.recommended_items || []).map((row) => row.item_code),
       });
@@ -223,22 +224,26 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
     // sent, and the price would silently never be written.
     const current = uoms.map(
       (row) =>
-        `${row.uom}:${Number(row.conversion_factor)}:${Number(row.has_item_price) === 1 ? 1 : 0}:${Number(row.price_list_rate)}`
+        `${row.uom}:${parseDecimal(row.conversion_factor) ?? ''}:${Number(row.has_item_price) === 1 ? 1 : 0}:${parseDecimal(row.price_list_rate) ?? ''}`
     );
     if (current.join('|') !== original.uoms.join('|')) {
       changes.uoms = uoms.map((row) => {
-        const entry = {
-          uom: row.uom,
-          conversion_factor: Number(row.conversion_factor) || 0,
-        };
+        const entry = { uom: row.uom };
+
+        // Sent only when the admin actually typed a positive number. An empty or
+        // unparseable field used to be coerced to 0 here, which the backend
+        // rejects for any non-stock unit ("conversion rate must be greater than
+        // zero") and which would overwrite a real conversion factor besides.
+        // Omitting it means "leave this factor as it is".
+        const factor = parseDecimal(row.conversion_factor);
+        if (factor !== null && factor > 0) entry.conversion_factor = factor;
 
         // Only send a price the admin can actually see and change. A derived
         // price is displayed read-only, so it is never sent — and an empty
         // stored price is sent as-is rather than as 0, because 0 is a real price
         // and would overwrite whatever the database actually holds.
-        if (Number(row.has_item_price) === 1 && String(row.price_list_rate).trim() !== '') {
-          entry.price_list_rate = Number(row.price_list_rate) || 0;
-        }
+        const rate = parseDecimal(row.price_list_rate);
+        if (Number(row.has_item_price) === 1 && rate !== null) entry.price_list_rate = rate;
 
         return entry;
       });
@@ -262,12 +267,21 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
     if (!itemGroup) return 'اختر تصنيف المنتج';
 
     for (const row of uoms) {
-      const factor = Number(row.conversion_factor);
-      const rate = row.price_list_rate === '' ? 0 : Number(row.price_list_rate);
+      // The base unit is derived as 1 server-side, so its factor is not editable
+      // and is not validated. Every other unit must carry a positive factor:
+      // previously a blank field slipped through as 0 and failed on the server.
       const isStock = row.uom === (original && original.stockUom) || row.is_stock_uom === 1;
+      const factor = parseDecimal(row.conversion_factor);
 
-      if (!isStock && !(factor > 0)) return `معدل التحويل للوحدة ${row.uom} يجب أن يكون أكبر من صفر`;
-      if (Number.isNaN(rate) || rate < 0) return `سعر البيع للوحدة ${row.uom} غير صحيح`;
+      if (!isStock && !(factor !== null && factor > 0)) {
+        return `معدل التحويل للوحدة ${row.uom} يجب أن يكون أكبر من صفر`;
+      }
+
+      const rate = parseDecimal(row.price_list_rate);
+      // Only stored prices are validated, since only those are ever sent.
+      if (Number(row.has_item_price) === 1 && rate !== null && rate < 0) {
+        return `سعر البيع للوحدة ${row.uom} غير صحيح`;
+      }
     }
 
     if (Object.keys(changes).length === 0 && !pendingImage) return null;

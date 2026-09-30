@@ -34,12 +34,12 @@ MAX_RAW_IMAGE_BYTES = 15 * 1024 * 1024
 # ---------------------------------------------------------------------------
 
 def slugify(text):
-    if not text:
-        return ""
-    text = text.lower()
-    text = re.sub(r'[^a-z0-9\s-]', '', text) # Remove invalid chars
-    text = re.sub(r'[\s-]+', '-', text).strip('-') # Collapse spaces/hyphens
-    return text
+	if not text:
+		return ""
+	text = text.lower()
+	text = re.sub(r'[^a-z0-9\s-]', '', text) # Remove invalid chars
+	text = re.sub(r'[\s-]+', '-', text).strip('-') # Collapse spaces/hyphens
+	return text
 def _admin_child_doctype():
 	"""The child table behind Webshop Settings.admin_users.
 
@@ -238,40 +238,40 @@ def _delete_superseded_image(previous_url, item_code):
 from frappe.utils.file_manager import save_file
 
 def _save_item_image(item_code, file_base64, file_name=None):
-    """Store the photo, attach it to Item.image and point Website Item at it.
+	"""Store the photo, attach it to Item.image and point Website Item at it.
 
-    Both doctypes are written because they are read by different consumers: the
-    website renders Website Item.website_image, while anything working from the
-    master record reads Item.image.
-    """
-    if not frappe.db.exists("Item", item_code):
-        frappe.throw(_("Item not found."), frappe.DoesNotExistError)
+	Both doctypes are written because they are read by different consumers: the
+	website renders Website Item.website_image, while anything working from the
+	master record reads Item.image.
+	"""
+	if not frappe.db.exists("Item", item_code):
+		frappe.throw(_("Item not found."), frappe.DoesNotExistError)
 
-    content, extension = _decode_image(file_base64)
+	content, extension = _decode_image(file_base64)
 
-    website_item = frappe.db.get_value("Website Item", {"item_code": item_code}, "name")
-    previous = frappe.db.get_value("Website Item", website_item, "website_image") if website_item else None
+	website_item = frappe.db.get_value("Website Item", {"item_code": item_code}, "name")
+	previous = frappe.db.get_value("Website Item", website_item, "website_image") if website_item else None
 
-    stem = slugify((file_name or "").rsplit(".", 1)[0]) or _custom_slugify(item_code)
-    filename = f"{stem}-{frappe.generate_hash(length=8)}.{extension}"
+	stem = slugify((file_name or "").rsplit(".", 1)[0]) or _custom_slugify(item_code)
+	filename = f"{stem}-{frappe.generate_hash(length=8)}.{extension}"
 
-    # Call save_file imported from frappe.utils.file_manager
-    file_doc = save_file(
-        fname=filename,
-        content=content,
-        dt="Item",
-        dn=item_code,
-        folder="Home/Attachments",
-        is_private=0,
-        df="image"
-    )
+	# Call save_file imported from frappe.utils.file_manager
+	file_doc = save_file(
+		fname=filename,
+		content=content,
+		dt="Item",
+		dn=item_code,
+		folder="Home/Attachments",
+		is_private=0,
+		df="image"
+	)
 
-    if website_item:
-        frappe.db.set_value("Website Item", website_item, "website_image", file_doc.file_url)
-        frappe.db.set_value("Item", item_code, "image", file_doc.file_url)
+	if website_item:
+		frappe.db.set_value("Website Item", website_item, "website_image", file_doc.file_url)
+		frappe.db.set_value("Item", item_code, "image", file_doc.file_url)
 
-    _delete_superseded_image(previous, item_code)
-    return file_doc.file_url
+	_delete_superseded_image(previous, item_code)
+	return file_doc.file_url
 
 
 # ---------------------------------------------------------------------------
@@ -309,6 +309,8 @@ def _uom_rows(item_code):
 	"""
 	item = frappe.get_doc("Item", item_code)
 	stock_uom = item.stock_uom
+	# Read back unrounded: a stored 0.75 must reach the editor as 0.75, and the
+	# field is only ever rounded by ERPNext at save time.
 	factors = {row.uom: flt(row.conversion_factor) for row in (item.uoms or [])}
 
 	rows = []
@@ -317,13 +319,21 @@ def _uom_rows(item_code):
 		if not uom:
 			continue
 		explicit = _item_price_row(item_code, uom)
+		if uom == stock_uom:
+			# The stock UOM is the conversion base, so its factor is always 1 by
+			# definition. Reporting anything else would invite an admin to enter a
+			# value ERPNext will reject on save.
+			factor = 1.0
+		else:
+			factor = factors.get(uom)
+			# No `or 1.0` here: that would hide a stored zero, and a unit with a
+			# zero factor is broken data the admin should be shown, not hidden.
+			factor = 1.0 if factor is None else factor
+
 		rows.append(
 			{
 				"uom": uom,
-				# The stock UOM is the conversion base, so its factor is always 1
-				# by definition. Reporting anything else would invite an admin to
-				# enter a value ERPNext will reject on save.
-				"conversion_factor": 1.0 if uom == stock_uom else flt(factors.get(uom), 1.0) or 1.0,
+				"conversion_factor": factor,
 				"price_list_rate": flt(entry.get("price_list_rate")),
 				"currency": entry.get("currency") or "",
 				"has_item_price": 1 if explicit else 0,
@@ -331,6 +341,61 @@ def _uom_rows(item_code):
 			}
 		)
 	return rows
+
+
+_ARABIC_DIGIT_TABLE = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+
+
+def _decimal(value, precision=3):
+	"""Parse a number sent by the app, keeping three decimal places.
+
+	The app already normalises Arabic-Indic digits and the Arabic decimal
+	separator before sending, but this is the last line of defence, and it matters:
+	`flt("٠٫٧٥")` is `0`, so a perfectly good conversion factor could arrive as
+	zero and be rejected as "must be greater than zero" with no clue why.
+
+	Rounded to `precision` decimals so float noise does not leak into
+	`UOM Conversion Detail`, while 0.75 stays 0.75 instead of being flattened.
+	"""
+	if value is None:
+		return None
+
+	if isinstance(value, str):
+		text = value.translate(_ARABIC_DIGIT_TABLE).strip()
+		if not text:
+			return None
+		# The Arabic decimal separator, and a comma when no dot has been typed.
+		text = text.replace("٫", ".").replace("٬", "")
+		if "." not in text:
+			text = text.replace(",", ".")
+		else:
+			text = text.replace(",", "")
+		value = text
+
+	try:
+		return flt(value, precision)
+	except Exception:
+		return None
+
+
+def _float_precision_warning():
+	"""Warn when the site's Float precision is too low for conversion factors.
+
+	`UOM Conversion Detail.conversion_factor` is a Float field, and ERPNext rounds
+	Float columns to the "Float Precision" in System Settings. At a precision of 1
+	an entered 0.75 is stored and shown as 0.8, and an entered 0.0... well, at a
+	precision of 1 anything below 0.05 rounds to 0.0 and is then rejected as a
+	non-positive rate. The admin sees a number they never typed and no explanation,
+	so this names the setting and the symptom instead of leaving them guessing.
+	"""
+	precision = cint(frappe.db.get_single_value("System Settings", "float_precision") or 3)
+	if precision >= 3:
+		return None
+
+	return _(
+		"System Settings > Float Precision is {0}, so conversion rates are rounded to {0} "
+		"decimal place(s): 0.75 is stored as 0.8. Set Float Precision to at least 3."
+	).format(precision)
 
 
 def _apply_uoms(item_code, rows):
@@ -354,16 +419,35 @@ def _apply_uoms(item_code, rows):
 		if not frappe.db.exists("UOM", uom):
 			frappe.throw(_("Unit of Measure `{0}` does not exist.").format(uom))
 
-		factor = flt(row.get("conversion_factor"), 0)
+		existing = next((r for r in (item.uoms or []) if r.uom == uom), None)
+
+		factor = _decimal(row.get("conversion_factor"))
+
 		if uom == stock_uom:
 			# Forced, not validated: the base unit has no conversion.
 			factor = 1.0
+		elif factor is None:
+			# Absent means "leave the stored factor alone". This is the same rule
+			# the price follows, and it matters because a blank field used to
+			# arrive here as 0 and abort the entire save.
+			if existing:
+				continue
+			frappe.throw(
+				_("Conversion rate for `{0}` is required because it is a new unit.").format(uom)
+			)
 		elif factor <= 0:
-			frappe.throw(_("Conversion rate for `{0}` must be greater than zero.").format(uom))
+			# The received value is quoted back: "must be greater than zero" on its
+			# own gave no way to tell a genuinely wrong entry from a number mangled
+			# somewhere upstream.
+			frappe.throw(
+				_("Conversion rate for `{0}` must be greater than zero (received `{1}`).").format(
+					uom, row.get("conversion_factor")
+				)
+			)
 
-		existing = next((r for r in (item.uoms or []) if r.uom == uom), None)
 		if existing:
-			existing.conversion_factor = factor
+			if factor is not None:
+				existing.conversion_factor = factor
 		else:
 			# A new unit needs a positive factor. `UOM Conversion Detail` is a
 			# precision field, so a fractional rate is legitimate.
@@ -702,6 +786,10 @@ def admin_update_item(
 	if image_base64:
 		image_url = _save_item_image(item_code, image_base64, image_name)
 
+	precision_note = _float_precision_warning()
+	if precision_note:
+		warnings.append(precision_note)
+
 	frappe.db.commit()
 
 	return {
@@ -833,8 +921,14 @@ def admin_create_item(
 		uom = (row.get("uom") or "").strip()
 		if not frappe.db.exists("UOM", uom):
 			frappe.throw(_("Unit of Measure `{0}` does not exist.").format(uom))
-		if uom != base_uom and flt(row.get("conversion_factor"), 0) <= 0:
-			frappe.throw(_("Conversion rate for `{0}` must be greater than zero.").format(uom))
+		# Every unit is new here, so there is no stored factor to fall back on:
+		# unlike the editor, a missing factor is always an error.
+		if uom != base_uom and (_decimal(row.get("conversion_factor")) or 0) <= 0:
+			frappe.throw(
+				_("Conversion rate for `{0}` must be greater than zero (received `{1}`).").format(
+					uom, row.get("conversion_factor")
+				)
+			)
 
 	short = strip_html(short_description or "").strip()
 
@@ -852,7 +946,7 @@ def admin_create_item(
 					"uom": (row.get("uom") or "").strip(),
 					"conversion_factor": 1.0
 					if (row.get("uom") or "").strip() == base_uom
-					else flt(row.get("conversion_factor"), 0),
+					else _decimal(row.get("conversion_factor")),
 				}
 				for row in uom_rows
 				if (row.get("uom") or "").strip()

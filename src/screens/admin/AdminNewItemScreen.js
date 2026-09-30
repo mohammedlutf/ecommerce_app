@@ -18,6 +18,7 @@ import UomPicker from '../../components/admin/UomPicker';
 import styles from '../../components/admin/editorStyles';
 import AdminAPI from '../../api/admin';
 import { captureProductImage } from '../../utils/productImage';
+import { normaliseDecimalInput, parseDecimal, isPositiveNumber } from '../../utils/numbers';
 import { useAdmin } from '../../context/AdminContext';
 import { useToast } from '../../context/ToastContext';
 import { Colors } from '../../theme/colors';
@@ -107,13 +108,14 @@ export default function AdminNewItemScreen({ navigation }) {
     if (!itemName.trim()) return 'اسم المنتج مطلوب';
     if (!itemGroup) return 'اختر تصنيف المنتج';
     if (!stockUom) return 'اختر وحدة القياس الأساسية';
-    if (!(Number(price) > 0)) return 'أدخل سعر بيع للوحدة الأساسية';
+    if (!isPositiveNumber(price)) return 'أدخل سعر بيع للوحدة الأساسية';
 
     for (const row of extraUoms) {
-      if (!(Number(row.conversion_factor) > 0)) {
+      if (!isPositiveNumber(row.conversion_factor)) {
         return `معدل التحويل للوحدة ${row.uom} يجب أن يكون أكبر من صفر`;
       }
-      if (row.price_list_rate !== '' && Number(row.price_list_rate) < 0) {
+      const rate = parseDecimal(row.price_list_rate);
+      if (rate !== null && rate < 0) {
         return `سعر البيع للوحدة ${row.uom} غير صحيح`;
       }
     }
@@ -135,15 +137,19 @@ export default function AdminNewItemScreen({ navigation }) {
       const uoms = [
         { uom: stockUom, conversion_factor: 1, price_list_rate: Number(price) },
         ...extraUoms.map((row) => {
-          const entry = {
-            uom: row.uom,
-            conversion_factor: Number(row.conversion_factor) || 0,
-          };
+          const entry = { uom: row.uom };
+
+          // Sent only when genuinely typed. validate() has already rejected a
+          // missing or non-positive factor, but omitting rather than coercing to
+          // 0 keeps a bad value from ever reaching the backend.
+          const factor = parseDecimal(row.conversion_factor);
+          if (factor !== null) entry.conversion_factor = factor;
+
           // An extra unit with no price leaves the price unset rather than
           // sending 0, which the storefront would then read as a free item.
-          if (String(row.price_list_rate).trim() !== '') {
-            entry.price_list_rate = Number(row.price_list_rate) || 0;
-          }
+          const rate = parseDecimal(row.price_list_rate);
+          if (rate !== null) entry.price_list_rate = rate;
+
           return entry;
         }),
       ];
@@ -305,8 +311,8 @@ export default function AdminNewItemScreen({ navigation }) {
               <TextInput
                 style={styles.input}
                 value={price}
-                onChangeText={(text) => setPrice(text.replace(/[^0-9.]/g, ''))}
-                keyboardType="numeric"
+                onChangeText={(text) => setPrice(normaliseDecimalInput(text))}
+                keyboardType="decimal-pad"
                 placeholderTextColor={Colors.textMuted}
               />
             </View>
@@ -317,7 +323,7 @@ export default function AdminNewItemScreen({ navigation }) {
                 style={styles.input}
                 value={ranking}
                 onChangeText={(text) => setRanking(text.replace(/[^0-9-]/g, ''))}
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 placeholderTextColor={Colors.textMuted}
               />
             </View>
@@ -401,12 +407,12 @@ export default function AdminNewItemScreen({ navigation }) {
                         setExtraUoms((prev) =>
                           prev.map((r, i) =>
                             i === index
-                              ? { ...r, conversion_factor: text.replace(/[^0-9.]/g, '') }
+                              ? { ...r, conversion_factor: normaliseDecimalInput(text) }
                               : r
                           )
                         )
                       }
-                      keyboardType="numeric"
+                      keyboardType="decimal-pad"
                       selectTextOnFocus
                     />
                   </View>
@@ -418,11 +424,11 @@ export default function AdminNewItemScreen({ navigation }) {
                       onChangeText={(text) =>
                         setExtraUoms((prev) =>
                           prev.map((r, i) =>
-                            i === index ? { ...r, price_list_rate: text.replace(/[^0-9.]/g, '') } : r
+                            i === index ? { ...r, price_list_rate: normaliseDecimalInput(text) } : r
                           )
                         )
                       }
-                      keyboardType="numeric"
+                      keyboardType="decimal-pad"
                       selectTextOnFocus
                     />
                   </View>
