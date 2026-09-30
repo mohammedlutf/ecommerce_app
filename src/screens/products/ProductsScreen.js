@@ -11,6 +11,7 @@ import {
   Easing,
   I18nManager,
   PanResponder,
+  Pressable,
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,10 +26,11 @@ import { normalizeGroupName } from '../../utils/catalog';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import { useResetOnTabPress } from '../../hooks/useResetOnTabPress';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { useAdmin } from '../../context/AdminContext';
 import { formatCount } from '../../utils/format';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
-import { Radius } from '../../theme/spacing';
+import { Radius, Shadows, Spacing } from '../../theme/spacing';
 
 const PAGE_SIZE = 20;
 const ALL_KEY = 'all';
@@ -281,6 +283,7 @@ function SearchResults({ state, onOpen, onLoadMore, refreshing, onRefresh, onCle
 export default function ProductsScreen({ route, navigation }) {
   useResetOnTabPress(navigation, 'ProductsTab');
   const { width } = useWindowDimensions();
+  const { isAdmin, savedTick } = useAdmin();
 
   // The tab stack keeps this screen mounted, so the deep link is read live from
   // `route.params` instead of being captured once on mount. Otherwise a second
@@ -469,6 +472,23 @@ export default function ProductsScreen({ route, navigation }) {
     setRefreshing(true);
     await loadKey(key);
   }
+
+  // An admin edit or a new product has to show up without the user pulling to
+  // refresh, otherwise "saved" looks like it did nothing. `savedTick` is bumped by
+  // AdminContext on every successful save; skipping the very first value keeps a
+  // mount from triggering a redundant catalog fetch.
+  const firstSavedTickRef = useRef(true);
+  useEffect(() => {
+    if (firstSavedTickRef.current) {
+      firstSavedTickRef.current = false;
+      return;
+    }
+    // Drop cached pages first so a removed product cannot linger on a later page.
+    setLoadedKeys({});
+    setProductsByKey({});
+    setHasMoreByKey({});
+    refreshKey(activeKey);
+  }, [savedTick]);
 
   /**
    * The search query. Owns the request lifecycle for the results list:
@@ -1112,11 +1132,36 @@ export default function ProductsScreen({ route, navigation }) {
           )}
         </>
       )}
+
+      {/* Admin-only entry to the create-product screen. A FAB rather than a
+          header icon so it reads as "add", not "settings". */}
+      {isAdmin ? (
+        <Pressable
+          onPress={() => navigation.navigate('AdminNewItem')}
+          accessibilityRole="button"
+          accessibilityLabel="إضافة منتج جديد"
+          style={({ pressed }) => [styles.adminFab, pressed && { opacity: 0.85 }]}
+        >
+          <Icon name="add" size={26} color={Colors.onPrimary} />
+        </Pressable>
+      ) : null}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  adminFab: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    width: 56,
+    height: 56,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.lg,
+  },
   safeArea: {
     flex: 1,
     backgroundColor: Colors.background,

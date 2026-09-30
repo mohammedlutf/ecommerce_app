@@ -13,6 +13,7 @@ import { useFonts } from 'expo-font';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { CartProvider } from './src/context/CartContext';
+import { AdminProvider } from './src/context/AdminContext';
 import { WishlistProvider } from './src/context/WishlistContext';
 import { ToastProvider } from './src/context/ToastContext';
 import RootNavigator from './src/navigation/RootNavigator';
@@ -106,7 +107,11 @@ export default function App() {
         <AuthProvider>
           <CartProvider>
             <WishlistProvider>
-              <AppContent fontsReady={fontsLoaded} />
+              {/* Inside AuthProvider: the admin flag is keyed on the signed-in
+                  user and must reset on sign-in/sign-out. */}
+              <AdminProvider>
+                <AppContent fontsReady={fontsLoaded} />
+              </AdminProvider>
             </WishlistProvider>
           </CartProvider>
         </AuthProvider>

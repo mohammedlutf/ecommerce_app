@@ -181,7 +181,7 @@ export default function ProductDetailScreen({ route, navigation }) {
       setReviewSubmitting(false);
     }
   }
-
+  
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollContent}>

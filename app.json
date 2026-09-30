@@ -13,7 +13,9 @@
         "policy": "appVersion"
       },
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "نحتاج موقعك لتحديد عنوان التسليم بدقة على الخريطة."
+        "NSLocationWhenInUseUsageDescription": "نحتاج موقعك لتحديد عنوان التسليم بدقة على الخريطة.",
+        "NSCameraUsageDescription": "نحتاج الكاميرا لالتقاط صور المنتجات التي تضيفها إلى المتجر.",
+        "NSPhotoLibraryUsageDescription": "نحتاج الوصول إلى معرض الصور لاختيار صور المنتجات."
       }
     },
     "android": {
@@ -32,11 +34,13 @@
       },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES"
       ]
     },
     "extra": {
-      "apiUrl": "http://192.168.1.34:8000",
+      "apiUrl": "http://192.168.1.35:8000",
       "eas": {
         "projectId": "1ea621da-1e71-4e8a-90e4-cd60b706ffcf"
       }
@@ -64,6 +68,13 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "نحتاج موقعك لتحديد عنوان التسليم بدقة على الخريطة."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "نحتاج الوصول إلى معرض الصور لاختيار صور المنتجات.",
+          "cameraPermission": "نحتاج الكاميرا لالتقاط صور المنتجات التي تضيفها إلى المتجر."
         }
       ]
     ],

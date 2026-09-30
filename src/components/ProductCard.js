@@ -21,6 +21,7 @@ import { getImageUrl } from '../api/client';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../context/ToastContext';
+import { useAdmin } from '../context/AdminContext';
 
 export default function ProductCard({
   product,
@@ -31,6 +32,7 @@ export default function ProductCard({
   const { items: cartItems, addToCart, updateQuantity, removeItem } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
   const toast = useToast();
+  const { isAdmin, openEditor } = useAdmin();
 
   const availableUoms =
     product.uoms && product.uoms.length > 0
@@ -62,6 +64,11 @@ export default function ProductCard({
       Animated.timing(scale, { toValue: 0.96, duration: 90, useNativeDriver: true }),
       Animated.spring(scale, { toValue: 1, friction: 4, useNativeDriver: true }),
     ]).start();
+  }
+
+  function handleOpenEditor() {
+    if (!product.item_code) return;
+    openEditor(product.item_code);
   }
 
   async function handleToggleWishlist() {
@@ -161,6 +168,20 @@ export default function ProductCard({
             />
           )}
         </TouchableOpacity>
+
+        {/* Admin-only. The backend enforces this too; hiding it is a courtesy to
+            shoppers, not the control itself. */}
+        {isAdmin ? (
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={handleOpenEditor}
+            accessibilityRole="button"
+            accessibilityLabel={`تعديل ${product.item_name || product.item_code}`}
+            style={styles.adminBtn}
+          >
+            <Icon name="create-outline" size={18} color={Colors.onPrimary} />
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {/* Content */}
@@ -288,6 +309,18 @@ const styles = StyleSheet.create({
   },
   wishlistBtnActive: {
     backgroundColor: '#fff0f0',
+  },
+  adminBtn: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    width: 34,
+    height: 34,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.sm,
   },
   content: { padding: 12, flex: 1, justifyContent: 'space-between' },
   categoryRow: {
