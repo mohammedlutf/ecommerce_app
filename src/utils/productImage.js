@@ -17,39 +17,58 @@ import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 const MAX_EDGE = 1400;
 const COMPRESS = 0.7;
 
+function permissionError(message, canAskAgain) {
+  const error = new Error(message);
+  // `new Error(msg, { code })` is the standard shape, but the code is attached
+  // by hand so callers can tell a refusal from an unreachable module.
+  error.code = canAskAgain ? 'permission-denied' : 'permission-blocked';
+  return error;
+}
+
 async function ensurePermission(request, message) {
-  const { status, canAskAgain } = await request();
+  const result = (await request()) || {};
+  const status = result.status || (result.granted ? 'granted' : 'denied');
   if (status === 'granted') return true;
-  if (!canAskAgain) {
-    // Silently returning null here would look like the user cancelling. Say why.
-    throw new Error(
-      'permission-denied',
-      message
-    );
-  }
-  return null;
+
+  // The request above already presented the system dialog and awaited the
+  // answer, so "not granted" means the user actively refused (or the permission
+  // is not declared in this build). Returning null here — to mean "a prompt was
+  // shown, ask again later" — made the caller treat a refusal as "the user
+  // backed out of the picker" and silently do nothing, which is why pressing
+  // camera or gallery appeared to be a dead button.
+  throw permissionError(message, result.canAskAgain);
 }
 
 /**
  * @param {'camera'|'library'} source
  * @returns {Promise<{uri: string, base64: string, name: string}|null>}
- *   null when the user backs out. Throws with `code === 'permission-denied'`
- *   when the OS permission is refused.
+ *   null when the user backs out of the picker. Throws an Error whose `message`
+ *   is already user-facing Arabic whenever the image cannot be obtained, with
+ *   `code` set to one of `permission-denied`, `permission-blocked`, `too-large`
+ *   or `no-base64`. Never returns null to mean a failure — a silent null here is
+ *   indistinguishable from the user cancelling.
  */
 export async function captureProductImage(source = 'library') {
   const fromCamera = source === 'camera';
 
   const request = fromCamera
-    ? ImagePicker.requestCameraPermissionsAsync
+    ? () => ImagePicker.requestCameraPermissionsAsync()
     : () => ImagePicker.requestMediaLibraryPermissionsAsync(false);
 
-  const denied = await ensurePermission(
+  await ensurePermission(
     request,
     fromCamera
       ? 'الكاميرا غير مسموحة. فعّلها من إعدادات الهاتف ثم أعد المحاولة.'
       : 'الوصول إلى الصور غير مسموح. فعّله من إعدادات الهاتف ثم أعد المحاولة.'
   );
-  if (denied === null) return null; // prompt shown; user may still allow or refuse
+
+  // A module missing from this build (a stale native build, or a platform with no
+  // picker) would otherwise surface as "launchCameraAsync is not a function",
+  // which says nothing useful about what to do next.
+  const launcher = fromCamera ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
+  if (typeof launcher !== 'function') {
+    throw new Error('التطبيق يحتاج إعادة بناء لتفعيل الكاميرا والمعرض. أعد البناء ثم أعد المحاولة.');
+  }
 
   const options = {
     mediaTypes: ['images'],
@@ -59,9 +78,7 @@ export async function captureProductImage(source = 'library') {
     quality: 0.9,
   };
 
-  const result = fromCamera
-    ? await ImagePicker.launchCameraAsync(options)
-    : await ImagePicker.launchImageLibraryAsync(options);
+  const result = await launcher(options);
 
   if (result.canceled || !result.assets || result.assets.length === 0) return null;
 
@@ -71,7 +88,9 @@ export async function captureProductImage(source = 'library') {
   // Reject up front rather than uploading and failing on a server-side size
   // check after a slow round trip.
   if (asset.fileSize && asset.fileSize > 40 * 1024 * 1024) {
-    throw new Error('too-large', 'الصورة كبيرة جداً. اختر صورة أصغر.');
+    const error = new Error('الصورة كبيرة جداً. اختر صورة أصغر.');
+    error.code = 'too-large';
+    throw error;
   }
 
   const manipulated = await manipulateAsync(asset.uri, [{ resize: { width: MAX_EDGE } }], {
@@ -81,7 +100,9 @@ export async function captureProductImage(source = 'library') {
   });
 
   if (!manipulated || !manipulated.base64) {
-    throw new Error('no-base64', 'تعذر تجهيز الصورة للرفع.');
+    const error = new Error('تعذر تجهيز الصورة للرفع.');
+    error.code = 'no-base64';
+    throw error;
   }
 
   const originalName = asset.fileName || 'product.jpg';

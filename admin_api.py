@@ -235,44 +235,43 @@ def _delete_superseded_image(previous_url, item_code):
 		frappe.log_error(title="Could not remove superseded item image")
 
 
+from frappe.utils.file_manager import save_file
+
 def _save_item_image(item_code, file_base64, file_name=None):
-	"""Store the photo, attach it to Item.image and point Website Item at it.
+    """Store the photo, attach it to Item.image and point Website Item at it.
 
-	Both doctypes are written because they are read by different consumers: the
-	website renders `Website Item.website_image`, while anything working from the
-	master record reads `Item.image`.
-	"""
-	from frappe.core.doctype.file.file import save_file
+    Both doctypes are written because they are read by different consumers: the
+    website renders Website Item.website_image, while anything working from the
+    master record reads Item.image.
+    """
+    if not frappe.db.exists("Item", item_code):
+        frappe.throw(_("Item not found."), frappe.DoesNotExistError)
 
-	if not frappe.db.exists("Item", item_code):
-		frappe.throw(_("Item not found."), frappe.DoesNotExistError)
+    content, extension = _decode_image(file_base64)
 
-	content, extension = _decode_image(file_base64)
+    website_item = frappe.db.get_value("Website Item", {"item_code": item_code}, "name")
+    previous = frappe.db.get_value("Website Item", website_item, "website_image") if website_item else None
 
-	website_item = frappe.db.get_value("Website Item", {"item_code": item_code}, "name")
-	previous = frappe.db.get_value("Website Item", website_item, "website_image") if website_item else None
+    stem = slugify((file_name or "").rsplit(".", 1)[0]) or _custom_slugify(item_code)
+    filename = f"{stem}-{frappe.generate_hash(length=8)}.{extension}"
 
-	stem = slugify((file_name or "").rsplit(".", 1)[0]) or slugify(item_code)
-	filename = f"{stem}-{frappe.generate_hash(length=8)}.{extension}"
+    # Call save_file imported from frappe.utils.file_manager
+    file_doc = save_file(
+        fname=filename,
+        content=content,
+        dt="Item",
+        dn=item_code,
+        folder="Home/Attachments",
+        is_private=0,
+        df="image"
+    )
 
-	# df="image" makes Frappe set Item.image itself, so the attach and the field
-	# value can never disagree.
-	file_doc = save_file(
-		filename,
-		content,
-		"Item",
-		item_code,
-		"image",
-		"Home/Item Images",
-		is_private=0,
-	)
+    if website_item:
+        frappe.db.set_value("Website Item", website_item, "website_image", file_doc.file_url)
+        frappe.db.set_value("Item", item_code, "image", file_doc.file_url)
 
-	if website_item:
-		frappe.db.set_value("Website Item", website_item, "website_image", file_doc.file_url)
-		frappe.db.set_value("Item", item_code, "image", file_doc.file_url)
-
-	_delete_superseded_image(previous, item_code)
-	return file_doc.file_url
+    _delete_superseded_image(previous, item_code)
+    return file_doc.file_url
 
 
 # ---------------------------------------------------------------------------
