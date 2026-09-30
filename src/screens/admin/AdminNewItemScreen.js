@@ -134,11 +134,18 @@ export default function AdminNewItemScreen({ navigation }) {
       // base unit on the client and again on the server.
       const uoms = [
         { uom: stockUom, conversion_factor: 1, price_list_rate: Number(price) },
-        ...extraUoms.map((row) => ({
-          uom: row.uom,
-          conversion_factor: Number(row.conversion_factor) || 0,
-          price_list_rate: Number(row.price_list_rate) || 0,
-        })),
+        ...extraUoms.map((row) => {
+          const entry = {
+            uom: row.uom,
+            conversion_factor: Number(row.conversion_factor) || 0,
+          };
+          // An extra unit with no price leaves the price unset rather than
+          // sending 0, which the storefront would then read as a free item.
+          if (String(row.price_list_rate).trim() !== '') {
+            entry.price_list_rate = Number(row.price_list_rate) || 0;
+          }
+          return entry;
+        }),
       ];
 
       const result = await AdminAPI.createItem({

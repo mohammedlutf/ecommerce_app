@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable } from 'react-native';
 import Icon from '../Icon';
 import styles from './editorStyles';
@@ -16,9 +16,30 @@ import { Radius } from '../../theme/spacing';
  * conversion rates impossible to enter at all.
  */
 export default function UomEditor({ uoms, onChange, onAddPress, stockUom }) {
+  // Units whose price the admin has chosen to store during this editing session,
+  // keyed by UOM. Tracked separately from `has_item_price` so that "I just decided
+  // to set this price" can be undone without touching a price that was already
+  // stored before the sheet opened.
+  const [newlyStored, setNewlyStored] = useState([]);
+
   function patch(index, key, value) {
     const next = uoms.map((row, i) => (i === index ? { ...row, [key]: value } : row));
     onChange(next);
+  }
+
+  // Promote a derived unit to a stored one. The row is flagged so the diff treats
+  // it as a change and the price actually gets sent — otherwise setting a price
+  // that happens to equal the derived value would look like "nothing changed" and
+  // silently never be written.
+  function startSettingPrice(index) {
+    patch(index, 'has_item_price', 1);
+    setNewlyStored((prev) => (prev.includes(uoms[index].uom) ? prev : [...prev, uoms[index].uom]));
+  }
+
+  function cancelSettingPrice(index) {
+    const uom = uoms[index].uom;
+    patch(index, 'has_item_price', 0);
+    setNewlyStored((prev) => prev.filter((u) => u !== uom));
   }
 
   function remove(index) {
@@ -26,6 +47,7 @@ export default function UomEditor({ uoms, onChange, onAddPress, stockUom }) {
     // remaining factors with nothing to be relative to.
     if (uoms[index].uom === stockUom) return;
     onChange(uoms.filter((_, i) => i !== index));
+    setNewlyStored((prev) => prev.filter((u) => u !== uoms[index].uom));
   }
 
   return (
@@ -33,8 +55,8 @@ export default function UomEditor({ uoms, onChange, onAddPress, stockUom }) {
       <View>
         <Text style={styles.sectionTitle}>الوحدات والأسعار</Text>
         <Text style={styles.sectionHint}>
-          معدل التحويل يحدد كم وحدة تخزينية تساوي وحدة العرض. تغيير سعر الوحدة الأساسية
-          يغيّر الأسعار المشتقة للوحدات الأخرى.
+          معدل التحويل يحدد كم وحدة تخزينية تساوي وحدة العرض. السعر المشتق محسوب من
+          السعر الأساسي؛ اضغط «تعيين سعر» لحفظه كسعر مستقل للوحدة.
         </Text>
       </View>
 
@@ -46,6 +68,13 @@ export default function UomEditor({ uoms, onChange, onAddPress, stockUom }) {
 
       {uoms.map((row, index) => {
         const isStock = row.uom === stockUom || row.is_stock_uom === 1;
+        // "Derived" means the storefront computes this price from the base price
+        // and the conversion factor; there is no Item Price row behind it. So the
+        // number is shown, but never offered as an input: typing into it would
+        // create a stored price the admin did not intend, and leaving it alone
+        // must not be read as "set it to zero".
+        const isDerived = Number(row.has_item_price) !== 1;
+        const hasPrice = String(row.price_list_rate ?? '') !== '';
         return (
           <View key={row.uom} style={styles.uomRow}>
             <View style={styles.uomRowHead}>
@@ -53,13 +82,10 @@ export default function UomEditor({ uoms, onChange, onAddPress, stockUom }) {
 
               {isStock ? (
                 <Text style={styles.uomTag}>الوحدة الأساسية</Text>
-              ) : row.has_item_price === 1 ? (
-                <Text style={styles.uomTag}>سعر مخزّن</Text>
-              ) : (
-                // Not a stored price. Say so, because an admin who edits this
-                // number needs to know it will create a price row rather than
-                // change one that already exists.
+              ) : isDerived ? (
                 <Text style={[styles.uomTag, styles.uomTagDerived]}>سعر مشتق</Text>
+              ) : (
+                <Text style={styles.uomTag}>سعر مخزّن</Text>
               )}
 
               {!isStock ? (
@@ -93,14 +119,53 @@ export default function UomEditor({ uoms, onChange, onAddPress, stockUom }) {
 
               <View style={[styles.uomField, { flex: 1 }]}>
                 <Text style={styles.uomFieldLabel}>سعر البيع</Text>
-                <TextInput
-                  style={styles.uomInput}
-                  value={String(row.price_list_rate ?? '')}
-                  onChangeText={(text) => patch(index, 'price_list_rate', text.replace(/[^0-9.]/g, ''))}
-                  keyboardType="numeric"
-                  selectTextOnFocus
-                  placeholderTextColor={Colors.textMuted}
-                />
+                {isDerived ? (
+                  // Info first, editable on request. The computed price is shown
+                  // as-is, and the admin can promote the unit to a stored price
+                  // when the shop's real price differs from the derived one.
+                  <View style={styles.uomInfo}>
+                    <Text style={styles.uomInfoValue}>
+                      {hasPrice ? String(row.price_list_rate) : '—'}
+                    </Text>
+                    <Text style={styles.uomInfoNote}>
+                      {hasPrice ? 'محسوب من السعر الأساسي' : 'لا يوجد سعر مخزّن'}
+                    </Text>
+                    <Pressable
+                      onPress={() => startSettingPrice(index)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`تعيين سعر للوحدة ${row.uom}`}
+                      style={({ pressed }) => [
+                        styles.uomSetPriceBtn,
+                        pressed && { opacity: 0.7 },
+                      ]}
+                    >
+                      <Icon name="create-outline" size={13} color={Colors.primary} />
+                      <Text style={styles.uomSetPriceText}>تعيين سعر</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <View style={styles.uomField}>
+                    {newlyStored.includes(row.uom) ? (
+                      <Pressable
+                        onPress={() => cancelSettingPrice(index)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`إلغاء تعيين سعر الوحدة ${row.uom}`}
+                        style={styles.uomCancelPriceBtn}
+                      >
+                        <Icon name="close" size={12} color={Colors.onSurfaceVariant} />
+                        <Text style={styles.uomCancelPriceText}>إلغاء التعيين</Text>
+                      </Pressable>
+                    ) : null}
+                    <TextInput
+                      style={styles.uomInput}
+                      value={String(row.price_list_rate ?? '')}
+                      onChangeText={(text) => patch(index, 'price_list_rate', text.replace(/[^0-9.]/g, ''))}
+                      keyboardType="numeric"
+                      selectTextOnFocus
+                      placeholderTextColor={Colors.textMuted}
+                    />
+                  </View>
+                )}
               </View>
             </View>
           </View>

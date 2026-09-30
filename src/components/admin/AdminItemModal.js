@@ -72,7 +72,10 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
       (rows || []).map((row) => ({
         uom: row.uom,
         conversion_factor: String(row.conversion_factor ?? 1),
-        price_list_rate: String(row.price_list_rate ?? 0),
+        // Nullish stays empty rather than becoming "0": "no price stored" and
+        // "a price of zero" are different facts, and collapsing them here is what
+        // let a blank field overwrite a real price on save.
+        price_list_rate: row.price_list_rate == null ? '' : String(row.price_list_rate),
         is_stock_uom: row.is_stock_uom,
         has_item_price: row.has_item_price,
       })),
@@ -105,8 +108,12 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
         published: Number(websiteItem.published) === 1,
         image: item.image || websiteItem.website_image || '',
         stockUom: item.stock_uom || '',
-        // Compared numerically so "10" and "10.00" are not treated as an edit.
-        uoms: rows.map((row) => `${row.uom}:${Number(row.conversion_factor)}:${Number(row.price_list_rate)}`),
+        // Compared with the same signature the live form uses, so "no change
+        // detected" cannot disagree with the payload that actually gets sent.
+        uoms: rows.map(
+          (row) =>
+            `${row.uom}:${Number(row.conversion_factor)}:${Number(row.has_item_price) === 1 ? 1 : 0}:${Number(row.price_list_rate)}`
+        ),
         recommended: (payload.recommended_items || []).map((row) => row.item_code),
       });
 
@@ -209,13 +216,32 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
     if (Number(ranking || 0) !== original.ranking) changes.ranking = Number(ranking || 0);
     if (published !== original.published) changes.published = published ? 1 : 0;
 
-    const current = uoms.map((row) => `${row.uom}:${Number(row.conversion_factor)}:${Number(row.price_list_rate)}`);
+    // `has_item_price` is part of the signature because promoting a derived unit
+    // to a stored one is itself a change. Without it, choosing "تعيين سعر" and
+    // keeping the derived figure — the common case, since the shop usually starts
+    // from that number — would produce an identical signature, nothing would be
+    // sent, and the price would silently never be written.
+    const current = uoms.map(
+      (row) =>
+        `${row.uom}:${Number(row.conversion_factor)}:${Number(row.has_item_price) === 1 ? 1 : 0}:${Number(row.price_list_rate)}`
+    );
     if (current.join('|') !== original.uoms.join('|')) {
-      changes.uoms = uoms.map((row) => ({
-        uom: row.uom,
-        conversion_factor: Number(row.conversion_factor) || 0,
-        price_list_rate: Number(row.price_list_rate) || 0,
-      }));
+      changes.uoms = uoms.map((row) => {
+        const entry = {
+          uom: row.uom,
+          conversion_factor: Number(row.conversion_factor) || 0,
+        };
+
+        // Only send a price the admin can actually see and change. A derived
+        // price is displayed read-only, so it is never sent — and an empty
+        // stored price is sent as-is rather than as 0, because 0 is a real price
+        // and would overwrite whatever the database actually holds.
+        if (Number(row.has_item_price) === 1 && String(row.price_list_rate).trim() !== '') {
+          entry.price_list_rate = Number(row.price_list_rate) || 0;
+        }
+
+        return entry;
+      });
     }
 
     const codes = recommended.map((row) => row.item_code);

@@ -378,8 +378,18 @@ def _apply_uoms(item_code, rows):
 
 	for row in rows:
 		uom = (row.get("uom") or "").strip()
+		if not uom:
+			continue
+
+		# Absent means "leave this unit's price alone", NOT "set it to zero".
+		# `flt(None, 0)` would return 0 and silently overwrite a real price with a
+		# free one, which is how a derived unit — a unit the app only shows as
+		# computed information — could wipe the price the shop actually uses.
+		if row.get("price_list_rate") is None:
+			continue
+
 		rate = flt(row.get("price_list_rate"), 0)
-		if not uom or rate < 0:
+		if rate < 0:
 			continue
 		_apply_item_price(item_code, uom, rate)
 
