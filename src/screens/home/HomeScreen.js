@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -55,7 +55,6 @@ export default function HomeScreen({ navigation }) {
   const [offerProducts, setOfferProducts] = useState({}); // child name -> items
   const [offersLoading, setOffersLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
 
   const openProduct = useCallback(
     (product) => {
@@ -133,16 +132,33 @@ export default function HomeScreen({ navigation }) {
     setRefreshing(false);
   }
 
-  function handleSearchSubmit() {
-    if (searchQuery.trim()) {
-      // `itemGroup: undefined` is explicit on purpose: react-navigation MERGES
-      // params, so omitting it would keep the previously deep-linked group and
-      // the results would be filtered by that group instead of the search.
-      navigation.navigate('ProductsTab', {
-        screen: 'Products',
-        params: { search: searchQuery.trim(), itemGroup: undefined },
-      });
-    }
+  // Focusing the Home search field hands over to the Products screen, which
+  // already searches live as the user types. This field is therefore read-only:
+  // text typed into it would never be seen, and the shopper would have to press
+  // Enter for a search that the other screen runs continuously. Duplicating the
+  // debounce, request-token and pagination machinery here would leave two search
+  // implementations to keep in step forever.
+  //
+  // The token makes every hand-over a distinct value. It has to change on each
+  // visit, because react-navigation MERGES params: a boolean would stay `true`
+  // from an earlier tap and would fire again on unrelated later visits to this
+  // tab. A value that only ever changes when a hand-over really happened is
+  // inert once left behind.
+  const searchHandoverRef = useRef(0);
+
+  function handleSearchFocus() {
+    searchHandoverRef.current += 1;
+    navigation.navigate('ProductsTab', {
+      screen: 'Products',
+      params: {
+        // Cleared explicitly: without this the Products screen would open on
+        // whichever group or search was last deep-linked, and the shopper would
+        // type into a field filtered by a category they did not choose.
+        itemGroup: undefined,
+        search: undefined,
+        focusSearch: searchHandoverRef.current,
+      },
+    });
   }
 
   function handleSelectCategory(catName) {
@@ -151,6 +167,9 @@ export default function HomeScreen({ navigation }) {
       params: {
         itemGroup: catName === 'الكل' ? undefined : catName,
         search: undefined,
+        // Otherwise a search hand-over from this screen would still be in the
+        // merged params and would steal focus from the category being browsed.
+        focusSearch: undefined,
       },
     });
   }
@@ -190,13 +209,11 @@ export default function HomeScreen({ navigation }) {
           />
         }
       >
-        {/* Search */}
+        {/* Search — a hand-off, not a second search box. */}
         <View style={styles.searchSection}>
           <SearchBar
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onSubmit={handleSearchSubmit}
-            onClear={() => setSearchQuery('')}
+            asButton
+            onPress={handleSearchFocus}
             placeholder="ابحث عن أرز، زيت، حليب، خضار..."
           />
         </View>

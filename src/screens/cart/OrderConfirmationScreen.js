@@ -6,9 +6,18 @@ import Icon from '../../components/Icon';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
+import { formatCurrency } from '../../utils/format';
 
 export default function OrderConfirmationScreen({ route, navigation }) {
-  const { orderId } = route.params || {};
+  const { orderId, orderData } = route.params || {};
+
+  // The amounts charged are the ones the server put on the Sales Order, not the
+  // cart screen's running estimate. The two can differ — the estimate is a
+  // preview, the order is the record — and showing the estimate here would
+  // quote the customer a number that may not be what they are actually paying.
+  const deliveryCharges = Number((orderData && orderData.delivery_charges) || 0);
+  const grandTotal = Number((orderData && orderData.grand_total) || 0);
+  const hasTotals = grandTotal > 0;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -41,9 +50,29 @@ export default function OrderConfirmationScreen({ route, navigation }) {
             <Text style={styles.infoLabel}>طريقة الدفع</Text>
             <View style={styles.infoValueRow}>
               <Icon name="cash-outline" size={15} color={Colors.onSurface} />
-              <Text style={styles.infoValue}>نقداً عند الاستلام</Text>
+              <Text style={styles.infoValue}>
+                {(orderData && orderData.payment_method) || 'نقداً عند الاستلام'}
+              </Text>
             </View>
           </View>
+
+          {/* Amounts come from the saved order. Rendered only when the server
+              actually returned a total, so a missing figure reads as absent
+              rather than as a confidently wrong zero. */}
+          {hasTotals ? (
+            <>
+              {deliveryCharges > 0 ? (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>رسوم التوصيل</Text>
+                  <Text style={styles.infoValue}>{formatCurrency(deliveryCharges)}</Text>
+                </View>
+              ) : null}
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>المبلغ المطلوب عند الاستلام</Text>
+                <Text style={styles.totalValue}>{formatCurrency(grandTotal)}</Text>
+              </View>
+            </>
+          ) : null}
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>حالة الطلب</Text>
             <View style={styles.infoValueRow}>
@@ -163,6 +192,29 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.bodyMd,
     color: Colors.onSurface,
     fontFamily: Typography.fontFamilyMedium,
+  },
+  // Separated from the rows above so the amount due reads as the summary of the
+  // order rather than just another field in the list.
+  totalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderSubtle,
+    paddingTop: 14,
+    marginTop: 2,
+  },
+  totalLabel: {
+    fontSize: Typography.sizes.bodyMd,
+    fontFamily: Typography.fontFamilyBold,
+    color: Colors.onSurface,
+    textAlign: 'left',
+    flex: 1,
+  },
+  totalValue: {
+    fontSize: Typography.sizes.titleSm,
+    fontFamily: Typography.fontFamilyExtraBold,
+    color: Colors.primary,
   },
   actions: {
     width: '100%',

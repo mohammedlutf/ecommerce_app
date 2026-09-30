@@ -44,13 +44,36 @@ export const CartAPI = {
   },
 
   /**
-   * Place Cash on Delivery order
+   * Delivery charge for an address, resolved by the server.
+   *
+   * The price lives in two places — `Address.delivery_rate_charges` per address,
+   * and `Webshop Settings.default_delivery_rate` as the fallback — and the rule
+   * for which one wins must not be duplicated on the client, or the price shown
+   * at checkout can drift from the price actually charged. The server owns the
+   * resolution; the app only displays what it is told.
+   *
+   * @param {string|null} addressName the selected Address, or null for none
    */
-  submitOrder({ addressName, phone, notes } = {}) {
+  getDeliveryEstimate(addressName) {
+    const args = addressName ? { address: addressName } : {};
+    return frappeCall('ecommerce.api.delivery_estimate', args, 'GET');
+  },
+
+  /**
+   * Place Cash on Delivery order
+   *
+   * The delivery figures are sent so the order payload is explicit and the
+   * confirmation screen can show what the shopper was quoted. They are advisory
+   * only: `submit_order` recomputes them server-side, because a client-supplied
+   * amount is not evidence of what the customer owes.
+   */
+  submitOrder({ addressName, phone, notes, deliveryCharges, shippingAccount } = {}) {
     const args = {
       address: addressName,
       phone: phone || '',
       notes: notes || 'Cash on delivery',
+      delivery_charges: deliveryCharges === undefined || deliveryCharges === null ? 0 : deliveryCharges,
+      shipping_account: shippingAccount || '',
     };
     return frappeCall('ecommerce.api.submit_order', args, 'POST');
   },

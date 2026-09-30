@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
 import Icon from './Icon';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
@@ -10,15 +10,44 @@ export default function SearchBar({
   onChangeText,
   onSubmit,
   onClear,
+  onFocus,
+  onPress,
+  inputRef,
+  autoFocus = false,
+  asButton = false,
   placeholder = 'ابحث عن المنتجات أو الفئات...',
 }) {
+  // Entry-point mode: this bar does not search, it hands over to a real search
+  // field on another screen. Deliberately a Pressable and NOT a readOnly
+  // TextInput: a non-editable TextInput is not focusable on Android, so `onFocus`
+  // never fires and the bar is completely inert — which is exactly what a
+  // readOnly version of this field did. A Pressable fires on both platforms.
+  if (asButton) {
+    return (
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="search"
+        accessibilityLabel={placeholder}
+        style={({ pressed }) => [styles.container, pressed && styles.containerPressed]}
+      >
+        <Icon name="search" size={18} color={Colors.textMuted} />
+        <Text style={styles.placeholderText} numberOfLines={1}>
+          {placeholder}
+        </Text>
+      </Pressable>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Icon name="search" size={18} color={Colors.textMuted} />
       <TextInput
+        ref={inputRef}
         value={value}
         onChangeText={onChangeText}
         onSubmitEditing={onSubmit}
+        onFocus={onFocus}
+        autoFocus={autoFocus}
         placeholder={placeholder}
         placeholderTextColor={Colors.textMuted}
         style={styles.input}
@@ -52,6 +81,18 @@ const styles = StyleSheet.create({
       shadowRadius: 2,
       elevation: 1,
     },
+  },
+  containerPressed: {
+    backgroundColor: Colors.surfaceContainerLow,
+    borderColor: Colors.outline,
+  },
+  placeholderText: {
+    flex: 1,
+    fontSize: Typography.sizes.bodyMd,
+    fontFamily: Typography.fontFamilyMedium,
+    color: Colors.textMuted,
+    paddingVertical: 0,
+    textAlign: 'right',
   },
   input: {
     flex: 1,

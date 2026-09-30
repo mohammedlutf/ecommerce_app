@@ -320,6 +320,9 @@ export default function ProductsScreen({ route, navigation }) {
   // response harmless instead of a source of wrong results.
   const searchTokenRef = useRef(0);
   const catalogTokenRef = useRef(0);
+  // The real <TextInput> behind the search field, so a hand-off from Home can
+  // put the cursor in it.
+  const searchInputRef = useRef(null);
 
   // Products are cached per child-group page so swiping back is instant.
   const [productsByKey, setProductsByKey] = useState({});
@@ -693,6 +696,29 @@ export default function ProductsScreen({ route, navigation }) {
     setSearchQuery(deepLinkSearch);
   }, [deepLinkSearch]);
 
+  // Hand-off from the Home screen's search field: clear the field and put the
+  // cursor in it, so the shopper can simply carry on typing and the debounced
+  // search above runs exactly as it does for someone who typed here directly.
+  //
+  // The param is a changing counter, not a boolean. react-navigation MERGES
+  // params, so a boolean would remain `true` from an earlier hand-over and would
+  // re-focus this field on unrelated later visits to the tab. Keying the effect
+  // on a value that only changes when a hand-over actually happened means a
+  // value left behind in the params does nothing.
+  const focusSearchToken = route.params?.focusSearch;
+  useEffect(() => {
+    if (focusSearchToken === undefined || focusSearchToken === null) return;
+    // Cleared as well as focused: without this the shopper would carry on typing
+    // into a previous search, or into a category page, and wonder why the
+    // results do not match what they typed.
+    setSearchQuery('');
+    // Deferred because the Products tab is usually already mounted, and a tab
+    // that is not the focused one yet cannot take input focus — focusing during
+    // the transition is silently dropped.
+    const timer = setTimeout(() => searchInputRef.current?.focus(), 250);
+    return () => clearTimeout(timer);
+  }, [focusSearchToken]);
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -877,6 +903,7 @@ export default function ProductsScreen({ route, navigation }) {
       {/* Search Header */}
       <View style={styles.header}>
         <SearchBar
+          inputRef={searchInputRef}
           value={searchQuery}
           onChangeText={setSearchQuery}
           onSubmit={handleSearchSubmit}

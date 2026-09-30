@@ -52,6 +52,16 @@ export default function CartScreen({ navigation }) {
   const [showAddAddressModal, setShowAddAddressModal] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
 
+  // Delivery charge for the selected address, resolved by the server (see
+  // CartAPI.getDeliveryEstimate). Kept as its own slice rather than folded into
+  // `total`, which is the items subtotal and must keep meaning exactly that.
+  const [delivery, setDelivery] = useState({ charges: 0, shippingAccount: '', source: '', loading: false, error: false });
+  // Items subtotal plus delivery. Declared after `delivery` because it reads it.
+  // Computed here rather than in the cart context because `total` is the
+  // server's items subtotal and is also used for the "basket" badge and reorder
+  // logic — adding shipping into it there would corrupt all three.
+  const grandTotal = Number(total || 0) + Number(delivery.charges || 0);
+
   // Scope addresses to the signed-in customer, not merely to "logged in", and
   // clear them first so the previous user's list is never briefly visible.
   useEffect(() => {
@@ -61,6 +71,44 @@ export default function CartScreen({ navigation }) {
       loadAddresses();
     }
   }, [userKey]);
+
+  // The delivery charge depends on which address is selected, so it is refetched
+  // whenever that changes — including back to "no address", which must not leave
+  // the previous address's price sitting in the summary.
+  useEffect(() => {
+    let cancelled = false;
+    const addressName = selectedAddress ? selectedAddress.name : null;
+
+    // Reset first so a stale amount is never shown next to the new address for
+    // the moment the request is in flight.
+    setDelivery({ charges: 0, shippingAccount: '', source: '', loading: true, error: false });
+
+    CartAPI.getDeliveryEstimate(addressName)
+      .then((data) => {
+        if (cancelled) return;
+        setDelivery({
+          charges: Number((data && data.charges) || 0),
+          shippingAccount: (data && data.shipping_account) || '',
+          source: (data && data.source) || '',
+          loading: false,
+          error: false,
+        });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        // `error` is kept separate from `charges: 0` on purpose. A charge the
+        // shop set to zero and a charge we failed to fetch are not the same
+        // fact, and collapsing them makes a broken request look exactly like
+        // free delivery. The amount still defaults to 0, which cannot
+        // undercharge: submit_order resolves the real charge server-side.
+        console.warn('Could not load the delivery charge:', err);
+        setDelivery({ charges: 0, shippingAccount: '', source: '', loading: false, error: true });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAddress ? selectedAddress.name : null]);
 
   async function loadAddresses() {
     try {
@@ -151,6 +199,11 @@ export default function CartScreen({ navigation }) {
         addressName: selectedAddress ? selectedAddress.name : null,
         phone: selectedAddress ? selectedAddress.phone : null,
         notes,
+        // Sent for an explicit, auditable payload and so the confirmation screen
+        // can echo the figures. Advisory only — the server resolves the real
+        // charge again from the address and Webshop Settings.
+        deliveryCharges: delivery.charges,
+        shippingAccount: delivery.shippingAccount,
       });
 
       clearCart();
@@ -275,10 +328,36 @@ export default function CartScreen({ navigation }) {
 
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>رسوم التوصيل</Text>
-            <Text style={[styles.summaryValue, { color: Colors.success, fontFamily: Typography.fontFamilyBold }]}>
-              مجاني
-            </Text>
+            {delivery.loading ? (
+              <ActivityIndicator size="small" color={Colors.textMuted} />
+            ) : delivery.error ? (
+              // Never "مجاني" here: that would claim delivery is free when the
+              // truth is only that the price could not be read.
+              <Text style={[styles.summaryValue, { color: Colors.textMuted, fontFamily: Typography.fontFamilyBold }]}>
+                تعذّر تحديد الرسوم
+              </Text>
+            ) : delivery.charges > 0 ? (
+              <Text style={[styles.summaryValue, { color: Colors.error, fontFamily: Typography.fontFamilyBold }]}>
+                {formatCurrency(delivery.charges, currency)}
+              </Text>
+            ) : (
+              <Text style={[styles.summaryValue, { color: Colors.success, fontFamily: Typography.fontFamilyBold }]}>
+                مجاني
+              </Text>
+            )}
           </View>
+
+          {/* Where the number came from. Without this, two addresses showing the
+              same price give no clue whether that price was set on the address or
+              inherited from the shop default, and a wrong fee looks like a bug
+              rather than a setting. */}
+          {/* {delivery.source && !delivery.loading ? (
+            <Text style={styles.deliveryNote}>
+              {delivery.source === 'address'
+                ? 'السعر محدد على عنوانك'
+                : 'السعر الافتراضي للمتجر'}
+            </Text>
+          ) : null} */}
 
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>طريقة الدفع</Text>
@@ -292,7 +371,9 @@ export default function CartScreen({ navigation }) {
 
           <View style={[styles.summaryRow, styles.grandTotalRow]}>
             <Text style={styles.grandTotalLabel}>المجموع الكلي المطلوب</Text>
-            <Text style={styles.grandTotalValue}>{formatCurrency(total, currency)}</Text>
+            <Text style={styles.grandTotalValue}>
+              {formatCurrency(grandTotal, currency)}
+            </Text>
           </View>
         </View>
         
@@ -610,6 +691,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
+  },
+  deliveryNote: {
+    fontSize: Typography.sizes.labelSm,
+    fontFamily: Typography.fontFamilyRegular,
+    color: Colors.textMuted,
+    textAlign: 'left',
+    marginTop: -4,
+    marginBottom: 4,
   },
   grandTotalRow: {
     borderTopWidth: 1,
