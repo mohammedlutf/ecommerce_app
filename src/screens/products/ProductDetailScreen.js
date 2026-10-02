@@ -89,7 +89,8 @@ export default function ProductDetailScreen({ route, navigation }) {
       : [{ uom: product.stock_uom || 'حبة', rate: product.rate || product.price || 0 }];
 
   const currentRate = rateForUom(product, selectedUom);
-  const originalPrice = product.price  || product.original_rate || null;
+  // product.price  ||
+  const originalPrice =  product.original_rate || null;
   const discountPercent = calculateDiscount(currentRate, originalPrice);
   
   // console.log("originalPrice",originalPrice)
@@ -305,7 +306,7 @@ export default function ProductDetailScreen({ route, navigation }) {
           ) : null}
 
           {/* Reviews */}
-          <View style={styles.reviewSection}>
+          {/* <View style={styles.reviewSection}>
             <Text style={styles.sectionLabel}>تقييمات وآراء العملاء</Text>
 
             <View style={styles.addReviewCard}>
@@ -342,7 +343,7 @@ export default function ProductDetailScreen({ route, navigation }) {
                 )}
               </TouchableOpacity>
             </View>
-          </View>
+          </View> */}
         </View>
       </ScrollView>
 

@@ -48,7 +48,8 @@ export default function ProductCard({
   const scale = useRef(new Animated.Value(1)).current;
 
   const currentRate = rateForUom(product, selectedUom);
-  const originalPrice = product.price  || product.original_rate || product.old_rate ||  null;
+  // product.price  || 
+  const originalPrice = product.original_rate || product.old_rate ||  null;
   const discountPercent = calculateDiscount(currentRate, originalPrice);
 
   const cartLine = cartItems.find(
