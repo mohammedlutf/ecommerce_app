@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import HomeStack from './stacks/HomeStack';
 import ProductsStack from './stacks/ProductsStack';
@@ -15,9 +16,21 @@ import { useWishlist } from '../context/WishlistContext';
 
 const Tab = createBottomTabNavigator();
 
+/**
+ * Tab bar height excluding the system navigation bar.
+ *
+ * Android builds run edge-to-edge (`edgeToEdgeEnabled=true`), so the window
+ * extends behind the gesture pill / 3-button bar. A fixed height therefore
+ * dropped the bottom inset and let the system bar draw straight over the tabs —
+ * the inset has to be added back on top of these numbers.
+ */
+const TAB_BAR_CONTENT_HEIGHT = 60;
+const TAB_BAR_PADDING_BOTTOM = 8;
+
 export default function AppTabs() {
   const { count: cartCount } = useCart();
   const { count: wishlistCount } = useWishlist();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
@@ -25,7 +38,13 @@ export default function AppTabs() {
         headerShown: false,
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.outline,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [
+          styles.tabBar,
+          {
+            height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,
+            paddingBottom: TAB_BAR_PADDING_BOTTOM + insets.bottom,
+          },
+        ],
         tabBarLabelStyle: styles.tabBarLabel,
       }}
     >
@@ -112,8 +131,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceContainerLowest,
     borderTopWidth: 1,
     borderTopColor: Colors.borderSubtle,
-    height: 60,
-    paddingBottom: 8,
     paddingTop: 6,
   },
   tabBarLabel: {

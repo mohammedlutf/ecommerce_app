@@ -5,6 +5,10 @@ const GROUPS_FAIL_TTL = 30 * 1000;
 let groupsCache = null;
 let groupsCacheAt = 0;
 
+const SETTINGS_CACHE_TTL = 10 * 60 * 1000;
+let settingsCache = null;
+let settingsCacheAt = 0;
+
 export const CatalogAPI = {
   /**
    * Fetch product catalog with categories
@@ -68,6 +72,36 @@ export const CatalogAPI = {
       comment: comment || '',
     };
     return frappeCall('ecommerce.api.reviews', args, 'POST');
+  },
+
+  /**
+   * The storefront's feature switches, from `Webshop Settings` via the
+   * whitelisted `ecommerce.api.webshop_settings`.
+   *
+   * Cached because this is site-wide configuration that changes a handful of
+   * times a year, while it is read on every product page.
+   *
+   * Fails OPEN (both switches true) when the endpoint is unreachable. Hiding a
+   * section the merchant turned on is a worse mistake than showing one they
+   * turned off, and a settings call that fails must not take the whole product
+   * page down with it.
+   */
+  async getWebshopSettings() {
+    const elapsed = Date.now() - settingsCacheAt;
+    if (settingsCache && elapsed < SETTINGS_CACHE_TTL) return settingsCache;
+
+    try {
+      const raw = await frappeCall('ecommerce.api.webshop_settings', {}, 'GET');
+      settingsCache = {
+        enableReviews: !!(raw && raw.enable_reviews),
+        enableRecommendations: !!(raw && raw.enable_recommendations),
+      };
+    } catch (err) {
+      console.warn('Could not load webshop settings:', err.message);
+      settingsCache = { enableReviews: true, enableRecommendations: true };
+    }
+    settingsCacheAt = Date.now();
+    return settingsCache;
   },
 
   /**

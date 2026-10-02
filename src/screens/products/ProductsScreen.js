@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
-  I18nManager,
   PanResponder,
   Pressable,
   useWindowDimensions,
@@ -100,6 +99,17 @@ function PageContent({ children }) {
 }
 
 /**
+ * How many extra frames a reveal may be retried for.
+ *
+ * Android delivers the chip `onLayout` burst and `onContentSizeChange` in no
+ * guaranteed order, and only re-fires `onContentSizeChange` when the content
+ * size actually changes. A single pass can therefore measure the row while it is
+ * still half-updated and never get corrected, so the reveal keeps re-running for
+ * a few frames and stops as soon as the offset it wants holds still.
+ */
+const REVEAL_RETRY_FRAMES = 8;
+
+/**
  * useAutoRevealRow — keeps the selected chip of a horizontal group row on screen.
  *
  * A chip row can hold dozens of groups, so after a swipe (or a deep link that
@@ -108,47 +118,100 @@ function PageContent({ children }) {
  * ScrollView's `scrollTo` space, which is start-relative as well.
  *
  * `rowKey` should be a stable string for the row's items so unrelated re-renders
- * (e.g. a product page merging into state) do not yank the row back to center.
+ * (e.g. a product page merging into state) do not yank the row back to center,
+ * and `count` is how many chips the row holds.
  *
  * Returns `{ scrollRef, scrollProps, measure }`:
  *   - spread `scrollProps` on the horizontal ScrollView
  *   - call `measure(index, layoutEvent)` from each chip wrapper's onLayout
  */
-function useAutoRevealRow(activeIndex, rowKey) {
+function useAutoRevealRow(activeIndex, rowKey, count) {
   const scrollRef = useRef(null);
   const metricsRef = useRef({}); // index -> { x, size } (x measured from the LEFT edge)
   const viewportRef = useRef({ width: 0, contentWidth: 0 });
-  const lastTargetRef = useRef(-1);
+  const lastRevealRef = useRef({ rowKey: null, target: null });
   const activeIndexRef = useRef(activeIndex);
+  const retryRef = useRef(null);
   activeIndexRef.current = activeIndex;
 
-  const reveal = useCallback((index) => {
-    const scrollNode = scrollRef.current;
-    const metric = metricsRef.current[index];
-    const { width: viewportWidth, contentWidth } = viewportRef.current;
-    if (!scrollNode || !metric || viewportWidth <= 0) return;
+  // Returns the offset the row should sit at, or null while it is not
+  // measurable yet.
+  const reveal = useCallback(
+    (index) => {
+      const scrollNode = scrollRef.current;
+      const metric = metricsRef.current[index];
+      const { width: viewportWidth, contentWidth } = viewportRef.current;
+      // `contentWidth` is as load-bearing as the chip rect. Without it the row
+      // cannot be scrolled at all, and the clamped 0 produced by that attempt
+      // used to be remembered as "already revealed" — which blocked the real
+      // target whenever Android never re-reported the size.
+      if (!scrollNode || !metric || viewportWidth <= 0 || contentWidth <= 0) return null;
 
-    const distanceFromStart = I18nManager.isRTL
-      ? Math.max(0, contentWidth - metric.x - metric.size)
-      : metric.x;
+      // The row's own layout decides the direction, never `I18nManager.isRTL`:
+      // that constant is a snapshot taken while the bundle boots, and the
+      // `forceRTL()` in utils/rtl only reaches it on a LATER launch. A
+      // standalone build opened for the first time after install reports
+      // `false`, which mirrors every target and leaves the active chip
+      // off-screen. The first chip always sits on the start edge, so comparing
+      // it against the last one identifies that edge with certainty.
+      const lastMetric = count > 1 ? metricsRef.current[count - 1] : null;
+      const distanceFromStart =
+        lastMetric && metric.x > lastMetric.x
+          ? Math.max(0, contentWidth - metric.x - metric.size)
+          : metric.x;
 
-    // Center the chip, then clamp so the row never over-scrolls its bounds.
-    const maxOffset = Math.max(0, contentWidth - viewportWidth);
-    const target = Math.max(
-      0,
-      Math.min(maxOffset, distanceFromStart + metric.size / 2 - viewportWidth / 2)
-    );
+      // Center the chip, then clamp so the row never over-scrolls its bounds.
+      const maxOffset = Math.max(0, contentWidth - viewportWidth);
+      const target = Math.max(
+        0,
+        Math.min(maxOffset, distanceFromStart + metric.size / 2 - viewportWidth / 2)
+      );
 
-    // Layout arrives as a burst of events; ignoring sub-pixel deltas keeps the
-    // row from being re-scrolled (and re-animated) several times in a row.
-    if (Math.abs(target - lastTargetRef.current) < 1) return;
-    lastTargetRef.current = target;
-    scrollNode.scrollTo({ x: target, y: 0, animated: true });
-  }, []);
+      // Layout arrives as a burst of events; ignoring sub-pixel deltas keeps the
+      // row from being re-scrolled (and re-animated) several times in a row. The
+      // row signature is part of the key so a parent switch can always re-issue
+      // the same offset for a freshly laid-out row.
+      const last = lastRevealRef.current;
+      if (last.rowKey !== rowKey || Math.abs(target - last.target) >= 1) {
+        lastRevealRef.current = { rowKey, target };
+        scrollNode.scrollTo({ x: target, y: 0, animated: true });
+      }
+      return target;
+    },
+    [count, rowKey]
+  );
+
+  // Reveal immediately, then keep revealing for a few frames until the offset
+  // stops moving. `activeIndexRef` is read inside the loop so a trigger that
+  // lands mid-loop (a chip press, a swipe) is simply picked up by the frames
+  // already in flight instead of starting a second loop.
+  const scheduleReveal = useCallback(() => {
+    let settled = reveal(activeIndexRef.current);
+    if (retryRef.current != null) return;
+    let frames = 0;
+    const tick = () => {
+      frames += 1;
+      const next = reveal(activeIndexRef.current);
+      if (next !== null && next === settled) {
+        retryRef.current = null;
+        return;
+      }
+      settled = next;
+      retryRef.current = frames < REVEAL_RETRY_FRAMES ? requestAnimationFrame(tick) : null;
+    };
+    retryRef.current = requestAnimationFrame(tick);
+  }, [reveal]);
 
   useEffect(() => {
-    reveal(activeIndex);
-  }, [activeIndex, rowKey, reveal]);
+    scheduleReveal();
+  }, [activeIndex, rowKey, scheduleReveal]);
+
+  useEffect(
+    () => () => {
+      if (retryRef.current != null) cancelAnimationFrame(retryRef.current);
+    },
+    []
+  );
 
   const measure = useCallback(
     (index, event) => {
@@ -156,23 +219,24 @@ function useAutoRevealRow(activeIndex, rowKey) {
       metricsRef.current[index] = { x, size: width };
       // `onContentSizeChange` can land before the chip `onLayout` events, so the
       // active chip also re-centres from here.
-      if (index === activeIndexRef.current) reveal(index);
+      if (index === activeIndexRef.current) scheduleReveal();
     },
-    [reveal]
+    [scheduleReveal]
   );
 
   const scrollProps = useMemo(
     () => ({
       onLayout: (event) => {
         viewportRef.current.width = event.nativeEvent.layout.width;
+        scheduleReveal();
       },
       onContentSizeChange: (contentWidth) => {
         const changed = viewportRef.current.contentWidth !== contentWidth;
         viewportRef.current.contentWidth = contentWidth;
-        if (changed) reveal(activeIndexRef.current);
+        if (changed) scheduleReveal();
       },
     }),
-    [reveal]
+    [scheduleReveal]
   );
 
   return { scrollRef, scrollProps, measure };
@@ -811,11 +875,17 @@ export default function ProductsScreen({ route, navigation }) {
 
   // Keep the selected chip of both group rows on screen after a swipe, a chip
   // press or a deep link. `childPages` is a fresh array on every catalog merge,
-  // so a string signature is used to avoid re-centring while browsing.
-  const childRow = useAutoRevealRow(activeChildIndex, childPages.join('\u0001'));
+  // so a string signature is used to avoid re-centring while browsing. The count
+  // is what lets each row tell its own start edge apart from the last chip.
+  const childRow = useAutoRevealRow(
+    activeChildIndex,
+    childPages.join('\u0001'),
+    childPages.length
+  );
   const parentRow = useAutoRevealRow(
     parentList.indexOf(activeParent),
-    parentList.join('\u0001')
+    parentList.join('\u0001'),
+    parentList.length
   );
 
   const panResponder = useRef(

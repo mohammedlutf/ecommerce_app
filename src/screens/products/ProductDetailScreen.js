@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from '../../components/Icon';
 import UOMSelector from '../../components/UOMSelector';
 import QuantityStepper from '../../components/QuantityStepper';
+import ProductCard from '../../components/ProductCard';
 import CatalogAPI from '../../api/catalog';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
@@ -22,9 +23,122 @@ import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
-import { formatCurrency, calculateDiscount } from '../../utils/format';
+import { formatCurrency, calculateDiscount, formatCount, formatDate } from '../../utils/format';
 import { rateForUom } from '../../utils/catalog';
 import { getImageUrl } from '../../api/client';
+
+/**
+ * Target size of the "related items" rail.
+ *
+ * A target, not a cap. Whatever the merchant defined on the Website Item's
+ * `recommended_items` table is always shown in full — a product with eight
+ * defined recommendations keeps all eight. Only a short row is topped up.
+ */
+const RECOMMENDED_TARGET = 6;
+const RECOMMENDED_CARD_WIDTH = 170;
+const RECOMMENDED_CARD_GAP = 10;
+
+/**
+ * The items shown under "منتجات ذات صلة".
+ *
+ * The merchant's own picks come first. When the row is still short, it is
+ * topped up from the same item group and then by name search, so a product with
+ * no recommendations at all does not end up with a single lonely card. Each
+ * stage is independent: a thin group must not stop the search from running.
+ *
+ * The product itself is never recommended back to the shopper.
+ */
+async function buildRecommendedItems(product) {
+  const defined = (
+    Array.isArray(product.recommended_items) ? product.recommended_items : []
+  ).filter((entry) => entry && entry.item_code);
+
+  if (defined.length >= RECOMMENDED_TARGET) return defined;
+
+  const seen = new Set(defined.map((entry) => entry.item_code));
+  if (product.item_code) seen.add(product.item_code);
+  const out = defined.slice();
+
+  const stages = [];
+  if (product.item_group) {
+    stages.push(() =>
+      CatalogAPI.getCatalog({ itemGroup: product.item_group, limit: RECOMMENDED_TARGET * 2 })
+    );
+  }
+  const term = (product.item_name || product.web_item_name || '').trim();
+  if (term) {
+    stages.push(() => CatalogAPI.searchItems({ search: term, limit: RECOMMENDED_TARGET * 2 }));
+  }
+
+  for (const run of stages) {
+    if (out.length >= RECOMMENDED_TARGET) break;
+    try {
+      const data = await run();
+      for (const item of (data && Array.isArray(data.items) ? data.items : [])) {
+        if (out.length >= RECOMMENDED_TARGET) break;
+        if (!item || !item.item_code || seen.has(item.item_code)) continue;
+        seen.add(item.item_code);
+        out.push(item);
+      }
+    } catch (err) {
+      // A failed top-up leaves the rail short; it must not hide the items that
+      // were already resolved.
+      console.warn('Could not top up recommended items:', err.message);
+    }
+  }
+
+  return out;
+}
+
+function StarRow({ rating, size = 14 }) {
+  return (
+    <View style={styles.starRowSmall}>
+      {[1, 2, 3, 4, 5].map((s) => (
+        <Icon
+          key={s}
+          name={rating >= s ? 'star' : 'star-outline'}
+          size={size}
+          color={rating >= s ? Colors.secondary : Colors.outlineVariant}
+        />
+      ))}
+    </View>
+  );
+}
+
+function ReviewRow({ review }) {
+  const rating = Math.round(Number(review.rating) || 0);
+  return (
+    <View style={styles.reviewItem}>
+      <View style={styles.reviewItemHead}>
+        <StarRow rating={rating} />
+        <Text style={styles.reviewDate}>
+          {formatDate(review.published_on || review.creation)}
+        </Text>
+      </View>
+      {review.review_title ? (
+        <Text style={styles.reviewItemTitle}>{review.review_title}</Text>
+      ) : null}
+      {review.comment ? (
+        <Text style={styles.reviewItemComment}>{review.comment}</Text>
+      ) : null}
+      {review.user ? <Text style={styles.reviewItemUser}>{review.user}</Text> : null}
+    </View>
+  );
+}
+
+function ReviewsSummary({ reviews }) {
+  if (reviews.length === 0) return null;
+  const average =
+    reviews.reduce((sum, review) => sum + (Number(review.rating) || 0), 0) / reviews.length;
+  return (
+    <View style={styles.reviewsSummary}>
+      <StarRow rating={Math.round(average)} size={16} />
+      <Text style={styles.reviewsSummaryText}>
+        {`${average.toFixed(1)} من 5 · ${formatCount(reviews.length, 'تقييم', 'تقييمان', 'تقييمات')}`}
+      </Text>
+    </View>
+  );
+}
 
 export default function ProductDetailScreen({ route, navigation }) {
   const { itemCode } = route.params || {};
@@ -46,6 +160,16 @@ export default function ProductDetailScreen({ route, navigation }) {
   const [rating, setRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
+
+  // Mirrors `Webshop Settings`. Both default to true so the page renders its
+  // full content on the very first frame instead of flashing empty sections
+  // while the settings request is still in the air.
+  const [settings, setSettings] = useState({
+    enableReviews: true,
+    enableRecommendations: true,
+  });
+  const [recommended, setRecommended] = useState([]);
+  const [recommendedLoading, setRecommendedLoading] = useState(false);
 
   const fetchDetail = useCallback(async () => {
     setLoading(true);
@@ -73,6 +197,74 @@ export default function ProductDetailScreen({ route, navigation }) {
 
   // Live: re-fetch the product when the app returns to the foreground.
   useLiveRefresh(fetchDetail, { intervalMs: 0, isEnabled: true });
+
+  // The storefront switches are site-wide, so this is read once per screen and
+  // cached by the API layer. Failure is handled there (fails open) — there is
+  // nothing to retry here.
+  useEffect(() => {
+    let cancelled = false;
+    CatalogAPI.getWebshopSettings().then((loaded) => {
+      if (!cancelled) setSettings(loaded);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /**
+   * Identity of the recommendation source.
+   *
+   * `fetchDetail` runs again on every return to the foreground and hands back a
+   * brand new product object, so depending on the object itself would re-run
+   * the top-up requests for an unchanged answer. This string is stable exactly
+   * when the product and its defined recommendations are unchanged.
+   */
+  const recommendedKey = useMemo(
+    () =>
+      product
+        ? `${product.item_code}::${(product.recommended_items || [])
+            .map((entry) => entry && entry.item_code)
+            .join(',')}`
+        : '',
+    [product]
+  );
+
+  useEffect(() => {
+    if (!product || !recommendedKey || !settings.enableRecommendations) return undefined;
+
+    let cancelled = false;
+    setRecommendedLoading(true);
+    (async () => {
+      let list = [];
+      try {
+        list = await buildRecommendedItems(product);
+      } catch (err) {
+        // Without this the rail would spin forever: a rejection here skips the
+        // reset below and nothing else ever clears the loader.
+        console.warn('Could not load recommended items:', err.message);
+      }
+      if (cancelled) return;
+      setRecommended(list);
+      setRecommendedLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // `product` is read for its fields but `recommendedKey` is the value that
+    // actually changes when the recommendation set does — see the memo above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recommendedKey, settings.enableRecommendations]);
+
+  const openRecommended = useCallback(
+    (related) => {
+      const code = related && related.item_code;
+      // `push`, not `navigate`: these are other products, so backing out of one
+      // should land on the product the shopper was reading, not skip it.
+      if (code) navigation.push('ProductDetail', { itemCode: code });
+    },
+    [navigation]
+  );
 
   if (loading || !product) {
     return (
@@ -105,6 +297,9 @@ export default function ProductDetailScreen({ route, navigation }) {
   const inCartQty = cartLine ? cartLine.qty : 0;
   const wishlisted = isWishlisted(product.item_code);
   const imageUrl = getImageUrl(product.website_image || product.image);
+  const reviews = Array.isArray(product.reviews) ? product.reviews : [];
+  const showReviews = settings.enableReviews;
+  const showRecommended = settings.enableRecommendations;
 
   async function handleAddToCart() {
     setActionLoading(true);
@@ -305,45 +500,86 @@ export default function ProductDetailScreen({ route, navigation }) {
             </View>
           ) : null}
 
-          {/* Reviews */}
-          {/* <View style={styles.reviewSection}>
-            <Text style={styles.sectionLabel}>تقييمات وآراء العملاء</Text>
+          {/* Recommended items — off unless Webshop Settings enables them */}
+          {showRecommended && (recommendedLoading || recommended.length > 0) ? (
+            <View style={styles.sectionBlock}>
+              <Text style={styles.sectionLabel}>منتجات ذات صلة</Text>
 
-            <View style={styles.addReviewCard}>
-              <Text style={styles.addReviewTitle}>أضف تقييمك للمنتج</Text>
-              <View style={styles.starRow}>
-                {[1, 2, 3, 4, 5].map((s) => (
-                  <TouchableOpacity key={s} activeOpacity={0.7} onPress={() => setRating(s)}>
-                    <Icon name={rating >= s ? 'star' : 'star-outline'} size={26} color={rating >= s ? Colors.secondary : Colors.outlineVariant} />
-                  </TouchableOpacity>
-                ))}
+              {recommended.length === 0 ? (
+                <View style={styles.recommendedLoader}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                </View>
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.recommendedRail}
+                >
+                  {recommended.map((item, idx) => (
+                    <View key={item.item_code || idx} style={styles.recommendedCard}>
+                      <ProductCard product={item} onPress={openRecommended} />
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+          ) : null}
+
+          {/* Reviews — off unless Webshop Settings enables them */}
+          {showReviews ? (
+            <View style={styles.reviewSection}>
+              <Text style={styles.sectionLabel}>تقييمات وآراء العملاء</Text>
+
+              <ReviewsSummary reviews={reviews} />
+
+              <View style={styles.addReviewCard}>
+                <Text style={styles.addReviewTitle}>أضف تقييمك للمنتج</Text>
+                <View style={styles.starRow}>
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <TouchableOpacity key={s} activeOpacity={0.7} onPress={() => setRating(s)}>
+                      <Icon name={rating >= s ? 'star' : 'star-outline'} size={26} color={rating >= s ? Colors.secondary : Colors.outlineVariant} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <TextInput
+                  value={reviewComment}
+                  onChangeText={setReviewComment}
+                  placeholder="شاركنا رأيك حول جودة وسرعة التوصيل..."
+                  placeholderTextColor={Colors.textMuted}
+                  multiline
+                  numberOfLines={3}
+                  style={styles.reviewInput}
+                  textAlign="right"
+                />
+
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  disabled={reviewSubmitting}
+                  onPress={handleReviewSubmit}
+                  style={styles.submitReviewBtn}
+                >
+                  {reviewSubmitting ? (
+                    <ActivityIndicator color="#ffffff" size="small" />
+                  ) : (
+                    <Text style={styles.submitReviewText}>إرسال التقييم</Text>
+                  )}
+                </TouchableOpacity>
               </View>
 
-              <TextInput
-                value={reviewComment}
-                onChangeText={setReviewComment}
-                placeholder="شاركنا رأيك حول جودة وسرعة التوصيل..."
-                placeholderTextColor={Colors.textMuted}
-                multiline
-                numberOfLines={3}
-                style={styles.reviewInput}
-                textAlign="right"
-              />
-
-              <TouchableOpacity
-                activeOpacity={0.88}
-                disabled={reviewSubmitting}
-                onPress={handleReviewSubmit}
-                style={styles.submitReviewBtn}
-              >
-                {reviewSubmitting ? (
-                  <ActivityIndicator color="#ffffff" size="small" />
-                ) : (
-                  <Text style={styles.submitReviewText}>إرسال التقييم</Text>
-                )}
-              </TouchableOpacity>
+              {reviews.length > 0 ? (
+                <View style={styles.reviewList}>
+                  {reviews.map((review, idx) => (
+                    <ReviewRow key={`${review.creation || idx}-${idx}`} review={review} />
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.noReviewsText}>
+                  لا توجد تقييمات لهذا المنتج بعد. كن أول من يقيّمه.
+                </Text>
+              )}
             </View>
-          </View> */}
+          ) : null}
         </View>
       </ScrollView>
 
@@ -534,6 +770,88 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: Colors.borderSubtle,
+  },
+  recommendedRail: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: RECOMMENDED_CARD_GAP,
+    // Bleeds past `infoCard`'s 20pt padding so the rail reads as its own band
+    // and the first card still lines up with the section label above it.
+    paddingHorizontal: 20,
+    marginHorizontal: -20,
+    paddingVertical: 2,
+  },
+  recommendedCard: {
+    width: RECOMMENDED_CARD_WIDTH,
+  },
+  recommendedLoader: {
+    height: 160,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: Radius.lg,
+  },
+  reviewsSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  reviewsSummaryText: {
+    fontSize: Typography.sizes.labelMd,
+    color: Colors.textMuted,
+    fontFamily: Typography.fontFamilySemiBold,
+  },
+  starRowSmall: {
+    flexDirection: 'row',
+    gap: 2,
+  },
+  reviewList: {
+    marginTop: 14,
+    gap: 10,
+  },
+  reviewItem: {
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: Radius.lg,
+    padding: 14,
+    gap: 6,
+  },
+  reviewItemHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  reviewDate: {
+    fontSize: Typography.sizes.labelSm,
+    color: Colors.textMuted,
+    fontFamily: Typography.fontFamilyMedium,
+  },
+  reviewItemTitle: {
+    fontSize: Typography.sizes.labelLg,
+    color: Colors.onSurface,
+    fontFamily: Typography.fontFamilyBold,
+    textAlign: 'left',
+  },
+  reviewItemComment: {
+    fontSize: Typography.sizes.bodySm,
+    color: Colors.onSurfaceVariant,
+    lineHeight: 21,
+    fontFamily: Typography.fontFamilyRegular,
+    textAlign: 'left',
+  },
+  reviewItemUser: {
+    fontSize: Typography.sizes.labelSm,
+    color: Colors.textMuted,
+    fontFamily: Typography.fontFamilyMedium,
+    textAlign: 'left',
+  },
+  noReviewsText: {
+    marginTop: 14,
+    fontSize: Typography.sizes.bodySm,
+    color: Colors.textMuted,
+    fontFamily: Typography.fontFamilyRegular,
+    textAlign: 'left',
   },
   addReviewCard: {
     backgroundColor: Colors.surfaceContainerLow,

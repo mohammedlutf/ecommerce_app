@@ -205,6 +205,26 @@ def get_groups():
 	return frappe.get_all("Item Group", filters={"is_group": 0, "show_in_website": 1 }, fields=["name", "parent_item_group", "image"], order_by="lft asc")
 
 
+@frappe.whitelist(allow_guest=True)
+def webshop_settings():
+	"""The storefront's feature switches, for the mobile app.
+
+	`allow_guest` on purpose: a product page is public, so whether reviews and
+	recommendations are shown cannot be a privileged read. Making it privileged
+	would mean a guest sees a different product page than a signed-in shopper,
+	which is worse than the two booleans being public.
+
+	Only these two switches leave the server. The rest of `Webshop Settings`
+	(company, price list, shipping account, default delivery rate) is back-office
+	configuration and must never reach a client.
+	"""
+	settings = _settings()
+	return {
+		"enable_reviews": bool(settings.enable_reviews),
+		"enable_recommendations": bool(settings.enable_recommendations),
+	}
+
+
 def get_item(route=None, item_code=None):
 
 
