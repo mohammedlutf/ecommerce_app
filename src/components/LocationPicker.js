@@ -9,7 +9,10 @@ import { Radius } from '../theme/spacing';
 import { DEFAULT_REGION, buildPlaceLabel, formatCoordsForDisplay } from '../utils/geo';
 import useDirectional from '../hooks/useDirectional';
 
-const MAP_HEIGHT = 220;
+// Tall enough to place a pin by street, which is the whole point of the field:
+// at 220 the pin sat in a letterbox and the drag target was smaller than a
+// fingertip. Matches the web picker's 340 so the form is the same height on both.
+const MAP_HEIGHT = 340;
 const GEOFENCE_METERS = 4000;
 // Camera span used when opening on a pin. ~1.3 km reads as "this building" on a
 // city map without being so tight that the pin fills the frame.

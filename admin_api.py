@@ -24,8 +24,8 @@ from ecommerce.api import _get_calculated_uoms, _settings
 
 # Mirrors the storefront's own rule, so an item in a hidden group keeps behaving
 # the way the website behaves.
-MAX_IMAGE_EDGE = 1600
-IMAGE_QUALITY = 85
+MAX_IMAGE_EDGE = 800
+IMAGE_QUALITY = 75
 MAX_RAW_IMAGE_BYTES = 15 * 1024 * 1024
 
 
@@ -193,8 +193,8 @@ def _decode_image(file_base64):
 		image = image.convert("RGB")
 
 	buffer = io.BytesIO()
-	image.save(buffer, format="JPEG", quality=IMAGE_QUALITY, optimize=True)
-	return buffer.getvalue(), "jpg"
+	image.save(buffer, format="WEBP", quality=IMAGE_QUALITY, optimize=True)
+	return buffer.getvalue(), "webp"
 
 
 def _delete_superseded_image(previous_url, item_code):
@@ -866,6 +866,47 @@ def _apply_recommended(website_item_name, item_code, rows):
 	doc.save()
 
 
+def _unique_item_code(preferred, name):
+	"""Return a free Item code derived from the product name.
+
+	The create form sends the name in place of a code, so this is what stands
+	between a product and a duplicate-code error. Three cases, in order:
+
+	- `preferred` is the ASCII slug of the name, used as-is while it is free.
+	- The slug comes back empty when the name holds no Latin letters or digits —
+	  `slugify` keeps only `[a-z0-9\\s-]`, so an Arabic name reduces to nothing.
+	  The name itself is then used: `item_code` is free text in ERPNext, so a
+	  non-Latin code is valid, and one the admin can recognise beats an opaque
+	  generated identifier.
+	- A clash gets a numeric suffix rather than an error. Two products may
+	  legitimately share a name, and refusing the second one outright is a worse
+	  failure than a suffixed code.
+	"""
+	base = preferred or (name or "").strip()
+	if not base:
+		frappe.throw(_("An item name is required."))
+	base = base[:140]
+
+	def taken(candidate):
+		return frappe.db.exists("Item", candidate) or frappe.db.exists(
+			"Website Item", {"item_code": candidate}
+		)
+
+	if not taken(base):
+		return base
+
+	# Truncate to leave room for the suffix rather than letting the suffix push
+	# the code past the column, which would be a database error rather than a
+	# message the admin can act on.
+	for suffix in range(2, 1000):
+		tail = "-{0}".format(suffix)
+		candidate = "{0}{1}".format(base[: 140 - len(tail)], tail)
+		if not taken(candidate):
+			return candidate
+
+	frappe.throw(_("Could not derive a unique item code from `{0}`.").format(base))
+
+
 # ---------------------------------------------------------------------------
 # Create
 # ---------------------------------------------------------------------------
@@ -895,15 +936,13 @@ def admin_create_item(
 	"""
 	_require_admin()
 
-	code = slugify((item_code or "").strip())
-	if not code:
-		frappe.throw(_("An item code is required."))
-	if len(code) > 140:
-		frappe.throw(_("The item code is too long."))
-	if frappe.db.exists("Item", code) or frappe.db.exists("Website Item", {"item_code": code}):
-		frappe.throw(_("Item code `{0}` already exists.").format(code))
-
-	name = strip_html((item_name or "").strip()) or code
+	name = strip_html((item_name or "").strip())
+	# The create form no longer asks for a code: the name is the only identifier
+	# an admin has to supply. The code is derived from it here.
+	code = _unique_item_code(slugify((item_code or item_name or "").strip()), name)
+	# An older client can still send a code with no name; fall back to it rather
+	# than inserting an Item with a blank item_name.
+	name = name or code
 	group = (item_group or "").strip()
 	if not frappe.db.exists("Item Group", group):
 		frappe.throw(_("Item Group `{0}` does not exist.").format(group))
@@ -954,11 +993,12 @@ def admin_create_item(
 		}
 	)
 	item.insert(ignore_permissions=True)
-
+	code = item.item_code
 	website_item = frappe.get_doc(
 		{
 			"doctype": "Website Item",
 			"item_code": code,
+			"web_item_name": name[:140],
 			"item_group": group,
 			"website_warehouse": (website_warehouse or settings.website_warehouse or None),
 			"short_description": short[:300],

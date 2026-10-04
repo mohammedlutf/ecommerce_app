@@ -16,7 +16,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import Icon from '../Icon';
 import UomEditor from './UomEditor';
-import UomPicker from './UomPicker';
+import UomPicker from './SearchPickerModal';
+import PickerField from './PickerField';
 import styles from './editorStyles';
 import AdminAPI from '../../api/admin';
 import { captureProductImage } from '../../utils/productImage';
@@ -66,6 +67,7 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
   const [references, setReferences] = useState({ item_groups: [], uom_list: [] });
   const [original, setOriginal] = useState(null);
   const [showUomPicker, setShowUomPicker] = useState(false);
+  const [showGroupPicker, setShowGroupPicker] = useState(false);
   const [warnings, setWarnings] = useState([]);
 
   // Numbers are held as strings so "0.25" is typeable, and `original` is kept in
@@ -436,33 +438,13 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
                     />
                   </View>
 
-                  <View>
-                    <Text style={[styles.label, textStart]}>التصنيف</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                      <View style={styles.chipsRow}>
-                        {(references.item_groups || []).map((group) => {
-                          const selected = group === itemGroup;
-                          return (
-                            <Pressable
-                              key={group}
-                              onPress={() => setItemGroup(group)}
-                              accessibilityRole="button"
-                              accessibilityState={{ selected }}
-                              style={({ pressed }) => [
-                                styles.chip,
-                                selected && styles.chipSelected,
-                                pressed && { opacity: 0.7 },
-                              ]}
-                            >
-                              <Text style={[styles.chipText, textStart, selected && styles.chipTextSelected]}>
-                                {group}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </ScrollView>
-                  </View>
+                  <PickerField
+                    label="التصنيف"
+                    value={itemGroup}
+                    placeholder="اختر تصنيف المنتج"
+                    required
+                    onPress={() => setShowGroupPicker(true)}
+                  />
 
                   <View>
                     <Text style={[styles.label, textStart]}>الترتيب في المتجر</Text>
@@ -600,9 +582,23 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
 
         <UomPicker
           visible={showUomPicker}
+          title="إضافة وحدة قياس"
           options={availableUoms}
-          onPick={handleAddUom}
+          onSelect={handleAddUom}
           onClose={() => setShowUomPicker(false)}
+          emptyText="كل وحدات القياس المفعّلة مستخدمة في هذا المنتج بالفعل."
+        />
+
+        <UomPicker
+          visible={showGroupPicker}
+          title="اختر تصنيف المنتج"
+          options={references.item_groups || []}
+          value={itemGroup}
+          onSelect={(group) => {
+            setItemGroup(group);
+            setShowGroupPicker(false);
+          }}
+          onClose={() => setShowGroupPicker(false)}
         />
       </SafeAreaView>
     </Modal>

@@ -163,6 +163,89 @@ export default StyleSheet.create({
   },
   chipTextSelected: { color: Colors.onPrimaryContainer, fontFamily: Typography.fontFamilyBold },
 
+  /* Picker (group / UOM) ---------------------------------------------------- */
+  // A PickerField and an input must be the same height and the same border, or
+  // swapping one for the other shifts every field below it on the form.
+  pickerField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+  },
+  // Deliberately a dashed border rather than the muted text a placeholder uses:
+  // an unset field must not look like a field that has a value in it.
+  pickerFieldEmpty: {
+    borderStyle: 'dashed',
+    borderColor: Colors.outlineVariant,
+  },
+  pickerFieldPressed: { backgroundColor: Colors.surfaceContainer },
+  pickerFieldText: {
+    flex: 1,
+    fontSize: Typography.sizes.bodyMd,
+    fontFamily: Typography.fontFamilyRegular,
+    color: Colors.onSurface,
+  },
+  pickerFieldPlaceholder: {
+    fontFamily: Typography.fontFamilyMedium,
+    color: Colors.textMuted,
+  },
+  pickerRequired: {
+    fontFamily: Typography.fontFamilyBold,
+    color: Colors.error,
+  },
+
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+  },
+  searchInput: {
+    flex: 1,
+    backgroundColor: Colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    fontSize: Typography.sizes.bodyMd,
+    fontFamily: Typography.fontFamilyRegular,
+    color: Colors.onSurface,
+  },
+  searchClear: { padding: 4 },
+  pickerEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.xxl,
+    gap: Spacing.sm,
+  },
+  pickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.md,
+  },
+  pickerRowSelected: { backgroundColor: Colors.primaryContainer },
+  pickerRowPressed: { backgroundColor: Colors.surfaceContainerLow },
+  pickerRowText: {
+    flex: 1,
+    fontSize: Typography.sizes.bodyMd,
+    fontFamily: Typography.fontFamilyMedium,
+    color: Colors.onSurfaceVariant,
+  },
+  pickerRowTextSelected: {
+    fontFamily: Typography.fontFamilyBold,
+    color: Colors.onPrimaryContainer,
+  },
+
   /* Units ----------------------------------------------------------------- */
   uomHeaderRow: {
     flexDirection: 'row',

@@ -276,7 +276,8 @@ function handleSelectCategory(catName) {
             <SearchBar
               asButton
               onPress={handleSearchFocus}
-              placeholder="ابحث عن أرز، زيت، حليب، خضار..."
+              placeholder="ابحث عن أرز، زيت، حليب..."          
+              textInputStyle={{ textAlign: 'right', writingDirection: 'rtl' }} // Check if your SearchBar uses this prop name             
             />
           </View>
         )}
@@ -301,7 +302,7 @@ function handleSelectCategory(catName) {
             onPress={() => navigateToProducts(navigation)}
             style={styles.heroCta}
           >
-            <Text style={[styles.heroCtaText, textStart]}>تسوق العروض الآن</Text>
+            <Text style={[styles.heroCtaText, textStart]}>تسوق الآن</Text>
             <Icon name="arrow-forward" size={16} color={Colors.onPrimary} />
           </TouchableOpacity>
         </LinearGradient>

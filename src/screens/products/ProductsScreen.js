@@ -1097,8 +1097,8 @@ export default function ProductsScreen({ route, navigation }) {
             onChangeText={setSearchQuery}
             onSubmit={handleSearchSubmit}
             onClear={handleClearSearch}
-            placeholder="ابحث بالاسم أو الباركود..."
-          />
+            placeholder="ابحث بالاسم عن متنجك..."          
+            />
         </View>
       )}
 
@@ -1355,6 +1355,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 8,
     backgroundColor: Colors.surface,
+    
   },
   searchHeader: {
     flexDirection: 'row',

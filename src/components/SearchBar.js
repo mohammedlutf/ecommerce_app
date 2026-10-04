@@ -44,6 +44,7 @@ export default function SearchBar({
     <View style={styles.container}>
       <Icon name="search" size={18} color={Colors.textMuted} />
       <TextInput
+      
         ref={inputRef}
         value={value}
         onChangeText={onChangeText}
@@ -52,7 +53,7 @@ export default function SearchBar({
         autoFocus={autoFocus}
         placeholder={placeholder}
         placeholderTextColor={Colors.textMuted}
-        style={[styles.input, textStart]}
+        style={[styles.input]}
         returnKeyType="search"
       />
       {value && value.length > 0 ? (

@@ -23,10 +23,11 @@ import { Radius, Shadows, Spacing } from '../theme/spacing';
 import { parseCoords } from '../utils/geo';
 import useDirectional from '../hooks/useDirectional';
 
+// Delivery is restricted to this one city for now, so the city is a constant
+// rather than a field. It is still sent, because the Address document has to
+// carry it and a blank city makes the record unusable for anyone reading it
+// outside this app.
 const DEFAULT_CITY = 'صنعاء';
-
-/** Cities offered as quick chips so most addresses need no typing at all. */
-const CITY_SUGGESTIONS = ['صنعاء', 'عدن', 'المكلا', 'حضرموت', 'تعز', 'إب', 'سيئون', 'المحويت'];
 
 /**
  * AddressFormModal — add or edit one delivery address.
@@ -52,7 +53,6 @@ function AddressFormModal({
 
   const [addressTitle, setAddressTitle] = useState('المنزل');
   const [addressLine1, setAddressLine1] = useState('');
-  const [city, setCity] = useState(DEFAULT_CITY);
   const [phone, setPhone] = useState('');
   const [useOwnPhone, setUseOwnPhone] = useState(true);
   const [isDefault, setIsDefault] = useState(false);
@@ -70,7 +70,6 @@ function AddressFormModal({
 
     setAddressTitle((initial && initial.address_title) || 'المنزل');
     setAddressLine1((initial && initial.address_line1) || '');
-    setCity((initial && initial.city) || DEFAULT_CITY);
     // The pin round-trips through `address_line2`; the readable name it resolved
     // to is carried in `pincode`, so an existing address reopens fully labelled.
     const existingCoords = parseCoords(initial && initial.address_line2);
@@ -109,10 +108,6 @@ function AddressFormModal({
       setError('يرجى كتابة تفاصيل العنوان (الشارع، البناية، أقرب معلم)');
       return;
     }
-    if (!city.trim()) {
-      setError('يرجى كتابة المدينة');
-      return;
-    }
     // The recipient phone is optional, but if the user chose to enter one it
     // has to be a number the driver can actually call.
     if (!useOwnPhone && phone.trim() && phone.replace(/[^\d]/g, '').length < 6) {
@@ -125,7 +120,7 @@ function AddressFormModal({
     onSubmit({
       addressTitle: addressTitle.trim() || 'عنوان التوصيل',
       addressLine1: addressLine1.trim(),
-      city: city.trim(),
+      city: DEFAULT_CITY,
       // Empty when the user picked "use my number": the server then falls back to
       // the customer's own mobile, so nothing is guessed on the client.
       phone: effectivePhone,
@@ -220,41 +215,6 @@ function AddressFormModal({
                 textAlignVertical="top"
                 maxLength={200}
               />
-            </Field>
-
-            {/* City */}
-            <Field label="المدينة" required>
-              <TextInput
-                value={city}
-                onChangeText={setCity}
-                placeholder={DEFAULT_CITY}
-                placeholderTextColor={Colors.textMuted}
-                style={styles.input}
-                returnKeyType="next"
-                maxLength={60}
-              />
-              <View style={styles.chipsRow}>
-                {CITY_SUGGESTIONS.map((suggestion) => {
-                  const selected = city.trim() === suggestion;
-                  return (
-                    <Pressable
-                      key={suggestion}
-                      onPress={() => setCity(suggestion)}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      style={({ pressed }) => [
-                        styles.chip,
-                        selected && styles.chipSelected,
-                        pressed && !selected && styles.chipPressed,
-                      ]}
-                    >
-                      <Text style={[styles.chipText, textStart, selected && styles.chipTextSelected]}>
-                        {suggestion}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
             </Field>
 
             {/* Map */}
@@ -500,36 +460,6 @@ const styles = StyleSheet.create({
     height: 88,
     paddingTop: 12,
     paddingBottom: 12,
-  },
-  chipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 8,
-  },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.surfaceContainerLow,
-    borderWidth: 1,
-    borderColor: Colors.outlineVariant,
-  },
-  chipSelected: {
-    backgroundColor: Colors.primaryContainer,
-    borderColor: Colors.primary,
-  },
-  chipPressed: {
-    backgroundColor: Colors.surfaceContainer,
-  },
-  chipText: {
-    fontSize: Typography.sizes.labelMd,
-    fontFamily: Typography.fontFamilyMedium,
-    color: Colors.onSurfaceVariant,
-  },
-  chipTextSelected: {
-    color: Colors.onPrimaryContainer,
-    fontFamily: Typography.fontFamilySemiBold,
   },
   phoneCard: {
     backgroundColor: Colors.surfaceContainerLowest,

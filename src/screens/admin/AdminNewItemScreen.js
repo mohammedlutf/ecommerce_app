@@ -14,7 +14,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import Icon from '../../components/Icon';
-import UomPicker from '../../components/admin/UomPicker';
+import UomPicker from '../../components/admin/SearchPickerModal';
+import PickerField from '../../components/admin/PickerField';
 import styles from '../../components/admin/editorStyles';
 import AdminAPI from '../../api/admin';
 import { captureProductImage } from '../../utils/productImage';
@@ -29,9 +30,13 @@ import useDirectional from '../../hooks/useDirectional';
  * AdminNewItemScreen — create a product.
  *
  * A full screen rather than a sheet: creating a product needs more fields than
- * editing one (item code, base unit, warehouse, the base price), and a keyboard
- * plus a camera plus a scrolling form does not fit inside a modal without
- * fighting it for space.
+ * editing one (the name that becomes the code, base unit, warehouse, the base
+ * price), and a keyboard plus a camera plus a scrolling form does not fit inside
+ * a modal without fighting it for space.
+ *
+ * There is no item code field. The name is what identifies the product to the
+ * admin, and a second field restating it in a different notation only invites
+ * the two to disagree.
  *
  * Numbers are strings here for the same reason as in the editor — a conversion
  * factor of "0.25" has to be typeable.
@@ -46,7 +51,6 @@ export default function AdminNewItemScreen({ navigation }) {
   const [loadError, setLoadError] = useState('');
 
   const [references, setReferences] = useState({ item_groups: [], uom_list: [], warehouses: [] });
-  const [itemCode, setItemCode] = useState('');
   const [itemName, setItemName] = useState('');
   const [itemGroup, setItemGroup] = useState('');
   const [stockUom, setStockUom] = useState('');
@@ -59,6 +63,8 @@ export default function AdminNewItemScreen({ navigation }) {
   const [extraUoms, setExtraUoms] = useState([]);
   const [pendingImage, setPendingImage] = useState(null);
   const [showUomPicker, setShowUomPicker] = useState(false);
+  const [showGroupPicker, setShowGroupPicker] = useState(false);
+  const [showStockUomPicker, setShowStockUomPicker] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -106,7 +112,8 @@ export default function AdminNewItemScreen({ navigation }) {
   }
 
   function validate() {
-    if (!itemCode.trim()) return 'رمز المنتج مطلوب';
+    // The item code is no longer asked for: it is derived from the name on the
+    // server, so the name is the only field that has to be present here.
     if (!itemName.trim()) return 'اسم المنتج مطلوب';
     if (!itemGroup) return 'اختر تصنيف المنتج';
     if (!stockUom) return 'اختر وحدة القياس الأساسية';
@@ -157,7 +164,10 @@ export default function AdminNewItemScreen({ navigation }) {
       ];
 
       const result = await AdminAPI.createItem({
-        itemCode: itemCode.trim(),
+        // The name doubles as the code. `admin_create_item` slugifies it and
+        // disambiguates a clash, so the admin is never asked to invent a second
+        // identifier for a product they have already named.
+        itemCode: itemName.trim(),
         itemName: itemName.trim(),
         itemGroup,
         stockUom,
@@ -261,18 +271,6 @@ export default function AdminNewItemScreen({ navigation }) {
             <Text style={[styles.sectionTitle, textStart]}>بيانات المنتج</Text>
 
             <View>
-              <Text style={[styles.label, textStart]}>رمز المنتج (Item Code)</Text>
-              <TextInput
-                style={styles.input}
-                value={itemCode}
-                onChangeText={setItemCode}
-                autoCapitalize="none"
-                placeholder="eg. APPLE-RED-1KG"
-                placeholderTextColor={Colors.textMuted}
-              />
-            </View>
-
-            <View>
               <Text style={[styles.label, textStart]}>اسم المنتج</Text>
               <TextInput
                 style={styles.input}
@@ -282,31 +280,13 @@ export default function AdminNewItemScreen({ navigation }) {
               />
             </View>
 
-            <View>
-              <Text style={[styles.label, textStart]}>التصنيف</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={styles.chipsRow}>
-                  {(references.item_groups || []).map((group) => {
-                    const selected = group === itemGroup;
-                    return (
-                      <Pressable
-                        key={group}
-                        onPress={() => setItemGroup(group)}
-                        style={({ pressed }) => [
-                          styles.chip,
-                          selected && styles.chipSelected,
-                          pressed && { opacity: 0.7 },
-                        ]}
-                      >
-                        <Text style={[styles.chipText, textStart, selected && styles.chipTextSelected]}>
-                          {group}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-            </View>
+            <PickerField
+              label="التصنيف"
+              value={itemGroup}
+              placeholder="اختر تصنيف المنتج"
+              required
+              onPress={() => setShowGroupPicker(true)}
+            />
 
             <View>
               <Text style={[styles.label, textStart]}>سعر البيع للوحدة الأساسية</Text>
@@ -359,26 +339,13 @@ export default function AdminNewItemScreen({ navigation }) {
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, textStart]}>الوحدة الأساسية</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.chipsRow}>
-                {(references.uom_list || []).map((uom) => {
-                  const selected = uom === stockUom;
-                  return (
-                    <Pressable
-                      key={uom}
-                      onPress={() => setStockUom(uom)}
-                      style={({ pressed }) => [
-                        styles.chip,
-                        selected && styles.chipSelected,
-                        pressed && { opacity: 0.7 },
-                      ]}
-                    >
-                      <Text style={[styles.chipText, textStart, selected && styles.chipTextSelected]}>{uom}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </ScrollView>
+            <PickerField
+              label="وحدة القياس الأساسية"
+              value={stockUom}
+              placeholder="اختر وحدة القياس"
+              required
+              onPress={() => setShowStockUomPicker(true)}
+            />
           </View>
 
           <View style={styles.section}>
@@ -520,9 +487,35 @@ export default function AdminNewItemScreen({ navigation }) {
 
       <UomPicker
         visible={showUomPicker}
+        title="إضافة وحدة قياس"
         options={availableUoms}
-        onPick={handleAddUom}
+        onSelect={handleAddUom}
         onClose={() => setShowUomPicker(false)}
+        emptyText="كل وحدات القياس المفعّلة مستخدمة في هذا المنتج بالفعل."
+      />
+
+      <UomPicker
+        visible={showGroupPicker}
+        title="اختر تصنيف المنتج"
+        options={references.item_groups || []}
+        value={itemGroup}
+        onSelect={(group) => {
+          setItemGroup(group);
+          setShowGroupPicker(false);
+        }}
+        onClose={() => setShowGroupPicker(false)}
+      />
+
+      <UomPicker
+        visible={showStockUomPicker}
+        title="اختر وحدة القياس الأساسية"
+        options={references.uom_list || []}
+        value={stockUom}
+        onSelect={(uom) => {
+          setStockUom(uom);
+          setShowStockUomPicker(false);
+        }}
+        onClose={() => setShowStockUomPicker(false)}
       />
     </SafeAreaView>
   );

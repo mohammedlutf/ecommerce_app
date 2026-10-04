@@ -401,8 +401,8 @@ export default function AccountScreen({ navigation }) {
             </Text>
           </View>
           <View style={[styles.profileInfo, textStart]}>
-            <Text style={[styles.profileName, textStart]}>{user?.fullName || 'مستخدم حضرموت'}</Text>
-            <Text style={[styles.profileEmail, textStart]}>{user?.email}</Text>
+            <Text style={[styles.profileName, textStart]}>{user?.fullName || 'مستخدم زاد'}</Text>
+            <Text style={[styles.profileEmail, textStart]}>{user?.mobileNo}</Text>
           </View>
           <TouchableOpacity
             onPress={handleLogout}

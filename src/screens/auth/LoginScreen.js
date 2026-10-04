@@ -394,7 +394,7 @@ export default function LoginScreen({ navigation }) {
                         icon={<Icon name="person-outline" size={20} color={Colors.textMuted} />}
                         value={registerName}
                         onChangeText={setRegisterName}
-                        placeholder="الاسم الكامل"
+                        placeholder="اكتب اسمك"
                         style={{ textAlign: 'right' }}
                       />
 
