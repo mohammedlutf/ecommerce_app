@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Image, StyleSheet, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import {
@@ -19,6 +19,7 @@ import { WishlistProvider } from './src/context/WishlistContext';
 import { ToastProvider } from './src/context/ToastContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import AnimatedSplash from './src/components/AnimatedSplash';
 import { applyLayoutDirection, restartOnceForDirection, RESTART_FLAG_KEY } from './src/utils/rtl';
 import { isRTLLocale, isSupportedLocale } from './src/i18n/locales';
 import { LOCALE_STORAGE_KEY } from './src/i18n/I18nContext';
@@ -59,8 +60,6 @@ if (Platform.OS !== 'web') {
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const SPLASH_IMAGE = require('./assets/splash.png');
-const SPLASH_MIN_VISIBLE_MS = 700;
-const SPLASH_FADE_MS = 380;
 
 /**
  * Rendered only once BOTH the fonts and the session bootstrap are done.
@@ -89,7 +88,6 @@ function AppContent({ fontsReady }) {
    */
   const isWeb = Platform.OS === 'web';
 
-  const splashOpacity = useRef(new Animated.Value(1)).current;
   const [splashMounted, setSplashMounted] = useState(!isWeb);
 
   useEffect(() => {
@@ -146,30 +144,14 @@ function AppContent({ fontsReady }) {
   useEffect(() => {
     if (!ready || isWeb) return undefined;
 
-    let cancelled = false;
-    const fade = setTimeout(() => {
-      if (cancelled) return;
-      Animated.timing(splashOpacity, {
-        toValue: 0,
-        duration: SPLASH_FADE_MS,
-        // react-native-web has no native animated module and silently falls back
-        // to the JS driver, so asking for the native one there only produces a
-        // console warning.
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (!cancelled && finished) setSplashMounted(false);
-      });
-    }, SPLASH_MIN_VISIBLE_MS);
-
     // The artwork is already mounted underneath the native splash, so dropping
-    // the native splash reveals a fully painted image rather than a blank frame.
+    // the native splash reveals a fully painted, fully running animation rather
+    // than a blank frame. `AnimatedSplash` owns the entrance and the exit; this
+    // only has to hand over the "you may go now" signal.
     SplashScreen.hideAsync().catch(() => {});
 
-    return () => {
-      cancelled = true;
-      clearTimeout(fade);
-    };
-  }, [ready, splashOpacity, isWeb]);
+    return undefined;
+  }, [ready, isWeb]);
 
   return (
     <View style={styles.root}>
@@ -177,9 +159,11 @@ function AppContent({ fontsReady }) {
       <RootNavigator />
 
       {splashMounted ? (
-        <Animated.View pointerEvents="auto" style={[StyleSheet.absoluteFill, { opacity: splashOpacity }]}>
-          <Image source={SPLASH_IMAGE} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        </Animated.View>
+        <AnimatedSplash
+          visible={ready}
+          artwork={SPLASH_IMAGE}
+          onHidden={() => setSplashMounted(false)}
+        />
       ) : null}
     </View>
   );

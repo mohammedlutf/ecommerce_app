@@ -30,7 +30,7 @@
     "android": {
       "allowRTL": true,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/icon.png",
         "backgroundImage": "./assets/adaptive-icon-bg.png",
         "backgroundColor": "#E7F6EC"
       },
@@ -57,12 +57,12 @@
     },
     "plugins": [
       "expo-font",
-      [
+[
         "expo-splash-screen",
         {
-          "backgroundColor": "#E7F6EC",
-          "image": "./assets/adaptive-icon.png",
-          "imageWidth": 180,
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/splash.png",
+          "imageWidth": 200,
           "resizeMode": "contain"
         }
       ],

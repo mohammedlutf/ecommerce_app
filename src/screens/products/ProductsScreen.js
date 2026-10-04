@@ -150,56 +150,70 @@ function useAutoRevealRow(activeIndex, rowKey, count) {
   const lastRevealRef = useRef({ rowKey: null, target: null });
   const activeIndexRef = useRef(activeIndex);
   const retryRef = useRef(null);
-  const hasInitializedRef = useRef(false); // <--- Track initial load
+  const hasInitializedRef = useRef(false);
   activeIndexRef.current = activeIndex;
-
+  console.log(activeIndex);
   const reveal = useCallback(
     (index) => {
       const scrollNode = scrollRef.current;
       const metric = metricsRef.current[index];
       const { width: viewportWidth, contentWidth } = viewportRef.current;
       
-      if (!scrollNode || !metric || viewportWidth <= 0 || contentWidth <= 0) return null;
+      // Do not attempt calculation until native dimensions are actually loaded
+      if (!scrollNode || viewportWidth <= 0 || contentWidth <= 0) return null;
 
       const isRTL = I18nManager.isRTL; 
-      
       let target;
-      if (isRTL) {
-        // On very first load in RTL, snap/scroll to the far right (maxOffset) 
-        // so the user sees the first items on the right immediately.
+      let canInitialize = false;
+
+      // if (isRTL) {
         if (!hasInitializedRef.current && activeIndex === 0) {
-          hasInitializedRef.current = true;
+          // Snap to far right on initial load
           target = Math.max(0, contentWidth - viewportWidth);
+          canInitialize = true;
         } else {
+          if (!metric) return null; // Wait until the active item metric is measured
           const physicalCenter = metric.x + metric.size / 2;
           target = contentWidth - physicalCenter - viewportWidth / 2;
           target = Math.max(0, Math.min(contentWidth - viewportWidth, target));
+          canInitialize = true;
         }
-      } else {
-        const physical = Math.max(
-          0,
-          Math.min(contentWidth - viewportWidth, metric.x + metric.size / 2 - viewportWidth / 2)
-        );
-        target = physical;
-      }
+      // } else {
+      //   if (!metric) return null;
+      //   target = Math.max(
+      //     0,
+      //     Math.min(contentWidth - viewportWidth, metric.x + metric.size / 2 - viewportWidth / 2)
+      //   );
+      //   canInitialize = true;
+      // }
 
       const last = lastRevealRef.current;
+      const isFirstMount = !hasInitializedRef.current;
+
+      if (canInitialize) {
+        hasInitializedRef.current = true;
+      }
+
       if (last.rowKey !== rowKey || Math.abs(target - last.target) >= 1) {
         lastRevealRef.current = { rowKey, target };
-        // Use animated: false on the very first mount jump to prevent a jarring visual slide
-        scrollNode.scrollTo({ x: target, y: 0, animated: hasInitializedRef.current });
+        // Use animated: false on the exact first jump to prevent a jarring visual slide in release builds
+        requestAnimationFrame(() => {
+          if (scrollRef.current) {
+            scrollRef.current.scrollTo({ x: target, y: 0, animated: !isFirstMount });
+          }
+        });
       }
+
       return target;
     },
     [count, rowKey, activeIndex]
   );
 
-  // Reset initialization flag when rowKey changes (e.g. parent category switch)
+  // Reset initialization flag when rowKey changes (e.g., category switch)
   useEffect(() => {
     hasInitializedRef.current = false;
   }, [rowKey]);
 
-  // Rest of your hook remains the same...
   const scheduleReveal = useCallback(() => {
     let settled = reveal(activeIndexRef.current);
     if (retryRef.current != null) return;
@@ -1404,6 +1418,7 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilySemiBold,
   },
   chipsRow: {
+    
     paddingHorizontal: 14,
     gap: 6,
   },
