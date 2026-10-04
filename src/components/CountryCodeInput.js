@@ -16,6 +16,7 @@ import { Typography } from '../theme/typography';
 import { Radius } from '../theme/spacing';
 import Icon from './Icon';
 import { COUNTRIES, DEFAULT_COUNTRY, searchCountries, MAX_DIGITS } from '../constants/countries';
+import useDirectional from '../hooks/useDirectional';
 
 /**
  * CountryCodeInput — phone number field with a tappable dialling-code prefix.
@@ -40,6 +41,7 @@ export default function CountryCodeInput({
   style,
   autoFocus = false,
 }) {
+  const { textStart } = useDirectional();
   const [selected, setSelected] = useState(country || DEFAULT_COUNTRY);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -72,8 +74,8 @@ export default function CountryCodeInput({
           accessibilityLabel={`رمز الدولة ${active.nameAr} ${active.dial}`}
           hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
         >
-          <Text style={styles.flag}>{active.flag}</Text>
-          <Text style={styles.dial}>+{active.dial}</Text>
+          <Text style={[styles.flag, textStart]}>{active.flag}</Text>
+          <Text style={[styles.dial, textStart]}>+{active.dial}</Text>
           <Icon name="chevron-down" size={14} color={Colors.onSurfaceVariant} />
         </Pressable>
 
@@ -93,10 +95,10 @@ export default function CountryCodeInput({
 
       {showLabel ? (
         <Pressable onPress={openPicker} style={styles.hintRow}>
-          <Text style={styles.hint}>
-            رمز الدولة: <Text style={styles.hintStrong}>+{active.dial}</Text>
+          <Text style={[styles.hint, textStart]}>
+            رمز الدولة: <Text style={[styles.hintStrong, textStart]}>+{active.dial}</Text>
           </Text>
-          <Text style={styles.hintAction}>تغيير</Text>
+          <Text style={[styles.hintAction, textStart]}>تغيير</Text>
         </Pressable>
       ) : null}
 
@@ -109,8 +111,8 @@ export default function CountryCodeInput({
         <SafeAreaView style={styles.pickerRoot} edges={['top', 'bottom']}>
           <View style={styles.pickerHeader}>
             <View style={styles.pickerTitleWrap}>
-              <Text style={styles.pickerTitle}>اختر الدولة</Text>
-              <Text style={styles.pickerSubtitle}>
+              <Text style={[styles.pickerTitle, textStart]}>اختر الدولة</Text>
+              <Text style={[styles.pickerSubtitle, textStart]}>
                 رمز الدولة الحالي +{active.dial} — {active.nameAr}
               </Text>
             </View>
@@ -145,7 +147,7 @@ export default function CountryCodeInput({
             ) : null}
           </View>
 
-          <Text style={styles.resultCount}>
+          <Text style={[styles.resultCount, textStart]}>
             {results.length === COUNTRIES.length
               ? `${COUNTRIES.length} دولة`
               : `${results.length} نتيجة`}
@@ -162,7 +164,7 @@ export default function CountryCodeInput({
             ]}
             ListEmptyComponent={
               <View style={styles.empty}>
-                <Text style={styles.emptyText}>لا توجد دول مطابقة</Text>
+                <Text style={[styles.emptyText, textStart]}>لا توجد دول مطابقة</Text>
               </View>
             }
             renderItem={({ item }) => {
@@ -178,16 +180,16 @@ export default function CountryCodeInput({
                   accessibilityRole="button"
                   accessibilityState={{ selected: isSelected }}
                 >
-                  <Text style={styles.rowFlag}>{item.flag}</Text>
+                  <Text style={[styles.rowFlag, textStart]}>{item.flag}</Text>
                   <View style={styles.rowTextWrap}>
-                    <Text style={styles.rowName} numberOfLines={1}>
+                    <Text style={[styles.rowName, textStart]} numberOfLines={1}>
                       {item.nameAr}
                     </Text>
-                    <Text style={styles.rowNameEn} numberOfLines={1}>
+                    <Text style={[styles.rowNameEn, textStart]} numberOfLines={1}>
                       {item.name}
                     </Text>
                   </View>
-                  <Text style={styles.rowDial}>+{item.dial}</Text>
+                  <Text style={[styles.rowDial, textStart]}>+{item.dial}</Text>
                   {isSelected ? (
                     <View style={styles.check}>
                       <Icon name="checkmark" size={14} color={Colors.onPrimary} />

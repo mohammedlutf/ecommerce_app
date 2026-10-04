@@ -7,6 +7,7 @@ import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
 import { Radius } from '../theme/spacing';
 import { DEFAULT_REGION, buildPlaceLabel, formatCoordsForDisplay } from '../utils/geo';
+import useDirectional from '../hooks/useDirectional';
 
 const MAP_HEIGHT = 220;
 const GEOFENCE_METERS = 4000;
@@ -36,6 +37,7 @@ export default function LocationPicker({
   onError,
   disabled = false,
 }) {
+  const { textStart } = useDirectional();
   const mapRef = useRef(null);
   const [mapReady, setMapReady] = useState(false);
   const [locating, setLocating] = useState(false);
@@ -311,22 +313,22 @@ export default function LocationPicker({
 
         <View style={styles.statusTextWrap}>
           {locating ? (
-            <Text style={styles.statusTitle}>جارٍ تحديد موقعك الحالي...</Text>
+            <Text style={[styles.statusTitle, textStart]}>جارٍ تحديد موقعك الحالي...</Text>
           ) : geocoding ? (
-            <Text style={styles.statusTitle}>جارٍ تحديد وصف الموقع...</Text>
+            <Text style={[styles.statusTitle, textStart]}>جارٍ تحديد وصف الموقع...</Text>
           ) : hasPin ? (
             <>
-              <Text style={styles.statusTitle} numberOfLines={1}>
+              <Text style={[styles.statusTitle, textStart]} numberOfLines={1}>
                 {value.placeName || 'تم تحديد الموقع'}
               </Text>
-              <Text style={styles.statusSub}>
+              <Text style={[styles.statusSub, textStart]}>
                 {`${formatCoordsForDisplay(value)}  •  اسحب المؤشر أو اضغط على الخريطة للتعديل`}
               </Text>
             </>
           ) : (
             <>
-              <Text style={styles.statusTitleMuted}>لم يتم تحديد الموقع بعد</Text>
-              <Text style={styles.statusSubMuted}>
+              <Text style={[styles.statusTitleMuted, textStart]}>لم يتم تحديد الموقع بعد</Text>
+              <Text style={[styles.statusSubMuted, textStart]}>
                 اضغط على الخريطة أو اسحب المؤشر لاختيار موقع التسليم
               </Text>
             </>
@@ -420,7 +422,6 @@ const styles = StyleSheet.create({
     color: Colors.onSuccess,
     opacity: 0.85,
     marginTop: 2,
-    textAlign: 'left',
   },
   statusSubMuted: {
     fontSize: Typography.sizes.labelSm,

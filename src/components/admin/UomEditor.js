@@ -6,6 +6,7 @@ import { normaliseDecimalInput } from '../../utils/numbers';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius } from '../../theme/spacing';
+import useDirectional from '../../hooks/useDirectional';
 
 /**
  * The units-and-prices section of the product editor.
@@ -17,6 +18,7 @@ import { Radius } from '../../theme/spacing';
  * conversion rates impossible to enter at all.
  */
 export default function UomEditor({ uoms, onChange, onAddPress, stockUom }) {
+  const { textStart } = useDirectional();
   // Units whose price the admin has chosen to store during this editing session,
   // keyed by UOM. Tracked separately from `has_item_price` so that "I just decided
   // to set this price" can be undone without touching a price that was already
@@ -54,17 +56,17 @@ export default function UomEditor({ uoms, onChange, onAddPress, stockUom }) {
   return (
     <View style={styles.section}>
       <View>
-        <Text style={styles.sectionTitle}>الوحدات والأسعار</Text>
-        <Text style={styles.sectionHint}>
+        <Text style={[styles.sectionTitle, textStart]}>الوحدات والأسعار</Text>
+        <Text style={[styles.sectionHint, textStart]}>
           معدل التحويل يحدد كم وحدة تخزينية تساوي وحدة العرض. السعر المشتق محسوب من
           السعر الأساسي؛ اضغط «تعيين سعر» لحفظه كسعر مستقل للوحدة.
         </Text>
       </View>
 
       <View style={styles.uomHeaderRow}>
-        <Text style={[styles.uomHeaderLabel, { flex: 1.4 }]}>الوحدة</Text>
-        <Text style={[styles.uomHeaderLabel, { flex: 1 }]}>معدل التحويل</Text>
-        <Text style={[styles.uomHeaderLabel, { flex: 1 }]}>سعر البيع</Text>
+        <Text style={[styles.uomHeaderLabel, textStart, { flex: 1.4 }]}>الوحدة</Text>
+        <Text style={[styles.uomHeaderLabel, textStart, { flex: 1 }]}>معدل التحويل</Text>
+        <Text style={[styles.uomHeaderLabel, textStart, { flex: 1 }]}>سعر البيع</Text>
       </View>
 
       {uoms.map((row, index) => {
@@ -79,14 +81,14 @@ export default function UomEditor({ uoms, onChange, onAddPress, stockUom }) {
         return (
           <View key={row.uom} style={styles.uomRow}>
             <View style={styles.uomRowHead}>
-              <Text style={styles.uomName}>{row.uom}</Text>
+              <Text style={[styles.uomName, textStart]}>{row.uom}</Text>
 
               {isStock ? (
-                <Text style={styles.uomTag}>الوحدة الأساسية</Text>
+                <Text style={[styles.uomTag, textStart]}>الوحدة الأساسية</Text>
               ) : isDerived ? (
-                <Text style={[styles.uomTag, styles.uomTagDerived]}>سعر مشتق</Text>
+                <Text style={[styles.uomTag, textStart, styles.uomTagDerived]}>سعر مشتق</Text>
               ) : (
-                <Text style={styles.uomTag}>سعر مخزّن</Text>
+                <Text style={[styles.uomTag, textStart]}>سعر مخزّن</Text>
               )}
 
               {!isStock ? (
@@ -103,7 +105,7 @@ export default function UomEditor({ uoms, onChange, onAddPress, stockUom }) {
 
             <View style={styles.uomFieldsRow}>
               <View style={[styles.uomField, { flex: 1 }]}>
-                <Text style={styles.uomFieldLabel}>معدل التحويل</Text>
+                <Text style={[styles.uomFieldLabel, textStart]}>معدل التحويل</Text>
                 <TextInput
                   style={[
                     styles.uomInput,
@@ -121,16 +123,16 @@ export default function UomEditor({ uoms, onChange, onAddPress, stockUom }) {
               </View>
 
               <View style={[styles.uomField, { flex: 1 }]}>
-                <Text style={styles.uomFieldLabel}>سعر البيع</Text>
+                <Text style={[styles.uomFieldLabel, textStart]}>سعر البيع</Text>
                 {isDerived ? (
                   // Info first, editable on request. The computed price is shown
                   // as-is, and the admin can promote the unit to a stored price
                   // when the shop's real price differs from the derived one.
                   <View style={styles.uomInfo}>
-                    <Text style={styles.uomInfoValue}>
+                    <Text style={[styles.uomInfoValue, textStart]}>
                       {hasPrice ? String(row.price_list_rate) : '—'}
                     </Text>
-                    <Text style={styles.uomInfoNote}>
+                    <Text style={[styles.uomInfoNote, textStart]}>
                       {hasPrice ? 'محسوب من السعر الأساسي' : 'لا يوجد سعر مخزّن'}
                     </Text>
                     <Pressable
@@ -143,7 +145,7 @@ export default function UomEditor({ uoms, onChange, onAddPress, stockUom }) {
                       ]}
                     >
                       <Icon name="create-outline" size={13} color={Colors.primary} />
-                      <Text style={styles.uomSetPriceText}>تعيين سعر</Text>
+                      <Text style={[styles.uomSetPriceText, textStart]}>تعيين سعر</Text>
                     </Pressable>
                   </View>
                 ) : (
@@ -156,7 +158,7 @@ export default function UomEditor({ uoms, onChange, onAddPress, stockUom }) {
                         style={styles.uomCancelPriceBtn}
                       >
                         <Icon name="close" size={12} color={Colors.onSurfaceVariant} />
-                        <Text style={styles.uomCancelPriceText}>إلغاء التعيين</Text>
+                        <Text style={[styles.uomCancelPriceText, textStart]}>إلغاء التعيين</Text>
                       </Pressable>
                     ) : null}
                     <TextInput
@@ -187,7 +189,7 @@ export default function UomEditor({ uoms, onChange, onAddPress, stockUom }) {
         ]}
       >
         <Icon name="add" size={18} color={Colors.primary} />
-        <Text style={styles.imageActionText}>إضافة وحدة جديدة</Text>
+        <Text style={[styles.imageActionText, textStart]}>إضافة وحدة جديدة</Text>
       </Pressable>
     </View>
   );

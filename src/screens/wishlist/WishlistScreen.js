@@ -12,10 +12,18 @@ import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import ProductCard from '../../components/ProductCard';
 import EmptyState from '../../components/EmptyState';
+import PageFooter from '../../components/layout/PageFooter';
 import { useWishlist } from '../../context/WishlistContext';
 import { useAuth } from '../../context/AuthContext';
+import { openProduct, openProducts } from '../../seo/linking';
+import useDocumentHead from '../../seo/useDocumentHead';
+import { useI18n } from '../../i18n/I18nContext';
+import useDirectional from '../../hooks/useDirectional';
 
 export default function WishlistScreen({ navigation }) {
+  const { textStart } = useDirectional();
+  const { t } = useI18n();
+  useDocumentHead({ title: t('seo.wishlistTitle'), path: '/wishlist', noindex: true });
   const { isAuthenticated } = useAuth();
   const { items, loading, fetchWishlist } = useWishlist();
 
@@ -42,15 +50,20 @@ export default function WishlistScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <Text style={styles.title}>قائمة رغباتي ({items.length})</Text>
+        <Text style={[styles.title, textStart]}>قائمة رغباتي ({items.length})</Text>
       </View>
 
       {loading && items.length === 0 ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={Colors.primaryContainer} />
-          <Text style={styles.loadingText}>جاري تحميل قائمة الرغبات...</Text>
+          <Text style={[styles.loadingText, textStart]}>جاري تحميل قائمة الرغبات...</Text>
         </View>
       ) : (
+        /*
+         * `ListFooterComponent` is where PageFooter goes: Expo's web reset makes
+         * the body non-scrolling, so the footer only stays reachable if it is
+         * inside the list rather than beside it.
+         */
         <FlatList
           data={items}
           keyExtractor={(item, index) => item.item_code || item.name || String(index)}
@@ -68,24 +81,21 @@ export default function WishlistScreen({ navigation }) {
             <View style={styles.gridColumn}>
               <ProductCard
                 product={item}
-                onPress={() =>
-                  navigation.navigate('ProductsTab', {
-                    screen: 'ProductDetail',
-                    params: { itemCode: item.item_code || item.name },
-                  })
-                }
+                onPress={() => openProduct(navigation, item.item_code || item.name)}
               />
             </View>
           )}
-          ListEmptyComponent={
+ListEmptyComponent={
             <EmptyState
               icon="heart-outline"
-              title="قائمة الرغبات فارغة"
-              description="لم تقم بإضافة أي منتجات إلى قائمة رغباتك حتى الآن."
-              actionLabel="استكشف المنتجات"
-              onAction={() => navigation.navigate('ProductsTab')}
+              title="لا توجد منتجات مفضلة"
+              description="تصفح المنتجات وأضفها إلى قائمتك لتظهر هنا."
+              actionLabel="تصفح المنتجات"
+              onAction={() => openProducts(navigation)}
             />
           }
+
+          ListFooterComponent={<PageFooter />}
         />
       )}
     </SafeAreaView>
@@ -108,7 +118,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.headlineSm,
     fontWeight: '800',
     color: Colors.onSurface,
-    textAlign: 'left',
   },
   centerContainer: {
     flex: 1,

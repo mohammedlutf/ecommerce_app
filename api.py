@@ -10,6 +10,89 @@ def _settings():
 	return frappe.get_cached_doc("Webshop Settings")
 
 
+# ---------------------------------------------------------------------------
+# Storefront visibility: zero-rated products
+# ---------------------------------------------------------------------------
+
+
+def _is_admin_user():
+	"""Whether the caller is back-office staff.
+
+	Staff are exempt from the zero-rate hiding rule on purpose: a product whose
+	selling price has not been filled in yet still has to be visible to the person
+	who has to fill it in. Hiding it from the admin would make the very products
+	needing attention the ones nobody can see.
+
+	`Administrator` is checked on its own because a session for it does not go
+	through the same role resolution as a normal user.
+	"""
+	if frappe.session.user == "Administrator":
+		return True
+	roles = frappe.get_roles(frappe.session.user)
+	return "System Manager" in roles or "Administrator" in roles
+
+
+def _hide_zero_rate_enabled():
+	"""Whether zero-rated products must be hidden from this caller.
+
+	Read with `.get()` rather than attribute access so a site whose Webshop
+	Settings does not carry the field yet falls back to showing everything, instead
+	of raising on every product page.
+	"""
+	if not _settings().get("hide_product_with_zero_rate"):
+		return False
+	return not _is_admin_user()
+
+
+def _zero_rate_item_codes():
+	"""Item codes with no positive selling rate in the shop's price list.
+
+	"Has no selling price row" and "every selling price row is 0" are the same
+	thing to the storefront, because `_get_calculated_uoms` falls back to a rate of
+	0 when it cannot find a usable one. Treating only the second case as zero-rated
+	would let a completely unpriced product through, which is precisely what this
+	setting exists to stop.
+
+	Restricted to published, variant-free products in website-visible groups so the
+	exclusion list stays as small as the storefront it applies to.
+
+	Memoised on `frappe.local` because one page load asks for both the rows and
+	the matching count, and the answer cannot change mid-request.
+	"""
+	cached = getattr(frappe.local, "_zero_rate_item_codes", None)
+	if cached is not None:
+		return cached
+
+	price_list = _settings().price_list
+	if not price_list:
+		cached = []
+	else:
+		cached = frappe.db.sql(
+			"""
+			SELECT wi.item_code
+			FROM `tabWebsite Item` wi
+			LEFT JOIN `tabItem Price` ip
+				ON ip.item_code = wi.item_code
+				AND ip.price_list = %s
+				AND ip.selling = 1
+				AND IFNULL(ip.price_list_rate, 0) > 0
+			WHERE wi.published = 1
+				AND IFNULL(wi.has_variants, 0) = 0
+				AND wi.docstatus < 2
+				AND wi.item_group IN (
+					SELECT ig.name FROM `tabItem Group` ig WHERE ig.show_in_website = 1
+				)
+			GROUP BY wi.item_code
+			HAVING COUNT(ip.item_code) = 0
+			""",
+			(price_list,),
+			pluck=True,
+		)
+
+	frappe.local._zero_rate_item_codes = cached
+	return cached
+
+
 def _cart_key():
 	return f"ecommerce_cart:{frappe.session.sid}"
 
@@ -180,13 +263,21 @@ def _catalog_filters(item_group=None, search=None):
 			for term in search_terms
 			for field in search_fields
 		]
+
+	# Applied here rather than after the rows come back, because this filter is
+	# shared by `get_catalog` and `get_catalog_count`. Dropping zero-rated rows
+	# in Python would leave the count describing a set the listing no longer
+	# shows, and pagination would quietly stop advancing.
+	if _hide_zero_rate_enabled():
+		zero_rate = _zero_rate_item_codes()
+		if zero_rate:
+			filters["item_code"] = ["not in", zero_rate]
+
 	return filters, or_filters
 
 
 def get_catalog(item_group=None, search=None, limit=24, start=0):
 	filters, or_filters = _catalog_filters(item_group, search)
-	print(item_group)
-	print(search)
 	items = frappe.get_all(
 		"Website Item", filters=filters, or_filters=or_filters, fields=_item_fields(),
 		order_by="ranking desc, modified desc", limit_start=max(cint(start), 0), limit_page_length=min(cint(limit) or 24, 100),
@@ -202,7 +293,113 @@ def get_catalog_count(item_group=None, search=None):
 
 @frappe.whitelist(allow_guest=True)
 def get_groups():
-	return frappe.get_all("Item Group", filters={"is_group": 0, "show_in_website": 1 }, fields=["name", "parent_item_group", "image"], order_by="lft asc")
+	"""Website-visible leaf groups, best-ranked first.
+
+	`website_ranking desc` is the merchant's ordering control. `lft asc` breaks
+	ties, so groups nobody has ranked keep their tree order instead of arriving in
+	whatever order the database happened to return them in.
+	"""
+	return frappe.get_all(
+		"Item Group",
+		filters={"is_group": 0, "show_in_website": 1},
+		fields=_group_fields(),
+		order_by=_group_order_by(),
+	)
+
+
+def _has_website_ranking():
+	"""Whether this site's Item Group carries a `website_ranking` field.
+
+	The ordering is driven by a field the merchant adds to the doctype. Probing the
+	meta once per request means a site that has not added it yet still gets its
+	groups in tree order, rather than every category screen failing on an unknown
+	column.
+	"""
+	cached = getattr(frappe.local, "_item_group_website_ranking", None)
+	if cached is None:
+		cached = bool(frappe.get_meta("Item Group").has_field("website_ranking"))
+		frappe.local._item_group_website_ranking = cached
+	return cached
+
+
+def _group_order_by():
+	return "website_ranking desc, lft asc" if _has_website_ranking() else "lft asc"
+
+
+def _group_fields():
+	fields = ["name", "parent_item_group", "image"]
+	if _has_website_ranking():
+		fields.append("website_ranking")
+	return fields
+
+
+def _rank_key(node):
+	"""Highest `website_ranking` first, then name.
+
+	The name is the tiebreak that matters: without it, equally ranked groups swap
+	places between requests depending on the order the database returned, and the
+	storefront reshuffles itself on every reload.
+	"""
+	return (-flt(node.get("website_ranking")), str(node.get("name") or ""))
+
+
+@frappe.whitelist(allow_guest=True)
+def get_group_hierarchy():
+	"""The two-level storefront nav, ranked on both levels.
+
+	Built here rather than in the app: a parent's `website_ranking` lives on the
+	parent row, and `get_groups` returns leaves only (`is_group = 0`). A client
+	that assembles the tree from that flat list therefore never receives the number
+	that decides where a parent sits, so no amount of client-side sorting could
+	honour it.
+
+	A parent still appears only when at least one website-visible leaf points at
+	it, which is the behaviour the previous leaf-driven tree had.
+	"""
+	leaves = get_groups()
+	if not leaves:
+		return []
+
+	# The parent rows the leaves point at, so each parent's own ranking and image
+	# can be read. Fetched regardless of `website_ranking` because the image is
+	# part of the payload either way.
+	parent_rows = {}
+	for row in frappe.get_all(
+		"Item Group",
+		filters={"is_group": 1},
+		fields=["name", "image"] + (["website_ranking"] if _has_website_ranking() else []),
+	):
+		parent_rows[row.name] = {
+			"image": row.image or "",
+			"website_ranking": flt(row.get("website_ranking")),
+		}
+
+	by_parent = {}
+	for leaf in leaves:
+		parent_name = (leaf.get("parent_item_group") or "").strip()
+		if not parent_name:
+			continue
+		node = by_parent.get(parent_name)
+		if node is None:
+			meta = parent_rows.get(parent_name) or {}
+			node = {
+				"name": parent_name,
+				"image": meta.get("image") or "",
+				"website_ranking": meta.get("website_ranking") or 0,
+				"children": [],
+			}
+			by_parent[parent_name] = node
+		node["children"].append({
+			"name": leaf.name,
+			"image": leaf.image or "",
+			"website_ranking": flt(leaf.get("website_ranking")),
+		})
+
+	nodes = list(by_parent.values())
+	for node in nodes:
+		node["children"].sort(key=_rank_key)
+	nodes.sort(key=_rank_key)
+	return nodes
 
 
 @frappe.whitelist(allow_guest=True)
@@ -249,6 +446,15 @@ def get_item(route=None, item_code=None):
 	
 		
 	item = _decorate(items[0])
+
+	# The same rule as the listing, applied to the price the page is about to
+	# display. Without it a shared or remembered link still reaches a zero-rated
+	# product and renders the very "0" the setting exists to keep off the
+	# storefront. Checked against the decorated price rather than the exclusion
+	# list so this cannot drift from what `_catalog_filters` decided.
+	if _hide_zero_rate_enabled() and not flt(item.price):
+		frappe.throw(_("This product is not available."), frappe.DoesNotExistError)
+
 	item_doc = frappe.get_doc("Website Item", item.name)
 	
 	recommended_list = []

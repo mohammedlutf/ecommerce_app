@@ -28,14 +28,12 @@ export default StyleSheet.create({
     fontSize: Typography.sizes.titleLg,
     fontFamily: Typography.fontFamilyBold,
     color: Colors.onSurface,
-    textAlign: 'left',
   },
   headerSubtitle: {
     fontSize: Typography.sizes.labelSm,
     fontFamily: Typography.fontFamilyRegular,
     color: Colors.textMuted,
     marginTop: 2,
-    textAlign: 'left',
   },
   closeBtn: {
     width: 36,
@@ -62,14 +60,12 @@ export default StyleSheet.create({
     fontSize: Typography.sizes.titleSm,
     fontFamily: Typography.fontFamilyBold,
     color: Colors.onSurface,
-    textAlign: 'left',
   },
   sectionHint: {
     fontSize: Typography.sizes.labelSm,
     fontFamily: Typography.fontFamilyRegular,
     color: Colors.textMuted,
     lineHeight: 18,
-    textAlign: 'left',
   },
 
   /* Image ---------------------------------------------------------------- */
@@ -125,7 +121,6 @@ export default StyleSheet.create({
     fontFamily: Typography.fontFamilySemiBold,
     color: Colors.onSurfaceVariant,
     marginBottom: 6,
-    textAlign: 'left',
   },
   input: {
     backgroundColor: Colors.surfaceContainerLow,
@@ -137,7 +132,6 @@ export default StyleSheet.create({
     fontSize: Typography.sizes.bodyMd,
     fontFamily: Typography.fontFamilyRegular,
     color: Colors.onSurface,
-    textAlign: 'left',
   },
   inputMultiline: {
     minHeight: 96,
@@ -150,7 +144,6 @@ export default StyleSheet.create({
     fontFamily: Typography.fontFamilyMedium,
     color: Colors.error,
     marginTop: 4,
-    textAlign: 'left',
   },
 
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
@@ -182,7 +175,6 @@ export default StyleSheet.create({
     fontSize: Typography.sizes.labelSm,
     fontFamily: Typography.fontFamilySemiBold,
     color: Colors.textMuted,
-    textAlign: 'left',
   },
   uomRow: {
     borderWidth: 1,
@@ -198,7 +190,6 @@ export default StyleSheet.create({
     fontSize: Typography.sizes.bodyMd,
     fontFamily: Typography.fontFamilyBold,
     color: Colors.onSurface,
-    textAlign: 'left',
   },
   uomTag: {
     fontSize: Typography.sizes.labelSm,
@@ -220,7 +211,6 @@ export default StyleSheet.create({
     fontFamily: Typography.fontFamilyMedium,
     color: Colors.textMuted,
     marginBottom: 4,
-    textAlign: 'left',
   },
   uomInput: {
     backgroundColor: Colors.surfaceContainerLow,
@@ -232,7 +222,6 @@ export default StyleSheet.create({
     fontSize: Typography.sizes.bodyMd,
     fontFamily: Typography.fontFamilyRegular,
     color: Colors.onSurface,
-    textAlign: 'left',
   },
   uomInfo: {
     flex: 1,
@@ -250,13 +239,11 @@ export default StyleSheet.create({
     fontSize: Typography.sizes.bodyMd,
     fontFamily: Typography.fontFamilySemiBold,
     color: Colors.onSurfaceVariant,
-    textAlign: 'left',
   },
   uomInfoNote: {
     fontSize: Typography.sizes.labelSm,
     fontFamily: Typography.fontFamilyRegular,
     color: Colors.textMuted,
-    textAlign: 'left',
   },
   uomSetPriceBtn: {
     flexDirection: 'row',
@@ -313,7 +300,6 @@ export default StyleSheet.create({
     fontSize: Typography.sizes.bodyMd,
     fontFamily: Typography.fontFamilyMedium,
     color: Colors.onSurface,
-    textAlign: 'left',
   },
   addRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' },
 
@@ -329,14 +315,12 @@ export default StyleSheet.create({
     fontSize: Typography.sizes.bodyMd,
     fontFamily: Typography.fontFamilySemiBold,
     color: Colors.onSurface,
-    textAlign: 'left',
   },
   switchHint: {
     fontSize: Typography.sizes.labelSm,
     fontFamily: Typography.fontFamilyRegular,
     color: Colors.textMuted,
     marginTop: 2,
-    textAlign: 'left',
   },
 
   /* Footer ---------------------------------------------------------------- */
@@ -351,7 +335,6 @@ export default StyleSheet.create({
     fontFamily: Typography.fontFamilyMedium,
     color: Colors.onSecondaryContainer,
     lineHeight: 18,
-    textAlign: 'left',
   },
   banner: {
     backgroundColor: Colors.errorContainer,
@@ -362,7 +345,6 @@ export default StyleSheet.create({
     fontSize: Typography.sizes.labelMd,
     fontFamily: Typography.fontFamilyMedium,
     color: Colors.error,
-    textAlign: 'left',
   },
 
   footer: {

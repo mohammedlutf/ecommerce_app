@@ -12,6 +12,7 @@ import {
   PanResponder,
   Pressable,
   useWindowDimensions,
+  I18nManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from '../../components/Icon';
@@ -20,16 +21,23 @@ import CategoryCard from '../../components/CategoryCard';
 import ProductCard from '../../components/ProductCard';
 import EmptyState from '../../components/EmptyState';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
+import PageFooter from '../../components/layout/PageFooter';
 import CatalogAPI from '../../api/catalog';
 import { normalizeGroupName } from '../../utils/catalog';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import { useResetOnTabPress } from '../../hooks/useResetOnTabPress';
+import { openProduct } from '../../seo/linking';
+import useDocumentHead from '../../seo/useDocumentHead';
+import { organizationNode, itemListNode } from '../../seo/jsonld';
+import { useI18n } from '../../i18n/I18nContext';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { useGridMetrics, default as useResponsive, useSiteChrome } from '../../hooks/useResponsive';
 import { useAdmin } from '../../context/AdminContext';
 import { formatCount } from '../../utils/format';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows, Spacing } from '../../theme/spacing';
+import useDirectional from '../../hooks/useDirectional';
 
 const PAGE_SIZE = 20;
 const ALL_KEY = 'all';
@@ -58,11 +66,19 @@ const catName = (cat) => (typeof cat === 'string' ? cat : cat && cat.name);
 
 // Memoized cell so product cards only re-render when their own product changes
 // (the stable `onOpen` callback keeps the memo useful across parent re-renders).
-const ProductGridCell = React.memo(function ProductGridCell({ product, onOpen }) {
+// `cellStyle`/`imageHeight` come from `useGridMetrics`, which the FlatLists below
+// use for `numColumns` — the two have to agree or the cards stop lining up.
+const ProductGridCell = React.memo(function ProductGridCell({
+  product,
+  onOpen,
+  cellStyle,
+  imageHeight,
+}) {
   return (
-    <View style={styles.gridColumn}>
+    <View style={cellStyle}>
       <ProductCard
         product={product}
+        imageHeight={imageHeight}
         onPress={() => onOpen(product.item_code || product.name)}
       />
     </View>
@@ -113,13 +129,15 @@ const REVEAL_RETRY_FRAMES = 8;
  * useAutoRevealRow — keeps the selected chip of a horizontal group row on screen.
  *
  * A chip row can hold dozens of groups, so after a swipe (or a deep link that
- * selects a group off-screen) the active chip is invisible. Chips are measured
- * from the content's START edge — the right edge in RTL — and mapped onto the
- * ScrollView's `scrollTo` space, which is start-relative as well.
+ * selects a group off-screen) the active chip is invisible. Note that the two
+ * spaces involved are NOT the same: `onLayout` measures each chip from the
+ * physical LEFT edge of the content, while `scrollTo({ x })` is start-relative
+ * under RTL, where 0 is the right-hand end. `reveal` bridges the two.
  *
  * `rowKey` should be a stable string for the row's items so unrelated re-renders
  * (e.g. a product page merging into state) do not yank the row back to center,
- * and `count` is how many chips the row holds.
+ * and `count` is how many chips the row holds — chip 0 and chip `count - 1` are
+ * what identify the row's start edge, so they must both be measured.
  *
  * Returns `{ scrollRef, scrollProps, measure }`:
  *   - spread `scrollProps` on the horizontal ScrollView
@@ -127,64 +145,61 @@ const REVEAL_RETRY_FRAMES = 8;
  */
 function useAutoRevealRow(activeIndex, rowKey, count) {
   const scrollRef = useRef(null);
-  const metricsRef = useRef({}); // index -> { x, size } (x measured from the LEFT edge)
+  const metricsRef = useRef({}); 
   const viewportRef = useRef({ width: 0, contentWidth: 0 });
   const lastRevealRef = useRef({ rowKey: null, target: null });
   const activeIndexRef = useRef(activeIndex);
   const retryRef = useRef(null);
+  const hasInitializedRef = useRef(false); // <--- Track initial load
   activeIndexRef.current = activeIndex;
 
-  // Returns the offset the row should sit at, or null while it is not
-  // measurable yet.
   const reveal = useCallback(
     (index) => {
       const scrollNode = scrollRef.current;
       const metric = metricsRef.current[index];
       const { width: viewportWidth, contentWidth } = viewportRef.current;
-      // `contentWidth` is as load-bearing as the chip rect. Without it the row
-      // cannot be scrolled at all, and the clamped 0 produced by that attempt
-      // used to be remembered as "already revealed" — which blocked the real
-      // target whenever Android never re-reported the size.
+      
       if (!scrollNode || !metric || viewportWidth <= 0 || contentWidth <= 0) return null;
 
-      // The row's own layout decides the direction, never `I18nManager.isRTL`:
-      // that constant is a snapshot taken while the bundle boots, and the
-      // `forceRTL()` in utils/rtl only reaches it on a LATER launch. A
-      // standalone build opened for the first time after install reports
-      // `false`, which mirrors every target and leaves the active chip
-      // off-screen. The first chip always sits on the start edge, so comparing
-      // it against the last one identifies that edge with certainty.
-      const lastMetric = count > 1 ? metricsRef.current[count - 1] : null;
-      const distanceFromStart =
-        lastMetric && metric.x > lastMetric.x
-          ? Math.max(0, contentWidth - metric.x - metric.size)
-          : metric.x;
+      const isRTL = I18nManager.isRTL; 
+      
+      let target;
+      if (isRTL) {
+        // On very first load in RTL, snap/scroll to the far right (maxOffset) 
+        // so the user sees the first items on the right immediately.
+        if (!hasInitializedRef.current && activeIndex === 0) {
+          hasInitializedRef.current = true;
+          target = Math.max(0, contentWidth - viewportWidth);
+        } else {
+          const physicalCenter = metric.x + metric.size / 2;
+          target = contentWidth - physicalCenter - viewportWidth / 2;
+          target = Math.max(0, Math.min(contentWidth - viewportWidth, target));
+        }
+      } else {
+        const physical = Math.max(
+          0,
+          Math.min(contentWidth - viewportWidth, metric.x + metric.size / 2 - viewportWidth / 2)
+        );
+        target = physical;
+      }
 
-      // Center the chip, then clamp so the row never over-scrolls its bounds.
-      const maxOffset = Math.max(0, contentWidth - viewportWidth);
-      const target = Math.max(
-        0,
-        Math.min(maxOffset, distanceFromStart + metric.size / 2 - viewportWidth / 2)
-      );
-
-      // Layout arrives as a burst of events; ignoring sub-pixel deltas keeps the
-      // row from being re-scrolled (and re-animated) several times in a row. The
-      // row signature is part of the key so a parent switch can always re-issue
-      // the same offset for a freshly laid-out row.
       const last = lastRevealRef.current;
       if (last.rowKey !== rowKey || Math.abs(target - last.target) >= 1) {
         lastRevealRef.current = { rowKey, target };
-        scrollNode.scrollTo({ x: target, y: 0, animated: true });
+        // Use animated: false on the very first mount jump to prevent a jarring visual slide
+        scrollNode.scrollTo({ x: target, y: 0, animated: hasInitializedRef.current });
       }
       return target;
     },
-    [count, rowKey]
+    [count, rowKey, activeIndex]
   );
 
-  // Reveal immediately, then keep revealing for a few frames until the offset
-  // stops moving. `activeIndexRef` is read inside the loop so a trigger that
-  // lands mid-loop (a chip press, a swipe) is simply picked up by the frames
-  // already in flight instead of starting a second loop.
+  // Reset initialization flag when rowKey changes (e.g. parent category switch)
+  useEffect(() => {
+    hasInitializedRef.current = false;
+  }, [rowKey]);
+
+  // Rest of your hook remains the same...
   const scheduleReveal = useCallback(() => {
     let settled = reveal(activeIndexRef.current);
     if (retryRef.current != null) return;
@@ -217,9 +232,7 @@ function useAutoRevealRow(activeIndex, rowKey, count) {
     (index, event) => {
       const { x, width } = event.nativeEvent.layout;
       metricsRef.current[index] = { x, size: width };
-      // `onContentSizeChange` can land before the chip `onLayout` events, so the
-      // active chip also re-centres from here.
-      if (index === activeIndexRef.current) scheduleReveal();
+      scheduleReveal();
     },
     [scheduleReveal]
   );
@@ -241,7 +254,6 @@ function useAutoRevealRow(activeIndex, rowKey, count) {
 
   return { scrollRef, scrollProps, measure };
 }
-
 /**
  * SearchResultsHeader — the bar between the search field and the results.
  *
@@ -251,13 +263,14 @@ function useAutoRevealRow(activeIndex, rowKey, count) {
  * search instead of a filter.
  */
 function SearchResultsHeader({ query, count, loading }) {
+  const { textStart } = useDirectional();
   return (
     <View style={styles.searchHeader}>
       <View style={styles.searchHeaderText}>
-        <Text style={styles.searchHeaderTitle} numberOfLines={1}>
+        <Text style={[styles.searchHeaderTitle, textStart]} numberOfLines={1}>
           {loading ? 'جارٍ البحث...' : formatCount(count)}
         </Text>
-        <Text style={styles.searchHeaderQuery} numberOfLines={1}>
+        <Text style={[styles.searchHeaderQuery, textStart]} numberOfLines={1}>
           {`نتائج البحث عن: ${query}`}
         </Text>
       </View>
@@ -279,14 +292,16 @@ function SearchResultsHeader({ query, count, loading }) {
  *     continuous paginated list is the only honest layout.
  */
 function SearchResults({ state, onOpen, onLoadMore, refreshing, onRefresh, onClearAll }) {
+  const { textStart } = useDirectional();
   const { items, loading, loadingMore, hasMore, query } = state;
+  const { columns, cellStyle, rowStyle, imageHeight } = useGridMetrics();
 
   if (loading && items.length === 0) {
     return (
-      <View style={styles.skeletonGrid}>
-        {[1, 2, 3, 4].map((i) => (
-          <View key={i} style={styles.gridColumn}>
-            <LoadingSkeleton height={150} borderRadius={Radius.xl} />
+      <View style={[styles.skeletonGrid, rowStyle]}>
+        {Array.from({ length: columns * 2 }).map((_, i) => (
+          <View key={i} style={cellStyle}>
+            <LoadingSkeleton height={imageHeight} borderRadius={Radius.xl} />
             <View style={{ marginTop: 8 }}>
               <LoadingSkeleton height={16} width="85%" />
               <LoadingSkeleton height={14} width="40%" style={{ marginTop: 6 }} />
@@ -300,9 +315,12 @@ function SearchResults({ state, onOpen, onLoadMore, refreshing, onRefresh, onCle
   return (
     <FlatList
       data={items}
+      // FlatList computes row layout once from the initial column count, so a
+      // resize across a breakpoint needs a remount to re-flow.
+      key={`search-grid-${columns}`}
       keyExtractor={(item, index) => item.item_code || String(index)}
-      numColumns={2}
-      columnWrapperStyle={styles.columnWrapper}
+      numColumns={columns}
+      columnWrapperStyle={columns > 1 ? rowStyle : undefined}
       contentContainerStyle={styles.listContent}
       keyboardShouldPersistTaps="handled"
       initialNumToRender={8}
@@ -310,7 +328,14 @@ function SearchResults({ state, onOpen, onLoadMore, refreshing, onRefresh, onCle
       updateCellsBatchingPeriod={60}
       windowSize={7}
       removeClippedSubviews
-      renderItem={({ item }) => <ProductGridCell product={item} onOpen={onOpen} />}
+      renderItem={({ item }) => (
+        <ProductGridCell
+          product={item}
+          onOpen={onOpen}
+          cellStyle={cellStyle}
+          imageHeight={imageHeight}
+        />
+      )}
       onEndReached={onLoadMore}
       onEndReachedThreshold={0.4}
       refreshControl={
@@ -326,7 +351,7 @@ function SearchResults({ state, onOpen, onLoadMore, refreshing, onRefresh, onCle
           {loadingMore ? (
             <>
               <ActivityIndicator size="small" color={Colors.primary} />
-              <Text style={styles.footerText}>جاري تحميل المزيد...</Text>
+              <Text style={[styles.footerText, textStart]}>جاري تحميل المزيد...</Text>
             </>
           ) : null}
         </View>
@@ -345,9 +370,26 @@ function SearchResults({ state, onOpen, onLoadMore, refreshing, onRefresh, onCle
 }
 
 export default function ProductsScreen({ route, navigation }) {
+  const { textStart } = useDirectional();
   useResetOnTabPress(navigation, 'ProductsTab');
   const { width } = useWindowDimensions();
   const { isAdmin, savedTick } = useAdmin();
+  const { locale, t } = useI18n();
+  const { showDesktopChrome } = useSiteChrome();
+
+  /**
+   * Responsive grid metrics for the browse pager.
+   *
+   * `width` doubles as the pager page width, so a resize re-flows the columns
+   * and the swipeable track together — they can never disagree about how wide a
+   * page is.
+   */
+  const {
+    columns: gridColumns,
+    cellStyle: gridCellStyle,
+    rowStyle: gridRowStyle,
+    imageHeight: gridImageHeight,
+  } = useGridMetrics();
 
   // The tab stack keeps this screen mounted, so the deep link is read live from
   // `route.params` instead of being captured once on mount. Otherwise a second
@@ -984,23 +1026,81 @@ export default function ProductsScreen({ route, navigation }) {
   const showSkeleton = initialLoading && Object.keys(productsByKey).length === 0;
 
   const onOpen = useCallback(
-    (itemCode) => navigation.navigate('ProductDetail', { itemCode }),
+    (itemCode) => openProduct(navigation, itemCode),
     [navigation]
   );
 
+  /*
+   * Document head for the catalogue.
+   *
+   * Placed after every value it reads so no hook closes over a binding that has
+   * not been initialised yet.
+   *
+   * Three states need distinct treatment: a search is transient and must never
+   * be indexed, or the site accrues an unbounded set of thin result pages; a
+   * category is a real landing page worth indexing; the bare catalogue is the
+   * primary listing. `path` mirrors the browse state so the canonical URL always
+   * points at the page actually on screen.
+   */
+  const isSearchPage = isSearchActive;
+  const headCategory = activeKey !== ALL_KEY ? activeKey : null;
+  const headPath = isSearchPage
+    ? '/products'
+    : headCategory
+      ? `/products/${encodeURIComponent(headCategory)}`
+      : '/products';
+
+  const headJsonLd = useMemo(() => {
+    if (isSearchPage || activeProducts.length === 0) return null;
+    return [
+      organizationNode(),
+      itemListNode(activeProducts, {
+        locale,
+        path: headCategory ? `/products/${encodeURIComponent(headCategory)}` : '/products',
+      }),
+    ];
+  }, [isSearchPage, activeProducts, locale, headCategory]);
+
+  useDocumentHead({
+    title: isSearchPage
+      ? t('seo.searchTitle', { query: debouncedQuery })
+      : headCategory || t('seo.productsTitle'),
+    description: isSearchPage
+      ? t('seo.searchDescription', { query: debouncedQuery })
+      : headCategory
+        ? t('seo.categoryDescription', { category: headCategory })
+        : t('seo.productsDescription'),
+    path: headPath,
+    noindex: isSearchPage,
+    jsonLd: headJsonLd,
+  });
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Search Header */}
-      <View style={styles.header}>
-        <SearchBar
-          inputRef={searchInputRef}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          onSubmit={handleSearchSubmit}
-          onClear={handleClearSearch}
-          placeholder="ابحث بالاسم أو الباركود..."
-        />
-      </View>
+      {/*
+        Search bar.
+
+        Hidden on the desktop shell: `SiteHeader` carries a search field in the
+        sticky top bar, and two search boxes on one screen reads as a bug rather
+        than as a feature.
+
+        The trade-off is that this field owns the live query state (focus, clear,
+        debounce). On desktop the header's search is the only control, and it
+        hands off by pushing a new `search` param, so `SearchResultsHeader` below
+        is what tells the shopper what is currently filtered.
+      */}
+      {!showDesktopChrome && (
+        <View style={styles.header}>
+          <SearchBar
+            inputRef={searchInputRef}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onSubmit={handleSearchSubmit}
+            onClear={handleClearSearch}
+            placeholder="ابحث بالاسم أو الباركود..."
+          />
+        </View>
+      )}
 
       {isSearchActive ? (
         <>
@@ -1024,7 +1124,7 @@ export default function ProductsScreen({ route, navigation }) {
           <View style={styles.chipsGroup}>
             {/* <View style={styles.chipsLabelRow}>
           <Icon name="albums-outline" size={14} color={Colors.primary} />
-          <Text style={styles.chipsLabel}>الأقسام الرئيسية</Text>
+          <Text style={[styles.chipsLabel, textStart]}>الأقسام الرئيسية</Text>
         </View> */}
             <ScrollView
               ref={parentRow.scrollRef}
@@ -1089,16 +1189,16 @@ export default function ProductsScreen({ route, navigation }) {
 
           {/* Results info */}
           {/* <View style={styles.resultsInfo}>
-        <Text style={styles.resultsText}>
+        <Text style={[styles.resultsText, textStart]}>
           عرض {activeProducts.length} من المنتجات
         </Text>
       </View> */}
 
           {showSkeleton ? (
-            <View style={styles.skeletonGrid}>
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <View key={i} style={styles.gridColumn}>
-                  <LoadingSkeleton height={150} borderRadius={Radius.xl} />
+            <View style={[styles.skeletonGrid, gridRowStyle]}>
+              {Array.from({ length: gridColumns * 2 }).map((_, i) => (
+                <View key={i} style={gridCellStyle}>
+                  <LoadingSkeleton height={gridImageHeight} borderRadius={Radius.xl} />
                   <View style={{ marginTop: 8 }}>
                     <LoadingSkeleton height={16} width="85%" />
                     <LoadingSkeleton height={14} width="40%" style={{ marginTop: 6 }} />
@@ -1133,9 +1233,10 @@ export default function ProductsScreen({ route, navigation }) {
                         <PageContent>
                           <FlatList
                             data={pageProducts}
+                            key={`page-grid-${gridColumns}`}
                             keyExtractor={(item, index) => item.item_code || String(index)}
-                            numColumns={2}
-                            columnWrapperStyle={styles.columnWrapper}
+                            numColumns={gridColumns}
+                            columnWrapperStyle={gridColumns > 1 ? gridRowStyle : undefined}
                             contentContainerStyle={styles.listContent}
                             initialNumToRender={6}
                             maxToRenderPerBatch={10}
@@ -1143,7 +1244,12 @@ export default function ProductsScreen({ route, navigation }) {
                             windowSize={7}
                             removeClippedSubviews
                             renderItem={({ item }) => (
-                              <ProductGridCell product={item} onOpen={onOpen} />
+                              <ProductGridCell
+                                product={item}
+                                onOpen={onOpen}
+                                cellStyle={gridCellStyle}
+                                imageHeight={gridImageHeight}
+                              />
                             )}
                             onEndReached={() => loadMoreKey(key)}
                             onEndReachedThreshold={0.4}
@@ -1160,11 +1266,19 @@ export default function ProductsScreen({ route, navigation }) {
                                 {loadingMore ? (
                                   <>
                                     <ActivityIndicator size="small" color={Colors.primary} />
-                                    <Text style={styles.footerText}>جاري تحميل المزيد...</Text>
+                                    <Text style={[styles.footerText, textStart]}>جاري تحميل المزيد...</Text>
                                   </>
                                 ) : !hasMoreByKey[key] && pageProducts.length > 0 ? (
-                                  <Text style={styles.footerText}>— لقد وصلت إلى نهاية القائمة —</Text>
+                                  <Text style={[styles.footerText, textStart]}>— لقد وصلت إلى نهاية القائمة —</Text>
                                 ) : null}
+
+                                {/*
+                                  Products has no page-level ScrollView, only per-category
+                                  FlatLists inside the pager. `ListFooterComponent` is therefore
+                                  the only position where the footer sits *inside* the scrollable
+                                  area and can actually be reached.
+                                */}
+                                <PageFooter />
                               </View>
                             }
                             ListEmptyComponent={
@@ -1179,7 +1293,7 @@ export default function ProductsScreen({ route, navigation }) {
                               ) : initialLoading ? (
                                 <View style={styles.pageLoader}>
                                   <ActivityIndicator size="small" color={Colors.primary} />
-                                  <Text style={styles.pageLoaderText}>جاري تحميل المنتجات...</Text>
+                                  <Text style={[styles.pageLoaderText, textStart]}>جاري تحميل المنتجات...</Text>
                                 </View>
                               ) : null
                             }
@@ -1188,7 +1302,7 @@ export default function ProductsScreen({ route, navigation }) {
                       ) : (
                         <View style={styles.pagePlaceholder}>
                           {pageProducts.length > 0 ? (
-                            <Text style={styles.pagePlaceholderText}>
+                            <Text style={[styles.pagePlaceholderText, textStart]}>
                               {key === ALL_KEY ? 'الكل' : key}
                             </Text>
                           ) : null}
@@ -1265,7 +1379,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.labelSm,
     color: Colors.textMuted,
     fontFamily: Typography.fontFamilyMedium,
-    textAlign: 'left',
   },
   chipsGroup: {
     backgroundColor: Colors.surface,
@@ -1302,7 +1415,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.labelSm,
     color: Colors.textMuted,
     fontFamily: Typography.fontFamilyMedium,
-    textAlign: 'left',
   },
   pager: {
     flex: 1,
@@ -1331,13 +1443,9 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     paddingTop: 2,
   },
-  columnWrapper: {
-    justifyContent: 'space-between',
-  },
-  gridColumn: {
-    width: '50%',
-    padding: 6,
-  },
+  // Grid gutters are expressed per-cell in `useGridMetrics` (padding inside the
+  // cell plus a negative margin on the row), so there is no `columnWrapper` or
+  // fixed `gridColumn` here any more — the column count is not a constant.
   skeletonGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

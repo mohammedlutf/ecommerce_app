@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
+import useDirectional from '../hooks/useDirectional';
 import Icon from './Icon';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
@@ -23,6 +24,7 @@ export default function AddressCard({
   onSetDefault,
   busy = false,
 }) {
+  const { textStart } = useDirectional();
   const coords = parseCoords(address.address_line2);
   // The pin's readable name is stored in `pincode`.
   const placeName = address.pincode;
@@ -38,7 +40,7 @@ export default function AddressCard({
         accessibilityState={onSelect ? { selected: !!isSelected } : undefined}
       >
         <View style={styles.headerRow}>
-          <View style={styles.radioWrapper}>
+          <View style={[styles.radioWrapper, textStart]}>
             {onSelect ? (
               <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
                 {isSelected ? <View style={styles.radioInner} /> : null}
@@ -46,7 +48,7 @@ export default function AddressCard({
             ) : (
               <Icon name="location" size={18} color={Colors.primary} />
             )}
-            <Text style={styles.title} numberOfLines={1}>
+            <Text style={[styles.title, textStart]} numberOfLines={1}>
               {address.address_title || 'عنوان التوصيل'}
             </Text>
           </View>
@@ -54,19 +56,19 @@ export default function AddressCard({
           {address.is_primary_address ? (
             <View style={styles.primaryBadge}>
               <Icon name="star" size={11} color={Colors.onPrimary} />
-              <Text style={styles.primaryBadgeText}>الأساسي</Text>
+              <Text style={[styles.primaryBadgeText, textStart]}>الأساسي</Text>
             </View>
           ) : null}
         </View>
 
-        <Text style={styles.addressLine}>{address.address_line1}</Text>
+        <Text style={[styles.addressLine, textStart]}>{address.address_line1}</Text>
         {/* {address.address_line2 ? (
-          <Text style={styles.addressLineMuted}>{address.address_line2}</Text>
+          <Text style={[styles.addressLineMuted, textStart]}>{address.address_line2}</Text>
         ) : null}
         {placeName ? (
           <View style={styles.placeRow}>
             <Icon name="navigate-outline" size={13} color={Colors.primary} />
-            <Text style={styles.placeText} numberOfLines={2}>
+            <Text style={[styles.placeText, textStart]} numberOfLines={2}>
               {placeName}
             </Text>
           </View>
@@ -76,19 +78,19 @@ export default function AddressCard({
           {address.city ? (
             <View style={styles.infoPill}>
               <Icon name="business-outline" size={13} color={Colors.primary} />
-              <Text style={styles.infoText}>{address.city}</Text>
+              <Text style={[styles.infoText, textStart]}>{address.city}</Text>
             </View>
           ) : null}
           {address.phone ? (
             <View style={styles.infoPill}>
               <Icon name="call-outline" size={13} color={Colors.primary} />
-              <Text style={styles.infoText}>{address.phone}</Text>
+              <Text style={[styles.infoText, textStart]}>{address.phone}</Text>
             </View>
           ) : null}
         </View>
 
         {/* {coords ? (
-          <Text style={styles.coords}>{formatCoordsForDisplay(coords)}</Text>
+          <Text style={[styles.coords, textStart]}>{formatCoordsForDisplay(coords)}</Text>
         ) : null} */}
       </TouchableOpacity>
 
@@ -103,7 +105,7 @@ export default function AddressCard({
               style={({ pressed }) => [styles.action, pressed && styles.actionPressed, busy && styles.actionDisabled]}
             >
               <Icon name="create-outline" size={15} color={Colors.primary} />
-              <Text style={styles.actionText}>تعديل</Text>
+              <Text style={[styles.actionText, textStart]}>تعديل</Text>
             </Pressable>
           ) : null}
 
@@ -116,7 +118,7 @@ export default function AddressCard({
               style={({ pressed }) => [styles.action, pressed && styles.actionPressed, busy && styles.actionDisabled]}
             >
               <Icon name="star-outline" size={15} color={Colors.primary} />
-              <Text style={styles.actionText}>أساسي</Text>
+              <Text style={[styles.actionText, textStart]}>أساسي</Text>
             </Pressable>
           ) : null}
 
@@ -129,7 +131,7 @@ export default function AddressCard({
               style={({ pressed }) => [styles.action, styles.actionDanger, pressed && styles.actionPressed, busy && styles.actionDisabled]}
             >
               <Icon name="trash-outline" size={15} color={Colors.error} />
-              <Text style={[styles.actionText, styles.actionTextDanger]}>حذف</Text>
+              <Text style={[styles.actionText, textStart, styles.actionTextDanger]}>حذف</Text>
             </Pressable>
           ) : null}
         </View>
@@ -210,7 +212,6 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     marginBottom: 3,
     fontFamily: Typography.fontFamilyRegular,
-    textAlign: 'left',
   },
   // `address_line2` holds the raw "lat,lng" pin. It is kept small and muted:
   // it is diagnostic detail, not something a customer needs to read.
@@ -218,7 +219,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.labelSm,
     color: Colors.textMuted,
     fontFamily: Typography.fontFamilyRegular,
-    textAlign: 'left',
     marginBottom: 2,
   },
   placeRow: {
@@ -233,7 +233,6 @@ const styles = StyleSheet.create({
     color: Colors.onSurfaceVariant,
     fontFamily: Typography.fontFamilyMedium,
     lineHeight: 18,
-    textAlign: 'left',
   },
   footerRow: {
     flexDirection: 'row',
@@ -261,7 +260,6 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontFamily: Typography.fontFamilyRegular,
     marginTop: 6,
-    textAlign: 'left',
   },
   actions: {
     flexDirection: 'row',

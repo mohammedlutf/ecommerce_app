@@ -5,7 +5,14 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "build:web": "expo export --platform web --output-dir dist-web --clear",
+    "prerender": "node scripts/prerender.mjs",
+    "build:site": "npm run verify && npm run build:web && npm run prerender",
+    "test:linking": "node scripts/.test-linking.cjs",
+    "verify:seo": "node scripts/.verify-seo.cjs",
+    "verify:scope": "node scripts/.verify-scope.cjs src",
+    "verify": "npm run verify:scope && npm run test:linking && npm run verify:seo"
   },
   "dependencies": {
     "@expo-google-fonts/cairo": "^0.4.2",

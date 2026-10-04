@@ -8,7 +8,6 @@ import {
   TextInput,
   StyleSheet,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from '../../components/Icon';
@@ -21,16 +20,29 @@ import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useResetOnTabPress } from '../../hooks/useResetOnTabPress';
+import useResponsive from '../../hooks/useResponsive';
+import useDirectional from '../../hooks/useDirectional';
+import PageFooter from '../../components/layout/PageFooter';
+import useConfirm from '../../components/ConfirmDialog';
+import useDocumentHead from '../../seo/useDocumentHead';
+import { useI18n } from '../../i18n/I18nContext';
 import CartAPI from '../../api/cart';
 import AddressAPI from '../../api/address';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
+import { MAX_CONTENT_WIDTH } from '../../theme/responsive';
 import { formatCurrency } from '../../utils/format';
 import { getImageUrl } from '../../api/client';
 
 export default function CartScreen({ navigation }) {
   useResetOnTabPress(navigation, 'CartTab');
+  const { isDesktop } = useResponsive();
+  const { confirm, confirmDialog } = useConfirm();
+  const { textStart } = useDirectional();
+  // Per-visitor state: the cart must never be indexed, and there is nothing to
+  // describe to a crawler. Mirrors the `/cart` disallow in robots.txt.
+  useDocumentHead({ path: '/cart', noindex: true });
 
   const { items, total, currency, loading, updateQuantity, updateUOM, removeItem, clearCart } = useCart();
   const { isAuthenticated, user } = useAuth();
@@ -176,10 +188,14 @@ export default function CartScreen({ navigation }) {
 
   async function handleCheckout() {
     if (!isAuthenticated) {
-      Alert.alert('تسجيل الدخول مطلوب', 'يرجى تسجيل الدخول لمتابعة عملية الشراء.', [
-        { text: 'إلغاء', style: 'cancel' },
-        { text: 'تسجيل الدخول', onPress: () => navigation.navigate('AccountTab') },
-      ]);
+      confirm({
+        title: 'تسجيل الدخول مطلوب',
+        message: 'يرجى تسجيل الدخول لمتابعة عملية الشراء.',
+        confirmLabel: 'تسجيل الدخول',
+        cancelLabel: 'إلغاء',
+        tone: 'info',
+        onConfirm: () => navigation.navigate('AccountTab'),
+      });
       return;
     }
 
@@ -222,7 +238,7 @@ export default function CartScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.centerContainer}>
         <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>جاري تحميل السلة...</Text>
+        <Text style={[styles.loadingText, textStart]}>جاري تحميل السلة...</Text>
       </SafeAreaView>
     );
   }
@@ -241,227 +257,266 @@ export default function CartScreen({ navigation }) {
     );
   }
 
+/**
+   * Checkout sections, extracted so the phone and desktop layouts compose the
+   * same elements.
+   *
+   * Duplicating this markup per layout is how the two versions silently drift —
+   * a delivery-fee fix lands in one column and not the other, and the desktop
+   * cart then quotes a total the mobile cart never shows.
+   */
+  const headerBlock = (
+    <View style={styles.cartHeader}>
+      <Text style={[styles.cartTitle, textStart]}>سلة المشتريات ({items.length})</Text>
+      <Text style={[styles.liveHint, textStart]}>
+        <View style={styles.liveDot} /> تُحدَّث السلة تلقائياً
+      </Text>
+    </View>
+  );
+
+  const itemsBlock = (
+    <View style={styles.itemsList}>
+      {items.map((line, idx) => {
+        const imageUrl = getImageUrl(line.image);
+        return (
+          <View key={`${line.item_code}-${line.uom || idx}`} style={styles.cartItemCard}>
+            <View style={styles.itemImageWrapper}>
+              {imageUrl ? (
+                <Image source={{ uri: imageUrl }} style={styles.itemImage} resizeMode="contain" />
+              ) : (
+                <Icon name="bag-handle-outline" size={26} color={Colors.textMuted} />
+              )}
+            </View>
+
+            <View style={styles.itemInfo}>
+              <View style={styles.itemTopRow}>
+                <Text style={[styles.itemName, textStart]} numberOfLines={2}>
+                  {line.item_name || line.item_code}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => handleRemoveItem(line.item_code, line.uom)}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  style={styles.deleteBtn}
+                >
+                  <Icon name="trash-outline" size={18} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              {line.uoms && line.uoms.length > 1 && (
+                <UOMSelector
+                  uoms={line.uoms}
+                  selectedUom={line.uom}
+                  onSelectUom={(newUom) => updateUOM(line.item_code, newUom, line.uom)}
+                  size="sm"
+                />
+              )}
+
+              <View style={styles.itemBottomRow}>
+                <View>
+                  <Text style={[styles.itemUnitPrice, textStart]}>
+                    {formatCurrency(line.rate)} / {line.uom}
+                  </Text>
+                  <Text style={[styles.itemTotal, textStart]}>
+                    المجموع: {formatCurrency(line.amount)}
+                  </Text>
+                </View>
+
+                <QuantityStepper
+                  quantity={line.qty}
+                  onIncrement={() => updateQuantity(line.item_code, line.qty + 1, line.uom)}
+                  onDecrement={() => {
+                    if (line.qty <= 1) handleRemoveItem(line.item_code, line.uom);
+                    else updateQuantity(line.item_code, line.qty - 1, line.uom);
+                  }}
+                  size="sm"
+                />
+              </View>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+
+  const summaryBlock = (
+    <View style={styles.sectionCard}>
+      <View style={styles.sectionTitleRow}>
+        <Icon name="receipt-outline" size={17} color={Colors.primary} />
+        <Text style={[styles.sectionTitle, textStart]}>تفاصيل الفاتورة</Text>
+      </View>
+
+      <View style={styles.summaryRow}>
+        <Text style={[styles.summaryLabel, textStart]}>إجمالي المنتجات</Text>
+        <Text style={[styles.summaryValue, textStart]}>{formatCurrency(total, currency)}</Text>
+      </View>
+
+      <View style={styles.summaryRow}>
+        <Text style={[styles.summaryLabel, textStart]}>رسوم التوصيل</Text>
+        {delivery.loading ? (
+          <ActivityIndicator size="small" color={Colors.textMuted} />
+        ) : delivery.error ? (
+          // Never "مجاني" here: that would claim delivery is free when the
+          // truth is only that the price could not be read.
+          <Text style={[styles.summaryValue, textStart, { color: Colors.textMuted, fontFamily: Typography.fontFamilyBold }]}>
+            تعذّر تحديد الرسوم
+          </Text>
+        ) : delivery.charges > 0 ? (
+          <Text style={[styles.summaryValue, textStart, { color: Colors.error, fontFamily: Typography.fontFamilyBold }]}>
+            {formatCurrency(delivery.charges, currency)}
+          </Text>
+        ) : (
+          <Text style={[styles.summaryValue, textStart, { color: Colors.success, fontFamily: Typography.fontFamilyBold }]}>
+            مجاني
+          </Text>
+        )}
+      </View>
+
+      <View style={styles.summaryRow}>
+        <Text style={[styles.summaryLabel, textStart]}>طريقة الدفع</Text>
+        <View style={styles.paymentBadge}>
+          <Icon name="cash-outline" size={15} color={Colors.primary} />
+          <Text style={[styles.summaryValue, textStart, { color: Colors.primary, fontFamily: Typography.fontFamilyBold }]}>
+            الدفع عند الاستلام (نقد)
+          </Text>
+        </View>
+      </View>
+
+      <View style={[styles.summaryRow, styles.grandTotalRow]}>
+        <Text style={[styles.grandTotalLabel, textStart]}>المجموع الكلي المطلوب</Text>
+        <Text style={[styles.grandTotalValue, textStart]}>
+          {formatCurrency(grandTotal, currency)}
+        </Text>
+      </View>
+    </View>
+  );
+
+  const notesBlock = (
+    <View style={styles.sectionCard}>
+      <View style={styles.sectionTitleRow}>
+        <Icon name="create-outline" size={17} color={Colors.primary} />
+        <Text style={[styles.sectionTitle, textStart]}>ملاحظات أو تعليمات خاصة للتوصيل</Text>
+      </View>
+      <TextInput
+        value={notes}
+        onChangeText={setNotes}
+        placeholder="مثال: يرجى الاتصال عند الوصول، الاتصال على رقم آخر..."
+        placeholderTextColor={Colors.textMuted}
+        multiline
+        numberOfLines={2}
+        style={styles.notesInput}
+        textAlign="right"
+      />
+    </View>
+  );
+
+  const addressBlock = (
+    <View style={styles.sectionCard}>
+      <View style={styles.sectionHeader}>
+        <View style={styles.sectionTitleRow}>
+          <Icon name="location-outline" size={17} color={Colors.primary} />
+          <Text style={[styles.sectionTitle, textStart]}>عنوان التوصيل</Text>
+        </View>
+        {isAuthenticated && (
+          <TouchableOpacity onPress={() => setShowAddAddressModal(true)} activeOpacity={0.8}>
+            <Text style={[styles.addAddressText, textStart]}>+ إضافة عنوان</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {!isAuthenticated ? (
+        <View style={styles.authNotice}>
+          <Icon name="lock-closed-outline" size={18} color={Colors.textMuted} />
+          <Text style={[styles.authNoticeText, textStart]}>يرجى تسجيل الدخول لتحديد عنوان التوصيل</Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('AccountTab')}
+            style={styles.authNoticeBtn}
+          >
+            <Text style={[styles.authNoticeBtnText, textStart]}>تسجيل الدخول</Text>
+          </TouchableOpacity>
+        </View>
+      ) : addresses.length === 0 ? (
+        <TouchableOpacity
+          onPress={() => setShowAddAddressModal(true)}
+          style={styles.noAddressBox}
+          activeOpacity={0.8}
+        >
+          <Icon name="add-circle-outline" size={22} color={Colors.primary} />
+          <Text style={styles.noAddressText}>لم تقم بإضافة عنوان توصيل بعد. انقر لإضافة عنوان جديد.</Text>
+        </TouchableOpacity>
+      ) : (
+        addresses.map((addr) => (
+          <AddressCard
+            key={addr.name}
+            address={addr}
+            isSelected={selectedAddress && selectedAddress.name === addr.name}
+            onSelect={(selected) => setSelectedAddress(selected)}
+          />
+        ))
+      )}
+    </View>
+  );
+
+  const checkoutBlock = (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      disabled={checkingOut}
+      onPress={handleCheckout}
+      style={styles.checkoutBtn}
+    >
+      {checkingOut ? (
+        <ActivityIndicator color="#ffffff" />
+      ) : (
+        <>
+          <Icon name="checkmark-circle" size={20} color="#ffffff" />
+          <Text style={[styles.checkoutBtnText, textStart]}>تأكيد الطلب — الدفع عند الاستلام</Text>
+        </>
+      )}
+    </TouchableOpacity>
+  );
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
-        <View style={styles.cartHeader}>
-          <Text style={styles.cartTitle}>سلة المشتريات ({items.length})</Text>
-          <Text style={styles.liveHint}>
-            <View style={styles.liveDot} /> تُحدَّث السلة تلقائياً
-          </Text>
-        </View>
-
-        {/* Line items */}
-        <View style={styles.itemsList}>
-          {items.map((line, idx) => {
-            const imageUrl = getImageUrl(line.image);
-            return (
-              <View key={`${line.item_code}-${line.uom || idx}`} style={styles.cartItemCard}>
-                <View style={styles.itemImageWrapper}>
-                  {imageUrl ? (
-                    <Image source={{ uri: imageUrl }} style={styles.itemImage} resizeMode="contain" />
-                  ) : (
-                    <Icon name="bag-handle-outline" size={26} color={Colors.textMuted} />
-                  )}
-                </View>
-
-                <View style={styles.itemInfo}>
-                  <View style={styles.itemTopRow}>
-                    <Text style={styles.itemName} numberOfLines={2}>
-                      {line.item_name || line.item_code}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => handleRemoveItem(line.item_code, line.uom)}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      style={styles.deleteBtn}
-                    >
-                      <Icon name="trash-outline" size={18} color={Colors.textMuted} />
-                    </TouchableOpacity>
-                  </View>
-
-                  {line.uoms && line.uoms.length > 1 && (
-                    <UOMSelector
-                      uoms={line.uoms}
-                      selectedUom={line.uom}
-                      onSelectUom={(newUom) => updateUOM(line.item_code, newUom, line.uom)}
-                      size="sm"
-                    />
-                  )}
-
-                  <View style={styles.itemBottomRow}>
-                    <View>
-                      <Text style={styles.itemUnitPrice}>
-                        {formatCurrency(line.rate)} / {line.uom}
-                      </Text>
-                      <Text style={styles.itemTotal}>
-                        المجموع: {formatCurrency(line.amount)}
-                      </Text>
-                    </View>
-
-                    <QuantityStepper
-                      quantity={line.qty}
-                      onIncrement={() => updateQuantity(line.item_code, line.qty + 1, line.uom)}
-                      onDecrement={() => {
-                        if (line.qty <= 1) handleRemoveItem(line.item_code, line.uom);
-                        else updateQuantity(line.item_code, line.qty - 1, line.uom);
-                      }}
-                      size="sm"
-                    />
-                  </View>
-                </View>
+        <View style={styles.pageInner}>
+          {isDesktop ? (
+            /*
+             * Two columns: the order summary and the pay button stay in a rail
+             * at the inline start, so the total is visible without scrolling
+             * while the shopper is still choosing an address.
+             *
+             * The rail comes first in the source because `dir="rtl"` makes the
+             * first child of a row the right-hand one — which is where an Arabic
+             * shopper expects the summary, and where flexbox puts it in English
+             * without a second rule.
+             */
+            <View style={styles.checkoutLayout}>
+              <View style={styles.checkoutRail}>
+                {summaryBlock}
+                {checkoutBlock}
               </View>
-            );
-          })}
-        </View>
-          {/* Summary */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionTitleRow}>
-            <Icon name="receipt-outline" size={17} color={Colors.primary} />
-            <Text style={styles.sectionTitle}>تفاصيل الفاتورة</Text>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>إجمالي المنتجات</Text>
-            <Text style={styles.summaryValue}>{formatCurrency(total, currency)}</Text>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>رسوم التوصيل</Text>
-            {delivery.loading ? (
-              <ActivityIndicator size="small" color={Colors.textMuted} />
-            ) : delivery.error ? (
-              // Never "مجاني" here: that would claim delivery is free when the
-              // truth is only that the price could not be read.
-              <Text style={[styles.summaryValue, { color: Colors.textMuted, fontFamily: Typography.fontFamilyBold }]}>
-                تعذّر تحديد الرسوم
-              </Text>
-            ) : delivery.charges > 0 ? (
-              <Text style={[styles.summaryValue, { color: Colors.error, fontFamily: Typography.fontFamilyBold }]}>
-                {formatCurrency(delivery.charges, currency)}
-              </Text>
-            ) : (
-              <Text style={[styles.summaryValue, { color: Colors.success, fontFamily: Typography.fontFamilyBold }]}>
-                مجاني
-              </Text>
-            )}
-          </View>
-
-          {/* Where the number came from. Without this, two addresses showing the
-              same price give no clue whether that price was set on the address or
-              inherited from the shop default, and a wrong fee looks like a bug
-              rather than a setting. */}
-          {/* {delivery.source && !delivery.loading ? (
-            <Text style={styles.deliveryNote}>
-              {delivery.source === 'address'
-                ? 'السعر محدد على عنوانك'
-                : 'السعر الافتراضي للمتجر'}
-            </Text>
-          ) : null} */}
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>طريقة الدفع</Text>
-            <View style={styles.paymentBadge}>
-              <Icon name="cash-outline" size={15} color={Colors.primary} />
-              <Text style={[styles.summaryValue, { color: Colors.primary, fontFamily: Typography.fontFamilyBold }]}>
-                الدفع عند الاستلام (نقد)
-              </Text>
+              <View style={styles.checkoutMain}>
+                {headerBlock}
+                {itemsBlock}
+                {notesBlock}
+                {addressBlock}
+              </View>
             </View>
-          </View>
-
-          <View style={[styles.summaryRow, styles.grandTotalRow]}>
-            <Text style={styles.grandTotalLabel}>المجموع الكلي المطلوب</Text>
-            <Text style={styles.grandTotalValue}>
-              {formatCurrency(grandTotal, currency)}
-            </Text>
-          </View>
-        </View>
-        
-         {/* Notes */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionTitleRow}>
-            <Icon name="create-outline" size={17} color={Colors.primary} />
-            <Text style={styles.sectionTitle}>ملاحظات أو تعليمات خاصة للتوصيل</Text>
-          </View>
-          <TextInput
-            value={notes}
-            onChangeText={setNotes}
-            placeholder="مثال: يرجى الاتصال عند الوصول، الاتصال على رقم آخر..."
-            placeholderTextColor={Colors.textMuted}
-            multiline
-            numberOfLines={2}
-            style={styles.notesInput}
-            textAlign="right"
-          />
-        </View>
-
-        {/* Address */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-              <Icon name="location-outline" size={17} color={Colors.primary} />
-              <Text style={styles.sectionTitle}>عنوان التوصيل</Text>
-            </View>
-            {isAuthenticated && (
-              <TouchableOpacity onPress={() => setShowAddAddressModal(true)} activeOpacity={0.8}>
-                <Text style={styles.addAddressText}>+ إضافة عنوان</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {!isAuthenticated ? (
-            <View style={styles.authNotice}>
-              <Icon name="lock-closed-outline" size={18} color={Colors.textMuted} />
-              <Text style={styles.authNoticeText}>يرجى تسجيل الدخول لتحديد عنوان التوصيل</Text>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('AccountTab')}
-                style={styles.authNoticeBtn}
-              >
-                <Text style={styles.authNoticeBtnText}>تسجيل الدخول</Text>
-              </TouchableOpacity>
-            </View>
-          ) : addresses.length === 0 ? (
-            <TouchableOpacity
-              onPress={() => setShowAddAddressModal(true)}
-              style={styles.noAddressBox}
-              activeOpacity={0.8}
-            >
-              <Icon name="add-circle-outline" size={22} color={Colors.primary} />
-              <Text style={styles.noAddressText}>لم تقم بإضافة عنوان توصيل بعد. انقر لإضافة عنوان جديد.</Text>
-            </TouchableOpacity>
-          ) : (
-            addresses.map((addr) => (
-              <AddressCard
-                key={addr.name}
-                address={addr}
-                isSelected={selectedAddress && selectedAddress.name === addr.name}
-                onSelect={(selected) => setSelectedAddress(selected)}
-              />
-            ))
-          )}
-        </View>
-
-       
-
-        
-
-        {/* Checkout */}
-        <TouchableOpacity
-          activeOpacity={0.9}
-          disabled={checkingOut}
-          onPress={handleCheckout}
-          style={styles.checkoutBtn}
-        >
-          {checkingOut ? (
-            <ActivityIndicator color="#ffffff" />
           ) : (
             <>
-              <Icon name="checkmark-circle" size={20} color="#ffffff" />
-              <Text style={styles.checkoutBtnText}>تأكيد الطلب — الدفع عند الاستلام</Text>
+              {headerBlock}
+              {itemsBlock}
+              {summaryBlock}
+              {notesBlock}
+              {addressBlock}
+              {checkoutBlock}
             </>
           )}
-        </TouchableOpacity>
+        </View>
+        <PageFooter />
       </ScrollView>
+
+      {/* Web confirm dialog (native uses the platform alert). */}
+      {confirmDialog}
 
       {/* Add address — the very same form the account screen uses, so the two
           cannot drift apart in validation, in the map picker, or in what they
@@ -497,6 +552,28 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
+  pageInner: {
+    width: '100%',
+    // Caps the column so the cart does not stretch to a 2560px window, while
+    // staying centred rather than pinned to the left edge.
+    maxWidth: MAX_CONTENT_WIDTH,
+    alignSelf: 'center',
+  },
+  checkoutLayout: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 24,
+  },
+  checkoutRail: {
+    // The rail carries no scrolling of its own; it simply sits beside the main
+    // column and is as tall as its content.
+    width: 360,
+    maxWidth: '100%',
+  },
+  checkoutMain: {
+    flex: 1,
+    minWidth: 0,
+  },
   cartHeader: {
     marginBottom: 16,
     flexDirection: 'row',
@@ -507,7 +584,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.headlineSm,
     fontFamily: Typography.fontFamilyExtraBold,
     color: Colors.onSurface,
-    textAlign: 'left',
   },
   liveHint: {
     fontSize: Typography.sizes.labelSm,
@@ -563,7 +639,6 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilySemiBold,
     color: Colors.onSurface,
     flex: 1,
-    textAlign: 'left',
   },
   deleteBtn: {
     padding: 4,
@@ -578,14 +653,12 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.labelSm,
     color: Colors.textMuted,
     fontFamily: Typography.fontFamilyMedium,
-    textAlign: 'left',
   },
   itemTotal: {
     fontSize: Typography.sizes.titleSm,
     fontFamily: Typography.fontFamilyExtraBold,
     color: Colors.primary,
     marginTop: 2,
-    textAlign: 'left',
   },
   sectionCard: {
     backgroundColor: Colors.surfaceContainerLowest,
@@ -612,7 +685,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.titleSm,
     fontFamily: Typography.fontFamilyBold,
     color: Colors.onSurface,
-    textAlign: 'left',
   },
   addAddressText: {
     fontSize: Typography.sizes.labelMd,
@@ -696,7 +768,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.labelSm,
     fontFamily: Typography.fontFamilyRegular,
     color: Colors.textMuted,
-    textAlign: 'left',
     marginTop: -4,
     marginBottom: 4,
   },

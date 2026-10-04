@@ -6,11 +6,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import useDocumentHead from '../../seo/useDocumentHead';
+import { useI18n } from '../../i18n/I18nContext';
 import Icon from '../../components/Icon';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
@@ -19,14 +20,18 @@ import OrderCard from '../../components/OrderCard';
 import AddressCard from '../../components/AddressCard';
 import AddressFormModal from '../../components/AddressFormModal';
 import EmptyState from '../../components/EmptyState';
+import useConfirm from '../../components/ConfirmDialog';
+import PageFooter from '../../components/layout/PageFooter';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
 import { useResetOnTabPress } from '../../hooks/useResetOnTabPress';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
+import { useSiteChrome } from '../../hooks/useResponsive';
 import OrdersAPI, { ORDERS_PAGE_SIZE } from '../../api/orders';
 import AddressAPI from '../../api/address';
 import LoginScreen from '../auth/LoginScreen';
+import useDirectional from '../../hooks/useDirectional';
 
 // `transaction_date` is date-only, so several orders placed on the same day come
 // back from the server in an arbitrary order. Sorting again on the client with
@@ -66,9 +71,14 @@ function dedupeOrders(list) {
 }
 
 export default function AccountScreen({ navigation }) {
+  const { textStart } = useDirectional();
+  const { t } = useI18n();
+  const { showDesktopChrome } = useSiteChrome();
+  useDocumentHead({ title: t('seo.accountTitle'), path: '/account', noindex: true });
   useResetOnTabPress(navigation, 'AccountTab');
 
   const { user, isAuthenticated, logout } = useAuth();
+  const { confirm, confirmDialog } = useConfirm();
   const { fetchCart } = useCart();
   const toast = useToast();
 
@@ -226,27 +236,27 @@ export default function AccountScreen({ navigation }) {
   }
 
   async function handleCancelOrder(orderName) {
-    Alert.alert('تأكيد الإلغاء', `هل أنت متأكد من رغبتك في إلغاء الطلب #${orderName}؟`, [
-      { text: 'تراجع', style: 'cancel' },
-      {
-        text: 'نعم، إلغاء',
-        style: 'destructive',
-        onPress: async () => {
-          setActionLoading(true);
-          try {
-            await OrdersAPI.cancelOrder(orderName);
-            toast.success('تم إلغاء الطلب بنجاح');
-            // Reload the first page so a cancelled order drops out of the list
-            // (and the total updates) without blanking the screen.
-            await loadOrders({ showSpinner: false });
-          } catch (err) {
-            toast.error(err.message || 'تعذر إلغاء الطلب');
-          } finally {
-            setActionLoading(false);
-          }
-        },
+    confirm({
+      title: 'تأكيد الإلغاء',
+      message: `هل أنت متأكد من رغبتك في إلغاء الطلب #${orderName}؟`,
+      confirmLabel: 'نعم، إلغاء',
+      cancelLabel: 'تراجع',
+      tone: 'destructive',
+      onConfirm: async () => {
+        setActionLoading(true);
+        try {
+          await OrdersAPI.cancelOrder(orderName);
+          toast.success('تم إلغاء الطلب بنجاح');
+          // Reload the first page so a cancelled order drops out of the list
+          // (and the total updates) without blanking the screen.
+          await loadOrders({ showSpinner: false });
+        } catch (err) {
+          toast.error(err.message || 'تعذر إلغاء الطلب');
+        } finally {
+          setActionLoading(false);
+        }
       },
-    ]);
+    });
   }
 
   async function handleReorder(orderName) {
@@ -262,17 +272,15 @@ export default function AccountScreen({ navigation }) {
     }
   }
 
-  async function handleLogout() {
-    Alert.alert('تسجيل الخروج', 'هل أنت متأكد من رغبتك في تسجيل الخروج؟', [
-      { text: 'إلغاء', style: 'cancel' },
-      {
-        text: 'تسجيل الخروج',
-        style: 'destructive',
-        onPress: async () => {
-          await logout();
-        },
-      },
-    ]);
+  function handleLogout() {
+    confirm({
+      title: 'تسجيل الخروج',
+      message: 'هل أنت متأكد من رغبتك في تسجيل الخروج؟',
+      confirmLabel: 'تسجيل الخروج',
+      cancelLabel: 'إلغاء',
+      tone: 'destructive',
+      onConfirm: logout,
+    });
   }
 
   // --- Addresses ------------------------------------------------------------
@@ -325,18 +333,14 @@ export default function AccountScreen({ navigation }) {
   }
 
   function handleDeleteAddress(address) {
-    Alert.alert(
-      'حذف العنوان',
-      `سيتم حذف "${address.address_title || 'عنوان التوصيل'}" نهائياً. هل أنت متأكد؟`,
-      [
-        { text: 'تراجع', style: 'cancel' },
-        {
-          text: 'نعم، احذف',
-          style: 'destructive',
-          onPress: () => deleteAddress(address),
-        },
-      ]
-    );
+    confirm({
+      title: 'حذف العنوان',
+      message: `سيتم حذف "${address.address_title || 'عنوان التوصيل'}" نهائياً. هل أنت متأكد؟`,
+      confirmLabel: 'نعم، احذف',
+      cancelLabel: 'تراجع',
+      tone: 'destructive',
+      onConfirm: () => deleteAddress(address),
+    });
   }
 
   async function deleteAddress(address) {
@@ -380,17 +384,25 @@ export default function AccountScreen({ navigation }) {
             colors={[Colors.primaryContainer]}
           />
         }
-      >
+>
+        {/*
+         * Capped, centred content column. Without it the profile card, the tab
+         * switcher and every order row stretch the full window width on a
+         * desktop monitor, which leaves very long line lengths and pushes the
+         * action buttons to the far edge. The footer stays a direct child of the
+         * ScrollView so it remains full-bleed.
+         */}
+        <View style={[styles.column, showDesktopChrome && styles.columnWide]}>
         {/* Profile Card */}
         <View style={styles.profileCard}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
+            <Text style={[styles.avatarText, textStart]}>
               {(user?.name || user?.email || 'ع')[0].toUpperCase()}
             </Text>
           </View>
-          <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{user?.fullName || 'مستخدم حضرموت'}</Text>
-            <Text style={styles.profileEmail}>{user?.email}</Text>
+          <View style={[styles.profileInfo, textStart]}>
+            <Text style={[styles.profileName, textStart]}>{user?.fullName || 'مستخدم حضرموت'}</Text>
+            <Text style={[styles.profileEmail, textStart]}>{user?.email}</Text>
           </View>
           <TouchableOpacity
             onPress={handleLogout}
@@ -408,7 +420,7 @@ export default function AccountScreen({ navigation }) {
             onPress={() => setActiveTab('orders')}
             style={[styles.tabButton, activeTab === 'orders' && styles.tabButtonActive]}
           >
-            <Text style={[styles.tabButtonText, activeTab === 'orders' && styles.tabButtonTextActive]}>
+            <Text style={[styles.tabButtonText, textStart, activeTab === 'orders' && styles.tabButtonTextActive]}>
               طلباتي ({totalKnown ? ordersTotal : orders.length})
             </Text>
           </TouchableOpacity>
@@ -418,7 +430,7 @@ export default function AccountScreen({ navigation }) {
             onPress={() => setActiveTab('addresses')}
             style={[styles.tabButton, activeTab === 'addresses' && styles.tabButtonActive]}
           >
-            <Text style={[styles.tabButtonText, activeTab === 'addresses' && styles.tabButtonTextActive]}>
+            <Text style={[styles.tabButtonText, textStart, activeTab === 'addresses' && styles.tabButtonTextActive]}>
               عناويني المسجلة ({addresses.length})
             </Text>
           </TouchableOpacity>
@@ -439,16 +451,28 @@ export default function AccountScreen({ navigation }) {
               onAction={() => navigation.navigate('HomeTab')}
             />
           ) : (
-            <>
-              {orders.map((order) => (
-                <OrderCard
-                  key={order.name}
-                  order={order}
-                  actionLoading={actionLoading}
-                  onCancelOrder={handleCancelOrder}
-                  onReorder={handleReorder}
-                />
-              ))}
+<>
+              {/*
+               * On a desktop window a single full-width column of order cards
+               * turns each order into a sparse band with a name at one end and
+               * buttons at the other. Wrapping to two columns keeps the card
+               * internals untouched and only changes how many sit per row.
+               */}
+              <View style={[styles.cardGrid, showDesktopChrome && styles.cardGridWide]}>
+                {orders.map((order) => (
+                  <View
+                    key={order.name}
+                    style={showDesktopChrome ? styles.cardGridCell : styles.cardGridCellFull}
+                  >
+                    <OrderCard
+                      order={order}
+                      actionLoading={actionLoading}
+                      onCancelOrder={handleCancelOrder}
+                      onReorder={handleReorder}
+                    />
+                  </View>
+                ))}
+              </View>
 
               {hasMoreOrders && (
                 <TouchableOpacity
@@ -461,8 +485,8 @@ export default function AccountScreen({ navigation }) {
                     <ActivityIndicator size="small" color={Colors.primary} />
                   ) : (
                     <>
-                      <Text style={styles.loadMoreText}>عرض المزيد من الطلبات</Text>
-                      <Text style={styles.loadMoreCount}>
+                      <Text style={[styles.loadMoreText, textStart]}>عرض المزيد من الطلبات</Text>
+                      <Text style={[styles.loadMoreCount, textStart]}>
                         {`تم عرض ${orders.length} من ${ordersTotal}`}
                       </Text>
                     </>
@@ -484,7 +508,7 @@ export default function AccountScreen({ navigation }) {
               accessibilityLabel="إضافة عنوان جديد"
             >
               <Icon name="add" size={20} color={Colors.onPrimary} />
-              <Text style={styles.addAddressBtnText}>إضافة عنوان جديد</Text>
+              <Text style={[styles.addAddressBtnText, textStart]}>إضافة عنوان جديد</Text>
             </TouchableOpacity>
 
             {addresses.length === 0 ? (
@@ -497,27 +521,38 @@ export default function AccountScreen({ navigation }) {
                   onAction={handleAddAddressPress}
                 />
               </View>
-            ) : (
-              addresses.map((addr) => (
-                <AddressCard
-                  key={addr.name}
-                  address={addr}
-                  isSelected={false}
-                  onEdit={handleEditAddress}
-                  onDelete={handleDeleteAddress}
-                  onSetDefault={handleSetDefaultAddress}
-                  busy={addressBusy || savingAddress}
-                />
-              ))
+) : (
+              <View style={[styles.cardGrid, showDesktopChrome && styles.cardGridWide]}>
+                {addresses.map((addr) => (
+                  <View
+                    key={addr.name}
+                    style={showDesktopChrome ? styles.cardGridCell : styles.cardGridCellFull}
+                  >
+                    <AddressCard
+                      address={addr}
+                      isSelected={false}
+                      onEdit={handleEditAddress}
+                      onDelete={handleDeleteAddress}
+                      onSetDefault={handleSetDefaultAddress}
+                      busy={addressBusy || savingAddress}
+                    />
+                  </View>
+                ))}
+              </View>
             )}
           </>
         )}
 
-        {/* Logout Bottom Button */}
+{/* Logout Bottom Button */}
         <TouchableOpacity activeOpacity={0.8} onPress={handleLogout} style={styles.logoutBtn}>
           <Icon name="log-out-outline" size={16} color={Colors.error} />
-          <Text style={styles.logoutBtnText}>تسجيل الخروج من الحساب</Text>
+          <Text style={[styles.logoutBtnText, textStart]}>تسجيل الخروج</Text>
         </TouchableOpacity>
+
+</View>
+
+        {/* Desktop-only site footer; must live inside the ScrollView. */}
+        <PageFooter />
       </ScrollView>
 
       <AddressFormModal
@@ -526,8 +561,11 @@ export default function AccountScreen({ navigation }) {
         defaultPhone={defaultPhone}
         saving={savingAddress}
         onClose={handleCloseForm}
-        onSubmit={handleSubmitAddress}
+onSubmit={handleSubmitAddress}
       />
+
+      {/* Web confirm dialog for logout, order cancellation and address deletion. */}
+      {confirmDialog}
     </SafeAreaView>
   );
 }
@@ -537,9 +575,37 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.surface,
   },
-  scrollContent: {
+scrollContent: {
     padding: 16,
     paddingBottom: 40,
+  },
+  column: {
+    width: '100%',
+  },
+  columnWide: {
+    maxWidth: 1080,
+    alignSelf: 'center',
+  },
+  // `cardGridCellFull` is the plain mobile case: a plain block so the existing
+  // vertical `gap` on each card still applies. `cardGridCell` is only used on
+  // wide screens, where the row gap takes over.
+  cardGrid: {
+    width: '100%',
+  },
+  cardGridWide: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 14,
+  },
+  cardGridCellFull: {
+    width: '100%',
+  },
+  cardGridCell: {
+    // Just under 50% so two cells plus the row gap always fit without wrapping
+    // a third, at any width in the capped column.
+    flexBasis: '48.5%',
+    flexGrow: 1,
+    maxWidth: '100%',
   },
   profileCard: {
     flexDirection: 'row',
@@ -574,12 +640,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: Colors.onSurface,
     marginBottom: 2,
-    textAlign: 'left',
   },
   profileEmail: {
     fontSize: Typography.sizes.bodySm,
     color: Colors.textMuted,
-    textAlign: 'left',
   },
   logoutIconBtn: {
     padding: 8,

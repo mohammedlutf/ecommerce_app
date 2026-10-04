@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,21 @@ import CatalogAPI from '../../api/catalog';
 import { useCart } from '../../context/CartContext';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import { useResetOnTabPress } from '../../hooks/useResetOnTabPress';
+/*
+ * Aliased because this screen already defines its own local `openProduct`
+ * callback that takes a whole product object; these take an `itemCode` and keep
+ * the URL in step with the navigator.
+ */
+import {
+  openProduct as navigateToProduct,
+  openProducts as navigateToProducts,
+} from '../../seo/linking';
+import useDocumentHead from '../../seo/useDocumentHead';
+import { organizationNode, websiteNode } from '../../seo/jsonld';
+import { useI18n } from '../../i18n/I18nContext';
+import { useSiteChrome } from '../../hooks/useResponsive';
+import useDirectional from '../../hooks/useDirectional';
+import PageFooter from '../../components/layout/PageFooter';
 import { normalizeGroupName } from '../../utils/catalog';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
@@ -29,6 +44,14 @@ const OFFERS_PARENT = 'العروض';
 const OFFERS_ITEMS_PER_CHILD = 15;
 const OFFER_CARD_WIDTH = 170;
 const OFFER_CARD_GAP = 10;
+
+/**
+ * The pseudo-category tile that stands for "everything".
+ *
+ * Named once because it is a *label*, not an Item Group: nothing in the catalog
+ * is called this, so it must never be sent to the API as a group filter.
+ */
+const ALL_CATEGORIES = 'الكل';
 
 /**
  * Locate the offers parent group in the hierarchy. Exact (normalized) match
@@ -46,6 +69,15 @@ function findOffersParent(tree) {
 }
 
 export default function HomeScreen({ navigation }) {
+  const { t } = useI18n();
+  const { showTabBar } = useSiteChrome();
+  const { textStart, insetEnd, isRTL } = useDirectional();
+  useDocumentHead({
+    title: t('seo.homeTitle'),
+    description: t('seo.homeDescription'),
+    path: '/',
+    jsonLd: useMemo(() => [organizationNode(), websiteNode()], []),
+  });
   useResetOnTabPress(navigation, 'HomeTab');
 
   const { count: cartCount } = useCart();
@@ -60,7 +92,10 @@ export default function HomeScreen({ navigation }) {
     (product) => {
       const itemCode = product && (product.item_code || product.name);
       if (!itemCode) return;
-      navigation.navigate('ProductDetail', { itemCode });
+      // Routed through the URL-aware helper so the address bar, the history
+      // entry and the navigator all agree on `/ar/product/CODE` rather than
+      // showing the home URL while a product is open.
+      navigateToProduct(navigation, itemCode);
     },
     [navigation]
   );
@@ -148,55 +183,73 @@ export default function HomeScreen({ navigation }) {
 
   function handleSearchFocus() {
     searchHandoverRef.current += 1;
-    navigation.navigate('ProductsTab', {
-      screen: 'Products',
-      params: {
+    navigateToProducts(navigation, {
         // Cleared explicitly: without this the Products screen would open on
         // whichever group or search was last deep-linked, and the shopper would
         // type into a field filtered by a category they did not choose.
         itemGroup: undefined,
         search: undefined,
-        focusSearch: searchHandoverRef.current,
-      },
-    });
+        // `focusSearch` is a one-shot counter, not part of the URL, so it
+        // travels in `extra` rather than becoming a shareable link.
+        extra: { focusSearch: searchHandoverRef.current },
+      });
   }
 
-  function handleSelectCategory(catName) {
-    navigation.navigate('ProductsTab', {
-      screen: 'Products',
-      params: {
-        itemGroup: catName === 'الكل' ? undefined : catName,
-        search: undefined,
-        // Otherwise a search hand-over from this screen would still be in the
-        // merged params and would steal focus from the category being browsed.
-        focusSearch: undefined,
-      },
+function handleSelectCategory(catName) {
+    /*
+     * "الكل" in the categories rail means "show me the whole tree", which is the
+     * categories screen — not "every product". The rail's own "عرض الكل" link
+     * beside it already went there, so the tile and that link were offering two
+     * different meanings under the same word. `Categories` is a route on this
+     * same stack, so the linking config resolves it to `/categories` without
+     * having to name a tab.
+     */
+    if (catName === ALL_CATEGORIES) {
+      navigation.navigate('Categories');
+      return;
+    }
+
+    navigateToProducts(navigation, {
+      itemGroup: catName,
+      search: undefined,
+      // Otherwise a search hand-over from this screen would still be in the
+      // merged params and would steal focus from the category being browsed.
+      extra: { focusSearch: undefined },
     });
   }
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Top App Header */}
-      <View style={styles.topHeader}>
-        <Image
-          source={require('../../../assets/rtlrecologo.png')}
-          style={styles.brandImage}
-          resizeMode="contain"
-        />
+      {/*
+        In-screen mobile header.
 
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => navigation.navigate('CartTab')}
-          style={styles.cartBtn}
-        >
-          <Icon name="cart" size={22} color={Colors.primaryDark} />
-          {cartCount > 0 && (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{cartCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
+        Suppressed on desktop: `AppShell` already renders `SiteHeader` there,
+        and drawing both produced a duplicate navbar stacked on top of each
+        other. The site header carries search, account and cart for every tab,
+        so nothing is lost by dropping this one.
+      */}
+      {showTabBar && (
+        <View style={styles.topHeader}>
+          <Image
+            source={require('../../../assets/rtlrecologo.png')}
+            style={styles.brandImage}
+            resizeMode="contain"
+          />
+
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate('CartTab')}
+            style={styles.cartBtn}
+          >
+            <Icon name="cart" size={22} color={Colors.primaryDark} />
+            {cartCount > 0 && (
+              <View style={[styles.cartBadge, insetEnd(-4)]}>
+                <Text style={[styles.cartBadgeText, textStart]}>{cartCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -209,14 +262,24 @@ export default function HomeScreen({ navigation }) {
           />
         }
       >
-        {/* Search — a hand-off, not a second search box. */}
-        <View style={styles.searchSection}>
-          <SearchBar
-            asButton
-            onPress={handleSearchFocus}
-            placeholder="ابحث عن أرز، زيت، حليب، خضار..."
-          />
-        </View>
+        {/*
+          Search entry point.
+
+          Phone only. On the desktop shell `SiteHeader` carries a search field in
+          the sticky top bar, so rendering this as well gave the page two search
+          boxes within a few hundred pixels of each other. The header one is the
+          real control; this is a tap target that hands off to it on mobile,
+          where there is no header.
+        */}
+        {showTabBar && (
+          <View style={styles.searchSection}>
+            <SearchBar
+              asButton
+              onPress={handleSearchFocus}
+              placeholder="ابحث عن أرز، زيت، حليب، خضار..."
+            />
+          </View>
+        )}
 
         {/* Hero */}
         <LinearGradient
@@ -227,30 +290,30 @@ export default function HomeScreen({ navigation }) {
         >
           <View style={styles.heroBadge}>
             <Icon name="flame" size={13} color={Colors.onSecondary} />
-            <Text style={styles.heroBadgeText}>عروض هذا الأسبوع</Text>
+            <Text style={[styles.heroBadgeText, textStart]}>عروض هذا الأسبوع</Text>
           </View>
-          <Text style={styles.heroTitle}>أفضل الأسعار وأجود المنتجات</Text>
-          <Text style={styles.heroSubtitle}>
+          <Text style={[styles.heroTitle, textStart]}>أفضل الأسعار وأجود المنتجات</Text>
+          <Text style={[styles.heroSubtitle, textStart]}>
             نوفر لكم كافة متطلبات المنزل مع توصيل سريع ومباشر حتى باب المنزل.
           </Text>
           <TouchableOpacity
             activeOpacity={0.9}
-            onPress={() => navigation.navigate('ProductsTab')}
+            onPress={() => navigateToProducts(navigation)}
             style={styles.heroCta}
           >
-            <Text style={styles.heroCtaText}>تسوق العروض الآن</Text>
+            <Text style={[styles.heroCtaText, textStart]}>تسوق العروض الآن</Text>
             <Icon name="arrow-forward" size={16} color={Colors.onPrimary} />
           </TouchableOpacity>
         </LinearGradient>
 
         {/* Categories */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>الأقسام</Text>
+          <Text style={[styles.sectionTitle, textStart]}>الأقسام</Text>
           <TouchableOpacity
             onPress={() => navigation.navigate('Categories')}
             style={styles.seeAllBtn}
           >
-            <Text style={styles.seeAllText}>عرض الكل</Text>
+            <Text style={[styles.seeAllText, textStart]}>عرض الكل</Text>
             <Icon name="chevron-back" size={14} color={Colors.primary} />
           </TouchableOpacity>
         </View>
@@ -261,7 +324,7 @@ export default function HomeScreen({ navigation }) {
           contentContainerStyle={styles.categoriesRow}
         >
           <CategoryCard
-            category="الكل"
+            category={ALL_CATEGORIES}
             variant="tile"
             onSelect={handleSelectCategory}
           />
@@ -280,13 +343,22 @@ export default function HomeScreen({ navigation }) {
 
         {/* عروضي — one scrollable rail per child of the العروض group */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>العروض الحصرية</Text>
+          <Text style={[styles.sectionTitle, textStart]}>العروض الحصرية</Text>
           <TouchableOpacity
             onPress={() => handleSelectCategory(OFFERS_PARENT)}
             style={styles.seeAllBtn}
           >
-            <Text style={styles.seeAllText}>عرض الكل</Text>
-            <Icon name="chevron-back" size={14} color={Colors.primary} />
+            <Text style={[styles.seeAllText, textStart]}>عرض الكل</Text>
+            {/*
+             * `chevron-back` is a fixed glyph: `dir` does not mirror icons, so in
+             * Arabic it would point against the reading direction and read as
+             * "go back" on an affordance that actually means "see everything".
+             */}
+            <Icon
+              name={isRTL ? 'chevron-forward' : 'chevron-back'}
+              size={14}
+              color={Colors.primary}
+            />
           </TouchableOpacity>
         </View>
 
@@ -297,7 +369,7 @@ export default function HomeScreen({ navigation }) {
         ) : offerGroups.length === 0 ? (
           <View style={styles.offersEmpty}>
             <Icon name="pricetags-outline" size={20} color={Colors.textMuted} />
-            <Text style={styles.offersEmptyText}>لا توجد عروض متاحة حالياً</Text>
+            <Text style={[styles.offersEmptyText, textStart]}>لا توجد عروض متاحة حالياً</Text>
           </View>
         ) : (
           offerGroups.map((child) => {
@@ -311,12 +383,12 @@ export default function HomeScreen({ navigation }) {
                 >
                   <View style={styles.offerHeaderRight}>
                     <View style={styles.offerDot} />
-                    <Text style={styles.offerTitle} numberOfLines={1}>
+                    <Text style={[styles.offerTitle, textStart]} numberOfLines={1}>
                       {child.name}
                     </Text>
                   </View>
                   {items.length > 0 && (
-                    <Text style={styles.offerCount}>{items.length} منتج</Text>
+                    <Text style={[styles.offerCount, textStart]}>{items.length} منتج</Text>
                   )}
                 </TouchableOpacity>
 
@@ -336,7 +408,7 @@ export default function HomeScreen({ navigation }) {
                     ))}
                   </ScrollView>
                 ) : (
-                  <Text style={styles.offerEmptyText}>
+                  <Text style={[styles.offerEmptyText, textStart]}>
                     لا توجد منتجات في هذا القسم حالياً
                   </Text>
                 )}
@@ -363,6 +435,16 @@ export default function HomeScreen({ navigation }) {
             subtitle="منتجات أصلية وطازجة دائماً"
           />
         </View>
+
+        {/*
+          Footer lives INSIDE the ScrollView.
+
+          Expo's web reset sets `body { overflow: hidden }` so each screen owns
+          its own scrolling. Anything rendered as a sibling of the ScrollView
+          would be pinned outside the scroll area and effectively invisible on a
+          long page.
+        */}
+        <PageFooter />
       </ScrollView>
     </SafeAreaView>
   );
@@ -399,7 +481,6 @@ const styles = StyleSheet.create({
   cartBadge: {
     position: 'absolute',
     top: -4,
-    right: -4,
     backgroundColor: Colors.secondary,
     borderRadius: Radius.full,
     minWidth: 20,
@@ -450,7 +531,6 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyExtraBold,
     color: Colors.onSurface,
     marginBottom: 6,
-    textAlign: 'left',
   },
   heroSubtitle: {
     fontSize: Typography.sizes.bodySm,
@@ -458,7 +538,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 16,
     fontFamily: Typography.fontFamilyRegular,
-    textAlign: 'left',
   },
   heroCta: {
     flexDirection: 'row',
@@ -531,7 +610,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.titleMd,
     fontFamily: Typography.fontFamilyBold,
     color: Colors.onSurface,
-    textAlign: 'left',
   },
   offerCount: {
     fontSize: Typography.sizes.labelSm,
@@ -561,7 +639,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.bodySm,
     color: Colors.textMuted,
     fontFamily: Typography.fontFamilyMedium,
-    textAlign: 'left',
   },
   offersEmpty: {
     flexDirection: 'row',

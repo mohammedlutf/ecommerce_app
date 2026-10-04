@@ -23,6 +23,7 @@ import { useAdmin } from '../../context/AdminContext';
 import { useToast } from '../../context/ToastContext';
 import { Colors } from '../../theme/colors';
 import { Spacing } from '../../theme/spacing';
+import useDirectional from '../../hooks/useDirectional';
 
 /**
  * AdminNewItemScreen — create a product.
@@ -36,6 +37,7 @@ import { Spacing } from '../../theme/spacing';
  * factor of "0.25" has to be typeable.
  */
 export default function AdminNewItemScreen({ navigation }) {
+  const { textStart } = useDirectional();
   const toast = useToast();
   const { isAdmin } = useAdmin();
 
@@ -210,7 +212,7 @@ export default function AdminNewItemScreen({ navigation }) {
           <Icon name="alert-circle-outline" size={40} color={Colors.error} />
           <Text style={styles.centreText}>{loadError}</Text>
           <Pressable onPress={load} style={styles.cancelBtn}>
-            <Text style={styles.cancelText}>إعادة المحاولة</Text>
+            <Text style={[styles.cancelText, textStart]}>إعادة المحاولة</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -229,7 +231,7 @@ export default function AdminNewItemScreen({ navigation }) {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>صورة المنتج</Text>
+            <Text style={[styles.sectionTitle, textStart]}>صورة المنتج</Text>
             <View style={styles.imageFrame}>
               {pendingImage ? (
                 <Image source={{ uri: pendingImage.uri }} style={styles.image} resizeMode="contain" />
@@ -243,23 +245,23 @@ export default function AdminNewItemScreen({ navigation }) {
                 style={({ pressed }) => [styles.imageAction, pressed && { opacity: 0.7 }]}
               >
                 <Icon name="camera-outline" size={18} color={Colors.primary} />
-                <Text style={styles.imageActionText}>الكاميرا</Text>
+                <Text style={[styles.imageActionText, textStart]}>الكاميرا</Text>
               </Pressable>
               <Pressable
                 onPress={() => handlePickImage('library')}
                 style={({ pressed }) => [styles.imageAction, pressed && { opacity: 0.7 }]}
               >
                 <Icon name="images-outline" size={18} color={Colors.primary} />
-                <Text style={styles.imageActionText}>المعرض</Text>
+                <Text style={[styles.imageActionText, textStart]}>المعرض</Text>
               </Pressable>
             </View>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>بيانات المنتج</Text>
+            <Text style={[styles.sectionTitle, textStart]}>بيانات المنتج</Text>
 
             <View>
-              <Text style={styles.label}>رمز المنتج (Item Code)</Text>
+              <Text style={[styles.label, textStart]}>رمز المنتج (Item Code)</Text>
               <TextInput
                 style={styles.input}
                 value={itemCode}
@@ -271,7 +273,7 @@ export default function AdminNewItemScreen({ navigation }) {
             </View>
 
             <View>
-              <Text style={styles.label}>اسم المنتج</Text>
+              <Text style={[styles.label, textStart]}>اسم المنتج</Text>
               <TextInput
                 style={styles.input}
                 value={itemName}
@@ -281,7 +283,7 @@ export default function AdminNewItemScreen({ navigation }) {
             </View>
 
             <View>
-              <Text style={styles.label}>التصنيف</Text>
+              <Text style={[styles.label, textStart]}>التصنيف</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={styles.chipsRow}>
                   {(references.item_groups || []).map((group) => {
@@ -296,7 +298,7 @@ export default function AdminNewItemScreen({ navigation }) {
                           pressed && { opacity: 0.7 },
                         ]}
                       >
-                        <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                        <Text style={[styles.chipText, textStart, selected && styles.chipTextSelected]}>
                           {group}
                         </Text>
                       </Pressable>
@@ -307,7 +309,7 @@ export default function AdminNewItemScreen({ navigation }) {
             </View>
 
             <View>
-              <Text style={styles.label}>سعر البيع للوحدة الأساسية</Text>
+              <Text style={[styles.label, textStart]}>سعر البيع للوحدة الأساسية</Text>
               <TextInput
                 style={styles.input}
                 value={price}
@@ -318,7 +320,7 @@ export default function AdminNewItemScreen({ navigation }) {
             </View>
 
             <View>
-              <Text style={styles.label}>الترتيب في المتجر</Text>
+              <Text style={[styles.label, textStart]}>الترتيب في المتجر</Text>
               <TextInput
                 style={styles.input}
                 value={ranking}
@@ -330,7 +332,7 @@ export default function AdminNewItemScreen({ navigation }) {
 
             {references.warehouses && references.warehouses.length > 0 ? (
               <View>
-                <Text style={styles.label}>المستودع</Text>
+                <Text style={[styles.label, textStart]}>المستودع</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View style={styles.chipsRow}>
                     {references.warehouses.map((w) => {
@@ -345,7 +347,7 @@ export default function AdminNewItemScreen({ navigation }) {
                             pressed && { opacity: 0.7 },
                           ]}
                         >
-                          <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{w}</Text>
+                          <Text style={[styles.chipText, textStart, selected && styles.chipTextSelected]}>{w}</Text>
                         </Pressable>
                       );
                     })}
@@ -356,7 +358,7 @@ export default function AdminNewItemScreen({ navigation }) {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>الوحدة الأساسية</Text>
+            <Text style={[styles.sectionTitle, textStart]}>الوحدة الأساسية</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.chipsRow}>
                 {(references.uom_list || []).map((uom) => {
@@ -371,7 +373,7 @@ export default function AdminNewItemScreen({ navigation }) {
                         pressed && { opacity: 0.7 },
                       ]}
                     >
-                      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{uom}</Text>
+                      <Text style={[styles.chipText, textStart, selected && styles.chipTextSelected]}>{uom}</Text>
                     </Pressable>
                   );
                 })}
@@ -380,15 +382,15 @@ export default function AdminNewItemScreen({ navigation }) {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>وحدات إضافية</Text>
-            <Text style={styles.sectionHint}>
+            <Text style={[styles.sectionTitle, textStart]}>وحدات إضافية</Text>
+            <Text style={[styles.sectionHint, textStart]}>
               اتركها فارغة إن كان المنتج بوحدة قياس واحدة فقط.
             </Text>
 
             {extraUoms.map((row, index) => (
               <View key={row.uom} style={styles.uomRow}>
                 <View style={styles.uomRowHead}>
-                  <Text style={styles.uomName}>{row.uom}</Text>
+                  <Text style={[styles.uomName, textStart]}>{row.uom}</Text>
                   <Pressable
                     onPress={() => setExtraUoms((prev) => prev.filter((_, i) => i !== index))}
                     accessibilityRole="button"
@@ -399,7 +401,7 @@ export default function AdminNewItemScreen({ navigation }) {
                 </View>
                 <View style={styles.uomFieldsRow}>
                   <View style={styles.uomField}>
-                    <Text style={styles.uomFieldLabel}>معدل التحويل</Text>
+                    <Text style={[styles.uomFieldLabel, textStart]}>معدل التحويل</Text>
                     <TextInput
                       style={styles.uomInput}
                       value={row.conversion_factor}
@@ -417,7 +419,7 @@ export default function AdminNewItemScreen({ navigation }) {
                     />
                   </View>
                   <View style={styles.uomField}>
-                    <Text style={styles.uomFieldLabel}>سعر البيع</Text>
+                    <Text style={[styles.uomFieldLabel, textStart]}>سعر البيع</Text>
                     <TextInput
                       style={styles.uomInput}
                       value={row.price_list_rate}
@@ -445,14 +447,14 @@ export default function AdminNewItemScreen({ navigation }) {
               ]}
             >
               <Icon name="add" size={18} color={Colors.primary} />
-              <Text style={styles.imageActionText}>إضافة وحدة</Text>
+              <Text style={[styles.imageActionText, textStart]}>إضافة وحدة</Text>
             </Pressable>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>الوصف</Text>
+            <Text style={[styles.sectionTitle, textStart]}>الوصف</Text>
             <View>
-              <Text style={styles.label}>وصف مختصر</Text>
+              <Text style={[styles.label, textStart]}>وصف مختصر</Text>
               <TextInput
                 style={styles.input}
                 value={shortDescription}
@@ -461,7 +463,7 @@ export default function AdminNewItemScreen({ navigation }) {
               />
             </View>
             <View>
-              <Text style={styles.label}>الوصف الكامل</Text>
+              <Text style={[styles.label, textStart]}>الوصف الكامل</Text>
               <TextInput
                 style={[styles.input, styles.inputMultiline]}
                 value={longDescription}
@@ -475,8 +477,8 @@ export default function AdminNewItemScreen({ navigation }) {
           <View style={styles.section}>
             <View style={styles.switchRow}>
               <View style={styles.switchCopy}>
-                <Text style={styles.switchTitle}>نشر في المتجر مباشرة</Text>
-                <Text style={styles.switchHint}>سيظهر المنتج للعملاء فور إنشائه.</Text>
+                <Text style={[styles.switchTitle, textStart]}>نشر في المتجر مباشرة</Text>
+                <Text style={[styles.switchHint, textStart]}>سيظهر المنتج للعملاء فور إنشائه.</Text>
               </View>
               <Switch
                 value={published}
@@ -492,7 +494,7 @@ export default function AdminNewItemScreen({ navigation }) {
 
         <View style={styles.footer}>
           <Pressable onPress={() => navigation.goBack()} disabled={saving} style={styles.cancelBtn}>
-            <Text style={styles.cancelText}>إلغاء</Text>
+            <Text style={[styles.cancelText, textStart]}>إلغاء</Text>
           </Pressable>
           <Pressable
             onPress={handleCreate}
@@ -509,7 +511,7 @@ export default function AdminNewItemScreen({ navigation }) {
             ) : (
               <>
                 <Icon name="add-circle-outline" size={18} color={Colors.onPrimary} />
-                <Text style={styles.saveText}>إنشاء المنتج</Text>
+                <Text style={[styles.saveText, textStart]}>إنشاء المنتج</Text>
               </>
             )}
           </Pressable>

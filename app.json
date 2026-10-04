@@ -7,6 +7,15 @@
     "icon": "./assets/icon.png",
     "favicon": "./assets/favicon.png",
     "userInterfaceStyle": "light",
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "lang": "ar",
+      "themeColor": "#004129",
+      "backgroundColor": "#F8FAF9",
+      "display": "standalone",
+      "orientation": "any"
+    },
     "ios": {
       "supportsTablet": true,
       "runtimeVersion": {
@@ -19,6 +28,7 @@
       }
     },
     "android": {
+      "allowRTL": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundImage": "./assets/adaptive-icon-bg.png",
@@ -40,7 +50,7 @@
       ]
     },
     "extra": {
-      "apiUrl": "http://192.168.1.36:8000",
+      "apiUrl": "http://192.168.1.33:8000",
       "eas": {
         "projectId": "1ea621da-1e71-4e8a-90e4-cd60b706ffcf"
       }
@@ -60,6 +70,7 @@
       "expo-build-properties",
       {
           "android": {
+      "allowRTL": true,
             "usesCleartextTraffic": true
           }
         }

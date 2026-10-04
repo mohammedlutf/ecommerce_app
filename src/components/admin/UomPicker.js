@@ -5,6 +5,7 @@ import Icon from '../Icon';
 import styles from './editorStyles';
 import { Colors } from '../../theme/colors';
 import { Spacing } from '../../theme/spacing';
+import useDirectional from '../../hooks/useDirectional';
 
 /**
  * Chooses a Unit of Measure to add to a product.
@@ -15,14 +16,15 @@ import { Spacing } from '../../theme/spacing';
  * entries, not thousands.
  */
 export default function UomPicker({ visible, options, onPick, onClose }) {
+  const { textStart } = useDirectional();
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.root}>
         <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
           <View style={styles.header}>
             <View>
-              <Text style={styles.headerTitle}>اختر وحدة القياس</Text>
-              <Text style={styles.headerSubtitle}>{options.length ? `${options.length} وحدة متاحة` : ''}</Text>
+              <Text style={[styles.headerTitle, textStart]}>اختر وحدة القياس</Text>
+              <Text style={[styles.headerSubtitle, textStart]}>{options.length ? `${options.length} وحدة متاحة` : ''}</Text>
             </View>
             <Pressable onPress={onClose} accessibilityRole="button" style={styles.closeBtn}>
               <Icon name="close" size={20} color={Colors.onSurface} />
@@ -49,7 +51,7 @@ export default function UomPicker({ visible, options, onPick, onClose }) {
                     pressed && { opacity: 0.7 },
                   ]}
                 >
-                  <Text style={styles.uomName}>{uom}</Text>
+                  <Text style={[styles.uomName, textStart]}>{uom}</Text>
                 </Pressable>
               ))
             )}

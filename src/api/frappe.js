@@ -25,7 +25,7 @@ import { USER_STORAGE_KEY as USER_KEY } from './sessionKeys';
  * server proxy `/api` & `/files` to the benchmark (see metro.config.js).
  * This sidesteps CORS completely when testing in a browser.
  */
-export const BASE_URL = Platform.OS === 'web' ? '' : 'http://192.168.1.36:8000';
+export const BASE_URL = Platform.OS === 'web' ? '' : 'http://192.168.1.33:8000';
 
 const COOKIE_KEY = '@ecommerce_session_cookie';
 

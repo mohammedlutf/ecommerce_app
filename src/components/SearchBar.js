@@ -4,6 +4,7 @@ import Icon from './Icon';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
 import { Radius } from '../theme/spacing';
+import useDirectional from '../hooks/useDirectional';
 
 export default function SearchBar({
   value,
@@ -17,6 +18,7 @@ export default function SearchBar({
   asButton = false,
   placeholder = 'ابحث عن المنتجات أو الفئات...',
 }) {
+  const { textStart } = useDirectional();
   // Entry-point mode: this bar does not search, it hands over to a real search
   // field on another screen. Deliberately a Pressable and NOT a readOnly
   // TextInput: a non-editable TextInput is not focusable on Android, so `onFocus`
@@ -31,7 +33,7 @@ export default function SearchBar({
         style={({ pressed }) => [styles.container, pressed && styles.containerPressed]}
       >
         <Icon name="search" size={18} color={Colors.textMuted} />
-        <Text style={styles.placeholderText} numberOfLines={1}>
+        <Text style={[styles.placeholderText, textStart]} numberOfLines={1}>
           {placeholder}
         </Text>
       </Pressable>
@@ -50,9 +52,8 @@ export default function SearchBar({
         autoFocus={autoFocus}
         placeholder={placeholder}
         placeholderTextColor={Colors.textMuted}
-        style={styles.input}
+        style={[styles.input, textStart]}
         returnKeyType="search"
-        textAlign="right"
       />
       {value && value.length > 0 ? (
         <TouchableOpacity activeOpacity={0.7} onPress={onClear} style={styles.clearBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -92,7 +93,6 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyMedium,
     color: Colors.textMuted,
     paddingVertical: 0,
-    textAlign: 'right',
   },
   input: {
     flex: 1,
@@ -100,7 +100,6 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyMedium,
     color: Colors.onSurface,
     paddingVertical: 0,
-    textAlign: 'right',
   },
   clearBtn: {
     padding: 2,

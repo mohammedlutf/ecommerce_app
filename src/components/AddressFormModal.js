@@ -16,10 +16,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from './Icon';
 import LocationPicker from './LocationPicker';
+import { useSiteChrome } from '../hooks/useResponsive';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
-import { Radius, Spacing } from '../theme/spacing';
+import { Radius, Shadows, Spacing } from '../theme/spacing';
 import { parseCoords } from '../utils/geo';
+import useDirectional from '../hooks/useDirectional';
 
 const DEFAULT_CITY = 'صنعاء';
 
@@ -44,7 +46,9 @@ function AddressFormModal({
   onClose,
   onSubmit,
 }) {
+  const { textStart } = useDirectional();
   const isEdit = !!initial;
+  const { showDesktopChrome } = useSiteChrome();
 
   const [addressTitle, setAddressTitle] = useState('المنزل');
   const [addressLine1, setAddressLine1] = useState('');
@@ -134,17 +138,29 @@ function AddressFormModal({
   }
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent={false}>
-      <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent={false}
+      // Only desktop *web* gets the dialog treatment. Gating on width alone
+      // would also catch a tablet in landscape and change native behaviour, and
+      // `transparent` is required for the backdrop to be visible at all.
+      transparent={showDesktopChrome}
+    >
+      <SafeAreaView
+        style={[styles.root, showDesktopChrome && styles.rootWeb]}
+        edges={['top', 'bottom']}
+      >
         <KeyboardAvoidingView
-          style={styles.flex}
+          style={[styles.flex, showDesktopChrome && styles.sheetWeb]}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerText}>
-              <Text style={styles.headerTitle}>{isEdit ? 'تعديل العنوان' : 'عنوان جديد'}</Text>
-              <Text style={styles.headerSubtitle}>
+              <Text style={[styles.headerTitle, textStart]}>{isEdit ? 'تعديل العنوان' : 'عنوان جديد'}</Text>
+              <Text style={[styles.headerSubtitle, textStart]}>
                 {isEdit ? 'حدّث تفاصيل العنوان أو موقعه' : 'أضف موقع التسليم لنوصل طلبك بدقة'}
               </Text>
             </View>
@@ -170,7 +186,7 @@ function AddressFormModal({
             {error ? (
               <View style={styles.errorBanner}>
                 <Icon name="alert-circle" size={16} color={Colors.error} />
-                <Text style={styles.errorText}>{error}</Text>
+                <Text style={[styles.errorText, textStart]}>{error}</Text>
               </View>
             ) : null}
 
@@ -232,7 +248,7 @@ function AddressFormModal({
                         pressed && !selected && styles.chipPressed,
                       ]}
                     >
-                      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                      <Text style={[styles.chipText, textStart, selected && styles.chipTextSelected]}>
                         {suggestion}
                       </Text>
                     </Pressable>
@@ -251,8 +267,8 @@ function AddressFormModal({
               <View style={styles.phoneCard}>
                 <View style={styles.phoneToggleRow}>
                   <View style={styles.phoneToggleText}>
-                    <Text style={styles.phoneToggleTitle}>استخدم رقمي</Text>
-                    <Text style={styles.phoneToggleSub}>
+                    <Text style={[styles.phoneToggleTitle, textStart]}>استخدم رقمي</Text>
+                    <Text style={[styles.phoneToggleSub, textStart]}>
                       {defaultPhone ? defaultPhone : 'رقم حسابك'}
                     </Text>
                   </View>
@@ -291,8 +307,8 @@ function AddressFormModal({
                 {isDefault ? <Icon name="checkmark" size={14} color={Colors.onPrimary} /> : null}
               </View>
               <View style={styles.checkTextWrap}>
-                <Text style={styles.checkTitle}>اجعله العنوان الأساسي</Text>
-                <Text style={styles.checkSub}>سيتم اختياره تلقائياً عند الطلب</Text>
+                <Text style={[styles.checkTitle, textStart]}>اجعله العنوان الأساسي</Text>
+                <Text style={[styles.checkSub, textStart]}>سيتم اختياره تلقائياً عند الطلب</Text>
               </View>
             </Pressable>
           </ScrollView>
@@ -312,7 +328,7 @@ function AddressFormModal({
               accessibilityRole="button"
               style={({ pressed }) => [styles.cancelBtn, pressed && styles.cancelBtnPressed]}
             >
-              <Text style={styles.cancelText}>إلغاء</Text>
+              <Text style={[styles.cancelText, textStart]}>إلغاء</Text>
             </Pressable>
 
             <Pressable
@@ -331,7 +347,7 @@ function AddressFormModal({
               ) : (
                 <>
                   <Icon name={isEdit ? 'save-outline' : 'add'} size={18} color={Colors.onPrimary} />
-                  <Text style={styles.saveText}>{isEdit ? 'حفظ التعديلات' : 'حفظ العنوان'}</Text>
+                  <Text style={[styles.saveText, textStart]}>{isEdit ? 'حفظ التعديلات' : 'حفظ العنوان'}</Text>
                 </>
               )}
             </Pressable>
@@ -350,12 +366,13 @@ function AddressFormModal({
  * per field is how those drift apart.
  */
 function Field({ label, hint, required = false, children }) {
+  const { textStart } = useDirectional();
   return (
     <View style={styles.field}>
       <View style={styles.labelRow}>
-        <Text style={styles.label}>{label}</Text>
-        {required ? <Text style={styles.requiredMark}>*</Text> : null}
-        {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+        <Text style={[styles.label, textStart]}>{label}</Text>
+        {required ? <Text style={[styles.requiredMark, textStart]}>*</Text> : null}
+        {hint ? <Text style={[styles.hint, textStart]}>{hint}</Text> : null}
       </View>
       {children}
     </View>
@@ -369,6 +386,24 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: Colors.surface,
+  },
+  // Desktop web: dim the page behind the sheet and centre the form. As a
+  // full-bleed sheet the fields stretched the whole window and the map was the
+  // only thing marking where the form ended.
+  rootWeb: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: 'rgba(11, 18, 32, 0.55)',
+  },
+  sheetWeb: {
+    width: '100%',
+    maxWidth: 560,
+    maxHeight: '92%',
+    borderRadius: Radius.xl,
+    overflow: 'hidden',
+    backgroundColor: Colors.surface,
+    ...Shadows.lg,
   },
   header: {
     flexDirection: 'row',

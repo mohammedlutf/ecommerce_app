@@ -105,15 +105,19 @@ export const CatalogAPI = {
   },
 
   /**
-   * Load the parent/child Item Group structure from the backend's whitelisted
-   * `ecommerce.api.get_groups` (leaf groups only: is_group=0, show_in_website=1).
+   * Load the two-level Item Group nav from `ecommerce.api.get_group_hierarchy`.
    *
-   * Returns a normalized hierarchy:
-   *   [{ name, image, children: [{ name, image }] }]
+   * The tree is built and ranked SERVER-side. It used to be assembled here from
+   * the flat leaf list returned by `get_groups`, but that list holds only
+   * `is_group = 0` rows, so a parent's own `website_ranking` was never in the
+   * payload. No amount of sorting on this side could then honour it, and the
+   * parent order silently stayed whatever order the leaves arrived in.
    *
-   * Parent groups are derived by grouping the leaf rows on `parent_item_group`,
-   * mirroring the website's `groupby('parent_item_group')` nav. Returns null on
-   * failure so callers can fall back to the flat groups from the catalog call.
+   * Both levels arrive already ordered by `website_ranking desc`, so callers get
+   * the merchant's order for the parent tabs and the child chips alike.
+   *
+   * Returns null on failure so callers can fall back to the flat groups from the
+   * catalog call.
    */
   async getItemGroupHierarchy() {
     const elapsed = Date.now() - groupsCacheAt;
@@ -121,29 +125,24 @@ export const CatalogAPI = {
     if (groupsCache === null && elapsed < GROUPS_FAIL_TTL) return null;
 
     try {
-      const leaves = await frappeCall('ecommerce.api.get_groups', {}, 'GET');
-      if (!Array.isArray(leaves) || leaves.length === 0) {
+      const raw = await frappeCall('ecommerce.api.get_group_hierarchy', {}, 'GET');
+      if (!Array.isArray(raw) || raw.length === 0) {
         groupsCache = null;
         groupsCacheAt = Date.now();
         return null;
       }
 
-      const byParent = {};
-      const parentsOrder = [];
-      for (const leaf of leaves) {
-        const parent = (leaf && leaf.parent_item_group || '').trim();
-        if (!parent) continue;
-        if (!byParent[parent]) {
-          byParent[parent] = { name: parent, image: '', children: [] };
-          parentsOrder.push(parent);
-        }
-        byParent[parent].children.push({
-          name: leaf.name,
-          image: leaf.image ? getImageUrl(leaf.image) : '',
-        });
-      }
+      // Only the image paths need resolving; `website_ranking` rides along
+      // untouched so the ranking that produced this order stays inspectable.
+      const result = raw.map((parent) => ({
+        ...parent,
+        image: parent.image ? getImageUrl(parent.image) : '',
+        children: (parent.children || []).map((child) => ({
+          ...child,
+          image: child.image ? getImageUrl(child.image) : '',
+        })),
+      }));
 
-      const result = parentsOrder.map((name) => byParent[name]);
       groupsCache = result;
       groupsCacheAt = Date.now();
       return result;

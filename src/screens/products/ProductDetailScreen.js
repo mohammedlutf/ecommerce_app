@@ -14,18 +14,24 @@ import Icon from '../../components/Icon';
 import UOMSelector from '../../components/UOMSelector';
 import QuantityStepper from '../../components/QuantityStepper';
 import ProductCard from '../../components/ProductCard';
+import PageFooter from '../../components/layout/PageFooter';
 import CatalogAPI from '../../api/catalog';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
+import useDirectional from '../../hooks/useDirectional';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
 import { formatCurrency, calculateDiscount, formatCount, formatDate } from '../../utils/format';
 import { rateForUom } from '../../utils/catalog';
 import { getImageUrl } from '../../api/client';
+import useDocumentHead from '../../seo/useDocumentHead';
+import { organizationNode, productNode, breadcrumbNode } from '../../seo/jsonld';
+import { openProduct } from '../../seo/linking';
+import { useI18n } from '../../i18n/I18nContext';
 
 /**
  * Target size of the "related items" rail.
@@ -106,34 +112,36 @@ function StarRow({ rating, size = 14 }) {
 }
 
 function ReviewRow({ review }) {
+  const { textStart } = useDirectional();
   const rating = Math.round(Number(review.rating) || 0);
   return (
     <View style={styles.reviewItem}>
       <View style={styles.reviewItemHead}>
         <StarRow rating={rating} />
-        <Text style={styles.reviewDate}>
+        <Text style={[styles.reviewDate, textStart]}>
           {formatDate(review.published_on || review.creation)}
         </Text>
       </View>
       {review.review_title ? (
-        <Text style={styles.reviewItemTitle}>{review.review_title}</Text>
+        <Text style={[styles.reviewItemTitle, textStart]}>{review.review_title}</Text>
       ) : null}
       {review.comment ? (
-        <Text style={styles.reviewItemComment}>{review.comment}</Text>
+        <Text style={[styles.reviewItemComment, textStart]}>{review.comment}</Text>
       ) : null}
-      {review.user ? <Text style={styles.reviewItemUser}>{review.user}</Text> : null}
+      {review.user ? <Text style={[styles.reviewItemUser, textStart]}>{review.user}</Text> : null}
     </View>
   );
 }
 
 function ReviewsSummary({ reviews }) {
+  const { textStart } = useDirectional();
   if (reviews.length === 0) return null;
   const average =
     reviews.reduce((sum, review) => sum + (Number(review.rating) || 0), 0) / reviews.length;
   return (
     <View style={styles.reviewsSummary}>
       <StarRow rating={Math.round(average)} size={16} />
-      <Text style={styles.reviewsSummaryText}>
+      <Text style={[styles.reviewsSummaryText, textStart]}>
         {`${average.toFixed(1)} من 5 · ${formatCount(reviews.length, 'تقييم', 'تقييمان', 'تقييمات')}`}
       </Text>
     </View>
@@ -147,6 +155,7 @@ export default function ProductDetailScreen({ route, navigation }) {
   const { isWishlisted, toggleWishlist } = useWishlist();
   const { isAuthenticated } = useAuth();
   const toast = useToast();
+  const { textStart } = useDirectional();
 
   const [pkgdetail, setPackage] = useState('');
 
@@ -170,6 +179,46 @@ export default function ProductDetailScreen({ route, navigation }) {
   });
   const [recommended, setRecommended] = useState([]);
   const [recommendedLoading, setRecommendedLoading] = useState(false);
+
+  const { locale } = useI18n();
+
+  /*
+   * Document head for this product.
+   *
+   * Everything is `useMemo`-ed on `product` so a re-render caused by, say,
+   * changing the quantity does not rebuild and re-serialise the JSON-LD block.
+   * The live node carries the real price and stock from the API — unlike the
+   * build-time prerender, which deliberately omits price because it would be
+   * frozen at build time.
+   */
+  const headJsonLd = useMemo(() => {
+    if (!product) return null;
+    return [
+      organizationNode(),
+      productNode(product, { locale }),
+      breadcrumbNode(
+        [
+          ...(product.item_group
+            ? [{ name: product.item_group, path: `/products/${encodeURIComponent(product.item_group)}` }]
+            : []),
+          { name: product.item_name || product.item_code, path: `/product/${product.item_code}` },
+        ],
+        locale
+      ),
+    ].filter(Boolean);
+  }, [product, locale]);
+
+  useDocumentHead({
+    title: product ? product.item_name || product.web_item_name || product.item_code : undefined,
+    description:
+      product && (product.short_description || product.web_long_description)
+        ? String(product.short_description || product.web_long_description).slice(0, 300)
+        : undefined,
+    path: `/product/${itemCode}`,
+    image: product && (product.website_image || product.image),
+    type: 'product',
+    jsonLd: headJsonLd,
+  });
 
   const fetchDetail = useCallback(async () => {
     setLoading(true);
@@ -261,7 +310,7 @@ export default function ProductDetailScreen({ route, navigation }) {
       const code = related && related.item_code;
       // `push`, not `navigate`: these are other products, so backing out of one
       // should land on the product the shopper was reading, not skip it.
-      if (code) navigation.push('ProductDetail', { itemCode: code });
+      if (code) openProduct(navigation, code, { method: 'push' });
     },
     [navigation]
   );
@@ -270,7 +319,7 @@ export default function ProductDetailScreen({ route, navigation }) {
     return (
       <SafeAreaView style={styles.centerContainer}>
         <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>جاري تحميل تفاصيل المنتج...</Text>
+        <Text style={[styles.loadingText, textStart]}>جاري تحميل تفاصيل المنتج...</Text>
       </SafeAreaView>
     );
   }
@@ -393,7 +442,7 @@ export default function ProductDetailScreen({ route, navigation }) {
 
           {discountPercent ? (
             <View style={styles.discountTag}>
-              <Text style={styles.discountTagText}>{discountPercent}% خصم</Text>
+              <Text style={[styles.discountTagText, textStart]}>{discountPercent}% خصم</Text>
             </View>
           ) : null}
 
@@ -420,34 +469,34 @@ export default function ProductDetailScreen({ route, navigation }) {
           {product.item_group ? (
             <View style={styles.categoryRow}>
               <Icon name="pricetag-outline" size={13} color={Colors.primary} />
-              <Text style={styles.categoryLabel}>{product.item_group}</Text>
+              <Text style={[styles.categoryLabel, textStart]}>{product.item_group}</Text>
             </View>
           ) : null}
 
-          <Text style={styles.productTitle}>
+          <Text style={[styles.productTitle, textStart]}>
             {product.item_name || product.web_item_name || product.item_code}
           </Text>
 
           <View style={styles.stockRow}>
             <View style={styles.stockDot} />
-            <Text style={styles.stockText}>متوفر في المخزون</Text>
+            <Text style={[styles.stockText, textStart]}>متوفر في المخزون</Text>
           </View>
 
           
 
           {/* Price */}
           <View style={styles.priceRow}>
-            <Text style={styles.priceText}>{formatCurrency(currentRate)}</Text>
+            <Text style={[styles.priceText, textStart]}>{formatCurrency(currentRate)}</Text>
             {originalPrice && originalPrice > currentRate ? (
-              <Text style={styles.originalPriceText}>{formatCurrency(originalPrice)}</Text>
+              <Text style={[styles.originalPriceText, textStart]}>{formatCurrency(originalPrice)}</Text>
             ) : null}
-            <Text style={styles.uomIndicator}>/ لكل {selectedUom}</Text>
+            <Text style={[styles.uomIndicator, textStart]}>/ لكل {selectedUom}</Text>
           </View>
 
           {/* UOM */}
           {availableUoms.length > 1 && (
             <View style={styles.sectionBlock}>
-              <Text style={styles.sectionLabel}>اختر وحدة التعبئة / الحجم</Text>
+              <Text style={[styles.sectionLabel, textStart]}>اختر وحدة التعبئة / الحجم</Text>
               <UOMSelector
                 uoms={availableUoms}
                 selectedUom={selectedUom}
@@ -460,7 +509,7 @@ export default function ProductDetailScreen({ route, navigation }) {
           {pkgdetail != '' && (
             <View style={styles.stockRow}>
             <View style={styles.stockDot} />
-            <Text style={styles.stockText}>{pkgdetail}</Text>
+            <Text style={[styles.stockText, textStart]}>{pkgdetail}</Text>
           </View>
           )}
           
@@ -468,7 +517,7 @@ export default function ProductDetailScreen({ route, navigation }) {
 
           {/* Qty */}
           <View style={styles.sectionBlock}>
-            <Text style={styles.sectionLabel}>الكمية المطلوبة</Text>
+            <Text style={[styles.sectionLabel, textStart]}>الكمية المطلوبة</Text>
             <QuantityStepper
               quantity={inCartQty > 0 ? inCartQty : qty}
               onIncrement={() => {
@@ -493,8 +542,8 @@ export default function ProductDetailScreen({ route, navigation }) {
           {/* Description */}
           {product.description ? (
             <View style={styles.sectionBlock}>
-              <Text style={styles.sectionLabel}>تفاصيل ومواصفات المنتج</Text>
-              <Text style={styles.descriptionText}>
+              <Text style={[styles.sectionLabel, textStart]}>تفاصيل ومواصفات المنتج</Text>
+              <Text style={[styles.descriptionText, textStart]}>
                 {product.description.replace(/<[^>]*>?/gm, '').trim()}
               </Text>
             </View>
@@ -503,7 +552,7 @@ export default function ProductDetailScreen({ route, navigation }) {
           {/* Recommended items — off unless Webshop Settings enables them */}
           {showRecommended && (recommendedLoading || recommended.length > 0) ? (
             <View style={styles.sectionBlock}>
-              <Text style={styles.sectionLabel}>منتجات ذات صلة</Text>
+              <Text style={[styles.sectionLabel, textStart]}>منتجات ذات صلة</Text>
 
               {recommended.length === 0 ? (
                 <View style={styles.recommendedLoader}>
@@ -528,12 +577,12 @@ export default function ProductDetailScreen({ route, navigation }) {
           {/* Reviews — off unless Webshop Settings enables them */}
           {showReviews ? (
             <View style={styles.reviewSection}>
-              <Text style={styles.sectionLabel}>تقييمات وآراء العملاء</Text>
+              <Text style={[styles.sectionLabel, textStart]}>تقييمات وآراء العملاء</Text>
 
               <ReviewsSummary reviews={reviews} />
 
               <View style={styles.addReviewCard}>
-                <Text style={styles.addReviewTitle}>أضف تقييمك للمنتج</Text>
+                <Text style={[styles.addReviewTitle, textStart]}>أضف تقييمك للمنتج</Text>
                 <View style={styles.starRow}>
                   {[1, 2, 3, 4, 5].map((s) => (
                     <TouchableOpacity key={s} activeOpacity={0.7} onPress={() => setRating(s)}>
@@ -562,7 +611,7 @@ export default function ProductDetailScreen({ route, navigation }) {
                   {reviewSubmitting ? (
                     <ActivityIndicator color="#ffffff" size="small" />
                   ) : (
-                    <Text style={styles.submitReviewText}>إرسال التقييم</Text>
+                    <Text style={[styles.submitReviewText, textStart]}>إرسال التقييم</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -574,20 +623,23 @@ export default function ProductDetailScreen({ route, navigation }) {
                   ))}
                 </View>
               ) : (
-                <Text style={styles.noReviewsText}>
+                <Text style={[styles.noReviewsText, textStart]}>
                   لا توجد تقييمات لهذا المنتج بعد. كن أول من يقيّمه.
                 </Text>
               )}
             </View>
           ) : null}
+
+          {/* Desktop-only site footer, inside the scroll content. */}
+          <PageFooter />
         </View>
       </ScrollView>
 
       {/* Sticky bottom bar */}
       <View style={styles.bottomBar}>
         <View style={styles.bottomPriceColumn}>
-          <Text style={styles.bottomPriceLabel}>المجموع</Text>
-          <Text style={styles.bottomPriceValue}>
+          <Text style={[styles.bottomPriceLabel, textStart]}>المجموع</Text>
+          <Text style={[styles.bottomPriceValue, textStart]}>
             {formatCurrency(currentRate * (inCartQty > 0 ? inCartQty : qty))}
           </Text>
         </View>
@@ -603,7 +655,7 @@ export default function ProductDetailScreen({ route, navigation }) {
           ) : (
             <>
               <Icon name="cart" size={20} color="#ffffff" />
-              <Text style={styles.bottomAddText}>
+              <Text style={[styles.bottomAddText, textStart]}>
                 {inCartQty > 0 ? `في السلة (${inCartQty}) - تحديث` : 'أضف إلى السلة'}
               </Text>
             </>
@@ -703,7 +755,6 @@ const styles = StyleSheet.create({
     color: Colors.onSurface,
     lineHeight: 28,
     marginBottom: 8,
-    textAlign: 'left',
   },
   stockRow: {
     flexDirection: 'row',
@@ -756,14 +807,12 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyBold,
     color: Colors.onSurface,
     marginBottom: 10,
-    textAlign: 'left',
   },
   descriptionText: {
     fontSize: Typography.sizes.bodyMd,
     color: Colors.onSurfaceVariant,
     lineHeight: 24,
     fontFamily: Typography.fontFamilyRegular,
-    textAlign: 'left',
   },
   reviewSection: {
     marginTop: 12,
@@ -831,27 +880,23 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.labelLg,
     color: Colors.onSurface,
     fontFamily: Typography.fontFamilyBold,
-    textAlign: 'left',
   },
   reviewItemComment: {
     fontSize: Typography.sizes.bodySm,
     color: Colors.onSurfaceVariant,
     lineHeight: 21,
     fontFamily: Typography.fontFamilyRegular,
-    textAlign: 'left',
   },
   reviewItemUser: {
     fontSize: Typography.sizes.labelSm,
     color: Colors.textMuted,
     fontFamily: Typography.fontFamilyMedium,
-    textAlign: 'left',
   },
   noReviewsText: {
     marginTop: 14,
     fontSize: Typography.sizes.bodySm,
     color: Colors.textMuted,
     fontFamily: Typography.fontFamilyRegular,
-    textAlign: 'left',
   },
   addReviewCard: {
     backgroundColor: Colors.surfaceContainerLow,
@@ -863,7 +908,6 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyBold,
     color: Colors.onSurface,
     marginBottom: 8,
-    textAlign: 'left',
   },
   starRow: {
     flexDirection: 'row',
@@ -913,13 +957,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.labelSm,
     color: Colors.textMuted,
     fontFamily: Typography.fontFamilyMedium,
-    textAlign: 'left',
   },
   bottomPriceValue: {
     fontSize: Typography.sizes.headlineSm,
     fontFamily: Typography.fontFamilyExtraBold,
     color: Colors.primary,
-    textAlign: 'left',
   },
   bottomAddBtn: {
     flexDirection: 'row',

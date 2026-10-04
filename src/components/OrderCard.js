@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import useDirectional from '../hooks/useDirectional';
 import Icon from './Icon';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
@@ -19,6 +20,7 @@ export default function OrderCard({
   onReorder,
   actionLoading = false,
 }) {
+  const { textStart } = useDirectional();
   const [expanded, setExpanded] = useState(false);
 
   const statusInfo =
@@ -39,20 +41,20 @@ export default function OrderCard({
     <View style={styles.card}>
       {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.orderId}>طلب #{order.name}</Text>
-          <Text style={styles.orderDate}>{formatDate(order.transaction_date)}</Text>
+        <View style={[styles.orderRef, textStart]}>
+          <Text style={[styles.orderId, textStart]}>طلب #{order.name}</Text>
+          <Text style={[styles.orderDate, textStart]}>{formatDate(order.transaction_date)}</Text>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: statusInfo.bg }]}>
           <Icon name={statusInfo.icon} size={13} color={statusInfo.text} />
-          <Text style={[styles.statusText, { color: statusInfo.text }]}>{statusInfo.label}</Text>
+          <Text style={[styles.statusText, textStart, { color: statusInfo.text }]}>{statusInfo.label}</Text>
         </View>
       </View>
 
       {/* Items preview */}
       {order.items && order.items.length > 0 && (
         <View style={styles.itemsSection}>
-          <Text style={styles.itemsSummary}>
+          <Text style={[styles.itemsSummary, textStart]}>
             {order.items.length} {order.items.length === 1 ? 'منتج' : 'منتجات'}:{' '}
             {order.items
               .map((i) => `${i.item_name} (${i.qty} ${i.uom})`)
@@ -65,7 +67,7 @@ export default function OrderCard({
             <View style={styles.expandedItems}>
               {order.items.map((item, idx) => (
                 <View key={idx} style={styles.itemRow}>
-                  <Text style={styles.itemName} numberOfLines={1}>
+                  <Text style={[styles.itemName, textStart]} numberOfLines={1}>
                     {item.item_name}
                   </Text>
                   <Text style={styles.itemQtyUom}>
@@ -80,7 +82,7 @@ export default function OrderCard({
           {order.items.length > 1 && (
             <TouchableOpacity activeOpacity={0.7} onPress={() => setExpanded(!expanded)} style={styles.toggleBtn}>
               <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color={Colors.primary} />
-              <Text style={styles.toggleText}>
+              <Text style={[styles.toggleText, textStart]}>
                 {expanded ? 'إخفاء التفاصيل' : 'عرض كافة المنتجات'}
               </Text>
             </TouchableOpacity>
@@ -91,8 +93,8 @@ export default function OrderCard({
       {/* Footer */}
       <View style={styles.footer}>
         <View>
-          <Text style={styles.totalLabel}>الإجمالي:</Text>
-          <Text style={styles.totalValue}>{formatCurrency(order.grand_total, order.currency)}</Text>
+          <Text style={[styles.totalLabel, textStart]}>الإجمالي:</Text>
+          <Text style={[styles.totalValue, textStart]}>{formatCurrency(order.grand_total, order.currency)}</Text>
         </View>
 
         <View style={styles.actionsRow}>
@@ -103,7 +105,7 @@ export default function OrderCard({
               onPress={() => onCancelOrder && onCancelOrder(order.name)}
               style={styles.cancelBtn}
             >
-              <Text style={styles.cancelText}>إلغاء الطلب</Text>
+              <Text style={[styles.cancelText, textStart]}>إلغاء الطلب</Text>
             </TouchableOpacity>
           )}
 
@@ -116,7 +118,7 @@ export default function OrderCard({
             {actionLoading ? (
               <ActivityIndicator size="small" color="#ffffff" />
             ) : (
-              <Text style={styles.reorderText}>إعادة الطلب</Text>
+              <Text style={[styles.reorderText, textStart]}>إعادة الطلب</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -135,6 +137,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     ...Shadows.sm,
   },
+  orderRef: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -147,14 +152,12 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.titleSm,
     fontFamily: Typography.fontFamilyBold,
     color: Colors.onSurface,
-    textAlign: 'left',
   },
   orderDate: {
     fontSize: Typography.sizes.labelSm,
     color: Colors.textMuted,
     marginTop: 2,
     fontFamily: Typography.fontFamilyRegular,
-    textAlign: 'left',
   },
   statusBadge: {
     flexDirection: 'row',
@@ -176,7 +179,6 @@ const styles = StyleSheet.create({
     color: Colors.onSurfaceVariant,
     lineHeight: 18,
     fontFamily: Typography.fontFamilyRegular,
-    textAlign: 'left',
   },
   expandedItems: {
     marginTop: 8,
@@ -195,7 +197,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.bodySm,
     color: Colors.onSurface,
     fontFamily: Typography.fontFamilyRegular,
-    textAlign: 'left',
   },
   itemQtyUom: {
     flex: 1,
@@ -235,13 +236,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.labelSm,
     color: Colors.textMuted,
     fontFamily: Typography.fontFamilyMedium,
-    textAlign: 'left',
   },
   totalValue: {
     fontSize: Typography.sizes.titleLg,
     fontFamily: Typography.fontFamilyExtraBold,
     color: Colors.primary,
-    textAlign: 'left',
   },
   actionsRow: {
     flexDirection: 'row',

@@ -13,15 +13,21 @@ import Icon from '../../components/Icon';
 import CategoryCard from '../../components/CategoryCard';
 import EmptyState from '../../components/EmptyState';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
+import PageFooter from '../../components/layout/PageFooter';
 import CatalogAPI from '../../api/catalog';
+import { openProducts } from '../../seo/linking';
+import useDocumentHead from '../../seo/useDocumentHead';
+import { useI18n } from '../../i18n/I18nContext';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
+import useDirectional from '../../hooks/useDirectional';
 
 const TILE_COLS = 3;
 const TILE_HEIGHT = 102; // image 64 + label + gaps
 
 function ParentSection({ parent, isExpanded, onToggle, onSelectChild }) {
+  const { textStart } = useDirectional();
   const childCount = parent.children ? parent.children.length : 0;
   const rows = Math.max(1, Math.ceil(childCount / TILE_COLS));
   const targetHeight = 14 + rows * TILE_HEIGHT + 10;
@@ -60,11 +66,18 @@ function ParentSection({ parent, isExpanded, onToggle, onSelectChild }) {
           <View style={styles.folderIcon}>
             <Icon name="folder-open-outline" size={18} color={Colors.primary} />
           </View>
-          <Text style={styles.parentName} numberOfLines={1}>
+          {/*
+           * Aligned on the row, not only on the string: this is a full-width row
+           * with a fixed icon and a count badge, so the name is positioned by the
+           * leftover space and hugs whichever edge the icon is not on. The
+           * `parentName` style already carries `flex: 1` and `textAlign` inherits
+           * through it in CSS but not into `<Text>` on native, hence both.
+           */}
+          <Text style={[styles.parentName, textStart]} numberOfLines={1}>
             {parent.name}
           </Text>
           <View style={styles.countBadge}>
-            <Text style={styles.countBadgeText}>{childCount}</Text>
+            <Text style={[styles.countBadgeText, textStart]}>{childCount}</Text>
           </View>
         </View>
 
@@ -91,6 +104,13 @@ function ParentSection({ parent, isExpanded, onToggle, onSelectChild }) {
 }
 
 export default function CategoriesScreen({ navigation }) {
+  const { textStart } = useDirectional();
+  const { t } = useI18n();
+  useDocumentHead({
+    title: t('seo.categoriesTitle'),
+    description: t('seo.categoriesDescription'),
+    path: '/categories',
+  });
   const [hierarchy, setHierarchy] = useState(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState({});
@@ -100,9 +120,19 @@ export default function CategoriesScreen({ navigation }) {
     try {
       const h = await CatalogAPI.getItemGroupHierarchy();
       setHierarchy(h);
-      if (h && h.length > 0) {
-        setExpanded({ [h[0].name]: true });
-      }
+      /*
+       * Every group starts collapsed.
+       *
+       * This used to auto-expand `h[0]`, which meant arriving from the home page
+       * dropped the shopper straight into the first group with a tile grid already
+       * open, hiding the fact that the other groups were sitting there to be
+       * picked. The list of groups *is* the navigation on this screen, so it
+       * opens by showing the navigation.
+       *
+       * Assigned rather than merged so re-running `load` (the retry button)
+       * cannot leave a group stuck open after the shopper has collapsed it.
+       */
+      setExpanded({});
     } catch (err) {
       console.warn('Could not load categories:', err);
     } finally {
@@ -121,10 +151,7 @@ export default function CategoriesScreen({ navigation }) {
   function selectChild(name) {
     // `search: undefined` clears any search left in the route params, otherwise
     // react-navigation's param merge would scope this group to that search.
-    navigation.navigate('ProductsTab', {
-      screen: 'Products',
-      params: { itemGroup: name, search: undefined },
-    });
+    openProducts(navigation, { itemGroup: name, extra: { search: undefined } });
   }
 
   if (loading) {
@@ -167,8 +194,8 @@ export default function CategoriesScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headerBlock}>
-          <Text style={styles.title}>تصفح المتجر</Text>
-          <Text style={styles.subtitle}>
+          <Text style={[styles.title, textStart]}>تصفح المتجر</Text>
+          <Text style={[styles.subtitle, textStart]}>
             اختر القسم الرئيسي ثم استكشف التصنيفات الفرعية
           </Text>
         </View>
@@ -188,6 +215,9 @@ export default function CategoriesScreen({ navigation }) {
             <ActivityIndicator size="small" color={Colors.primary} />
           </View>
         ) : null}
+
+        {/* Desktop-only site footer; see HomeScreen for why it sits in the ScrollView. */}
+        <PageFooter />
       </ScrollView>
     </SafeAreaView>
   );
@@ -249,7 +279,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.titleMd,
     fontFamily: Typography.fontFamilyBold,
     color: Colors.onSurface,
-    textAlign: 'left',
   },
   countBadge: {
     minWidth: 22,

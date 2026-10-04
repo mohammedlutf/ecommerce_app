@@ -6,6 +6,7 @@ import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
 import { Radius } from '../theme/spacing';
 import { getImageUrl } from '../api/client';
+import useDirectional from '../hooks/useDirectional';
 
 // Soft, friendly gradient pair per common category (fallback when no image).
 const CATEGORY_STYLES = {
@@ -54,6 +55,7 @@ export default function CategoryCard({
   variant = 'tile',
   chipActiveStyle = 'pill',
 }) {
+  const { textStart } = useDirectional();
   const name = typeof category === 'string' ? category : category.name;
   const count = category && category.count ? category.count : null;
 
@@ -74,13 +76,13 @@ export default function CategoryCard({
         onPress={() => onSelect && onSelect(name)}
         style={[styles.chip, chipStyle]}
       >
-        <Text style={[styles.chipText, textStyle]} numberOfLines={1}>
+        <Text style={[styles.chipText, textStart, textStyle]} numberOfLines={1}>
           {name}
         </Text>
         {count !== null && count !== undefined && (
           <View style={[styles.chipBadge, isSelected ? styles.chipBadgeActive : styles.chipBadgeInactive]}>
             <Text
-              style={[styles.chipBadgeText, isSelected ? styles.chipBadgeTextActive : styles.chipBadgeTextInactive]}
+              style={[styles.chipBadgeText, textStart, isSelected ? styles.chipBadgeTextActive : styles.chipBadgeTextInactive]}
             >
               {count}
             </Text>
@@ -123,7 +125,7 @@ export default function CategoryCard({
             {style.icon ? (
               <Icon name={style.icon} size={24} color={Colors.primaryDark} />
             ) : (
-              <Text style={styles.monogram}>{style.monogram}</Text>
+              <Text style={[styles.monogram, textStart]}>{style.monogram}</Text>
             )}
           </LinearGradient>
         )}
@@ -139,7 +141,7 @@ export default function CategoryCard({
         {name}
       </Text>
       {count !== null && count !== undefined && (
-        <Text style={styles.count}>{count}</Text>
+        <Text style={[styles.count, textStart]}>{count}</Text>
       )}
     </TouchableOpacity>
   );

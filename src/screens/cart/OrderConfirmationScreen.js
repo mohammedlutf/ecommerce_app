@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from '../../components/Icon';
@@ -7,9 +7,13 @@ import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
 import { formatCurrency } from '../../utils/format';
+import useDirectional from '../../hooks/useDirectional';
+import { useSiteChrome } from '../../hooks/useResponsive';
 
 export default function OrderConfirmationScreen({ route, navigation }) {
   const { orderId, orderData } = route.params || {};
+  const { textStart } = useDirectional();
+  const { showDesktopChrome } = useSiteChrome();
 
   // The amounts charged are the ones the server put on the Sales Order, not the
   // cart screen's running estimate. The two can differ — the estimate is a
@@ -21,97 +25,112 @@ export default function OrderConfirmationScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        {/* Success Circle */}
-        <LinearGradient
-          colors={['#22C55E', '#16A34A', Colors.primaryDark]}
-          style={styles.successCircle}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Icon name="checkmark" size={52} color="#ffffff" />
-        </LinearGradient>
+      {/*
+       * A ScrollView rather than a centred flex column.
+       *
+       * `justifyContent: 'center'` in a fixed-height column silently clips
+       * anything taller than the viewport, and on web the page itself cannot
+       * scroll because `body` is `overflow: hidden` — so on a short laptop
+       * window the totals and the action buttons were simply unreachable.
+       * `flexGrow` keeps the vertical centring when the content does fit.
+       */}
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        alwaysBounceVertical={false}
+      >
+        <View style={[styles.container, showDesktopChrome && styles.containerWide]}>
+          {/* Success Circle */}
+          <LinearGradient
+            colors={['#22C55E', '#16A34A', Colors.primaryDark]}
+            style={styles.successCircle}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Icon name="checkmark" size={52} color="#ffffff" />
+          </LinearGradient>
 
-        <Text style={styles.title}>تم استلام طلبك بنجاح!</Text>
-        <Text style={styles.subtitle}>
-          شكراً لتسوقك معنا في زاد ماركت. نقوم الآن بتجهيز طلبيتك بعناية لتصلك في أسرع وقت.
-        </Text>
+          <Text style={styles.title}>تم استلام طلبك بنجاح!</Text>
+          <Text style={styles.subtitle}>
+            شكراً لتسوقك معنا في زاد ماركت. نقوم الآن بتجهيز طلبيتك بعناية لتصلك في أسرع وقت.
+          </Text>
 
         {/* Order Details */}
-        <View style={styles.orderCard}>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>رقم الطلب</Text>
-            <View style={styles.orderNumberWrap}>
-              <Icon name="receipt-outline" size={15} color={Colors.primary} />
-              <Text style={styles.orderNumber}>#{orderId || 'طلب جديد'}</Text>
-            </View>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>طريقة الدفع</Text>
-            <View style={styles.infoValueRow}>
-              <Icon name="cash-outline" size={15} color={Colors.onSurface} />
-              <Text style={styles.infoValue}>
-                {(orderData && orderData.payment_method) || 'نقداً عند الاستلام'}
-              </Text>
-            </View>
-          </View>
-
-          {/* Amounts come from the saved order. Rendered only when the server
-              actually returned a total, so a missing figure reads as absent
-              rather than as a confidently wrong zero. */}
-          {hasTotals ? (
-            <>
-              {deliveryCharges > 0 ? (
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>رسوم التوصيل</Text>
-                  <Text style={styles.infoValue}>{formatCurrency(deliveryCharges)}</Text>
-                </View>
-              ) : null}
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>المبلغ المطلوب عند الاستلام</Text>
-                <Text style={styles.totalValue}>{formatCurrency(grandTotal)}</Text>
+          <View style={styles.orderCard}>
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoLabel, textStart]}>رقم الطلب</Text>
+              <View style={styles.orderNumberWrap}>
+                <Icon name="receipt-outline" size={15} color={Colors.primary} />
+                <Text style={[styles.orderNumber, textStart]}>#{orderId || 'طلب جديد'}</Text>
               </View>
-            </>
-          ) : null}
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>حالة الطلب</Text>
-            <View style={styles.infoValueRow}>
-              <Icon name="time" size={15} color={Colors.primary} />
-              <Text style={[styles.infoValue, { color: Colors.primary, fontFamily: Typography.fontFamilyBold }]}>
-                قيد التجهيز والتوصيل
-              </Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoLabel, textStart]}>طريقة الدفع</Text>
+              <View style={styles.infoValueRow}>
+                <Icon name="cash-outline" size={15} color={Colors.onSurface} />
+                <Text style={[styles.infoValue, textStart]}>
+                  {(orderData && orderData.payment_method) || 'نقداً عند الاستلام'}
+                </Text>
+              </View>
+            </View>
+
+            {/* Amounts come from the saved order. Rendered only when the server
+                actually returned a total, so a missing figure reads as absent
+                rather than as a confidently wrong zero. */}
+            {hasTotals ? (
+              <>
+                {deliveryCharges > 0 ? (
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, textStart]}>رسوم التوصيل</Text>
+                    <Text style={[styles.infoValue, textStart]}>{formatCurrency(deliveryCharges)}</Text>
+                  </View>
+                ) : null}
+                <View style={styles.totalRow}>
+                  <Text style={[styles.totalLabel, textStart]}>المبلغ المطلوب عند الاستلام</Text>
+                  <Text style={[styles.totalValue, textStart]}>{formatCurrency(grandTotal)}</Text>
+                </View>
+              </>
+            ) : null}
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoLabel, textStart]}>حالة الطلب</Text>
+              <View style={styles.infoValueRow}>
+                <Icon name="time" size={15} color={Colors.primary} />
+                <Text style={[styles.infoValue, textStart, { color: Colors.primary, fontFamily: Typography.fontFamilyBold }]}>
+                  قيد التجهيز والتوصيل
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* Actions */}
-        <View style={styles.actions}>
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => {
-              // No popToTop() here: the Account tab is a sibling tab, so popping
-              // the cart stack first only flashed the empty cart on the way out.
-              // AccountScreen refetches on focus, so the order just placed is
-              // already in the list by the time this screen unmounts.
-              navigation.navigate('AccountTab');
-            }}
-            style={styles.primaryBtn}
-          >
-            <Text style={styles.primaryBtnText}>عرض طلباتي ومتابعة الحالة</Text>
-          </TouchableOpacity>
+          {/* Actions */}
+          <View style={styles.actions}>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => {
+                // No popToTop() here: the Account tab is a sibling tab, so popping
+                // the cart stack first only flashed the empty cart on the way out.
+                // AccountScreen refetches on focus, so the order just placed is
+                // already in the list by the time this screen unmounts.
+                navigation.navigate('AccountTab');
+              }}
+              style={styles.primaryBtn}
+            >
+              <Text style={[styles.primaryBtnText, textStart]}>عرض طلباتي ومتابعة الحالة</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() => {
-              navigation.popToTop();
-              navigation.navigate('HomeTab');
-            }}
-            style={styles.secondaryBtn}
-          >
-            <Text style={styles.secondaryBtnText}>العودة للرئيسية ومواصلة التسوق</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => {
+                navigation.popToTop();
+                navigation.navigate('HomeTab');
+              }}
+              style={styles.secondaryBtn}
+            >
+              <Text style={[styles.secondaryBtnText, textStart]}>العودة للرئيسية ومواصلة التسوق</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -121,11 +140,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  container: {
-    flex: 1,
+  scroll: {
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    padding: 20,
+    paddingBottom: 48,
+  },
+  container: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  // The card and buttons are `width: '100%'`, which on a desktop window stretched
+  // a receipt across 1900px. Capping the column keeps the line lengths readable
+  // and stops the two buttons reading as a pair of page-wide banners.
+  containerWide: {
+    maxWidth: 560,
   },
   successCircle: {
     width: 96,
@@ -171,7 +201,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.bodyMd,
     color: Colors.textMuted,
     fontFamily: Typography.fontFamilyRegular,
-    textAlign: 'left',
   },
   orderNumberWrap: {
     flexDirection: 'row',
@@ -208,7 +237,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.bodyMd,
     fontFamily: Typography.fontFamilyBold,
     color: Colors.onSurface,
-    textAlign: 'left',
     flex: 1,
   },
   totalValue: {

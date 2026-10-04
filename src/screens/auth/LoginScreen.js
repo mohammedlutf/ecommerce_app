@@ -14,6 +14,8 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import useDocumentHead from '../../seo/useDocumentHead';
+import { useI18n } from '../../i18n/I18nContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Icon from '../../components/Icon';
@@ -25,6 +27,7 @@ import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
+import useDirectional from '../../hooks/useDirectional';
 
 /**
  * The segmented switcher highlights the ACTIVE BUTTON rather than sliding a
@@ -44,6 +47,7 @@ import { Radius, Shadows } from '../../theme/spacing';
  * login and create-account, so the content swaps instantly.
  */
 function PrimaryButton({ onPress, loading, children }) {
+  const { textStart } = useDirectional();
   const scale = useRef(new Animated.Value(1)).current;
 
   function pressIn() {
@@ -66,7 +70,7 @@ function PrimaryButton({ onPress, loading, children }) {
         {loading ? (
           <ActivityIndicator color="#ffffff" />
         ) : (
-          <Text style={styles.primaryBtnText}>{children}</Text>
+          <Text style={[styles.primaryBtnText, textStart]}>{children}</Text>
         )}
       </TouchableOpacity>
     </Animated.View>
@@ -87,6 +91,9 @@ function AuthInput({ icon, ...props }) {
 }
 
 export default function LoginScreen({ navigation }) {
+  const { textStart } = useDirectional();
+  const { t } = useI18n();
+  useDocumentHead({ title: t('seo.loginTitle'), path: '/login', noindex: true });
   const { login, register } = useAuth();
   const toast = useToast();
 
@@ -253,16 +260,16 @@ export default function LoginScreen({ navigation }) {
                           resizeMode="contain"
                         />
               
-              {/* <Text style={styles.brandTitle}>زاد ماركت</Text> */}
-             <Text style={styles.brandTagline}>تسوق طازج وتوصيل سريع حتى باب منزلك</Text>
+              {/* <Text style={[styles.brandTitle, textStart]}>زاد ماركت</Text> */}
+             <Text style={[styles.brandTagline, textStart]}>تسوق طازج وتوصيل سريع حتى باب منزلك</Text>
             </View>
 
             {/* Card */}
             <View style={styles.card}>
               {showForgot ? (
                 <View>
-                  <Text style={styles.cardHeadline}>استعادة كلمة المرور</Text>
-                  <Text style={styles.cardSubheadline}>
+                  <Text style={[styles.cardHeadline, textStart]}>استعادة كلمة المرور</Text>
+                  <Text style={[styles.cardSubheadline, textStart]}>
                     أدخل بريدك الإلكتروني وسنرسل لك تعليمات الاستعادة.
                   </Text>
 
@@ -285,7 +292,7 @@ export default function LoginScreen({ navigation }) {
                     onPress={() => setShowForgot(false)}
                     style={styles.linkRow}
                   >
-                    <Text style={styles.linkText}>العودة لتسجيل الدخول</Text>
+                    <Text style={[styles.linkText, textStart]}>العودة لتسجيل الدخول</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -299,7 +306,7 @@ export default function LoginScreen({ navigation }) {
                     >
                       <Text
                         style={[
-                          styles.tabButtonText,
+                          styles.tabButtonText, textStart,
                           activeTab === 'login' && styles.tabButtonTextActive,
                         ]}
                       >
@@ -313,7 +320,7 @@ export default function LoginScreen({ navigation }) {
                     >
                       <Text
                         style={[
-                          styles.tabButtonText,
+                          styles.tabButtonText, textStart,
                           activeTab === 'register' && styles.tabButtonTextActive,
                         ]}
                       >
@@ -324,8 +331,8 @@ export default function LoginScreen({ navigation }) {
 
                   {activeTab === 'login' ? (
                     <View>
-                      <Text style={styles.cardHeadline}>أهلاً بعودتك 👋</Text>
-                      <Text style={styles.cardSubheadline}>
+                      <Text style={[styles.cardHeadline, textStart]}>أهلاً بعودتك 👋</Text>
+                      <Text style={[styles.cardSubheadline, textStart]}>
                         سجّل دخولك لتتابع طلباتك ومفضلتك.
                       </Text>
 
@@ -369,7 +376,7 @@ export default function LoginScreen({ navigation }) {
                         }}
                         style={styles.forgotRow}
                       >
-                        <Text style={styles.forgotText}>نسيت كلمة المرور؟</Text>
+                        <Text style={[styles.forgotText, textStart]}>نسيت كلمة المرور؟</Text>
                       </TouchableOpacity>
 
                       <PrimaryButton onPress={handleLogin} loading={loading}>
@@ -378,8 +385,8 @@ export default function LoginScreen({ navigation }) {
                     </View>
                   ) : (
                     <View>
-                      <Text style={styles.cardHeadline}>إنشاء حساب جديد ✨</Text>
-                      <Text style={styles.cardSubheadline}>
+                      <Text style={[styles.cardHeadline, textStart]}>إنشاء حساب جديد ✨</Text>
+                      <Text style={[styles.cardSubheadline, textStart]}>
                         ابدأ التسوق واستمتع بالعروض الحصرية.
                       </Text>
 
@@ -436,12 +443,12 @@ export default function LoginScreen({ navigation }) {
             <View style={styles.trustRow}>
               <View style={styles.trustItem}>
                 <Icon name="shield-checkmark-outline" size={16} color={Colors.success} />
-                <Text style={styles.trustText}>بياناتك محمية ومشفرة</Text>
+                <Text style={[styles.trustText, textStart]}>بياناتك محمية ومشفرة</Text>
               </View>
               <View style={styles.trustDot} />
               <View style={styles.trustItem}>
                 <Icon name="checkmark-done-outline" size={16} color={Colors.success} />
-                <Text style={styles.trustText}>ضمان جودة المنتجات</Text>
+                <Text style={[styles.trustText, textStart]}>ضمان جودة المنتجات</Text>
               </View>
             </View>
           </ScrollView>
@@ -550,14 +557,12 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyExtraBold,
     color: Colors.onSurface,
     marginBottom: 6,
-    textAlign: 'left',
   },
   cardSubheadline: {
     fontSize: Typography.sizes.bodyMd,
     color: Colors.textMuted,
     fontFamily: Typography.fontFamilyRegular,
     marginBottom: 18,
-    textAlign: 'left',
   },
   inputWrapper: {
     flexDirection: 'row',

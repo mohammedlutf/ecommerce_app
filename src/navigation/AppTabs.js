@@ -13,6 +13,7 @@ import { Typography } from '../theme/typography';
 import { Radius } from '../theme/spacing';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
+import useDirectional from '../hooks/useDirectional';
 
 const Tab = createBottomTabNavigator();
 
@@ -27,7 +28,12 @@ const Tab = createBottomTabNavigator();
 const TAB_BAR_CONTENT_HEIGHT = 60;
 const TAB_BAR_PADDING_BOTTOM = 8;
 
-export default function AppTabs() {
+/**
+ * @param {boolean} [hideTabBar] Desktop renders a header nav instead of the
+ *   bottom strip, so the bar is removed entirely rather than merely restyled.
+ */
+export default function AppTabs({ hideTabBar = false }) {
+  const { textStart } = useDirectional();
   const { count: cartCount } = useCart();
   const { count: wishlistCount } = useWishlist();
   const insets = useSafeAreaInsets();
@@ -38,13 +44,17 @@ export default function AppTabs() {
         headerShown: false,
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.outline,
-        tabBarStyle: [
-          styles.tabBar,
-          {
-            height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,
-            paddingBottom: TAB_BAR_PADDING_BOTTOM + insets.bottom,
-          },
-        ],
+        // The desktop shell moves navigation into the header, and the bottom
+        // strip on a 1440px window is pure dead space.
+        tabBarStyle: hideTabBar
+          ? { display: 'none' }
+          : [
+              styles.tabBar,
+              {
+                height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,
+                paddingBottom: TAB_BAR_PADDING_BOTTOM + insets.bottom,
+              },
+            ],
         tabBarLabelStyle: styles.tabBarLabel,
       }}
     >
@@ -84,7 +94,7 @@ export default function AppTabs() {
               <Icon name={focused ? 'heart' : 'heart-outline'} size={22} color={color} />
               {wishlistCount > 0 && (
                 <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{wishlistCount}</Text>
+                  <Text style={[styles.badgeText, textStart]}>{wishlistCount}</Text>
                 </View>
               )}
             </View>
@@ -102,7 +112,7 @@ export default function AppTabs() {
               <Icon name={focused ? 'cart' : 'cart-outline'} size={22} color={color} />
               {cartCount > 0 && (
                 <View style={[styles.badge, styles.cartBadge]}>
-                  <Text style={styles.badgeText}>{cartCount}</Text>
+                  <Text style={[styles.badgeText, textStart]}>{cartCount}</Text>
                 </View>
               )}
             </View>

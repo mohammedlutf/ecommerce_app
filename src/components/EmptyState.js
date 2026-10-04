@@ -4,6 +4,7 @@ import Icon from './Icon';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
 import { Radius } from '../theme/spacing';
+import useDirectional from '../hooks/useDirectional';
 
 export default function EmptyState({
   icon = 'basket-outline',
@@ -13,6 +14,7 @@ export default function EmptyState({
   actionLabel,
   onAction,
 }) {
+  const { textStart } = useDirectional();
   return (
     <View style={styles.container}>
       <View style={[styles.iconCircle, { backgroundColor: Colors.primaryContainer }]}>
@@ -22,7 +24,7 @@ export default function EmptyState({
       <Text style={styles.description}>{description}</Text>
       {actionLabel && onAction && (
         <TouchableOpacity activeOpacity={0.85} onPress={onAction} style={styles.actionBtn}>
-          <Text style={styles.actionText}>{actionLabel}</Text>
+          <Text style={[styles.actionText, textStart]}>{actionLabel}</Text>
         </TouchableOpacity>
       )}
     </View>

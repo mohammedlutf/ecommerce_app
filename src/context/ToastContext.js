@@ -17,6 +17,7 @@ import Icon from '../components/Icon';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
 import { Radius, Shadows } from '../theme/spacing';
+import useDirectional from '../hooks/useDirectional';
 
 const ToastContext = createContext(null);
 
@@ -44,6 +45,7 @@ const TOAST_TYPES = {
 let toastCounter = 0;
 
 function ToastItem({ toast, onDone }) {
+  const { textStart } = useDirectional();
   const progress = useRef(new Animated.Value(0)).current;
   const translateY = progress.interpolate({
     inputRange: [0, 1],
@@ -91,7 +93,7 @@ function ToastItem({ toast, onDone }) {
       ]}
     >
       <Icon name={config.icon} size={22} color={config.iconColor} />
-      <Text style={[styles.toastText, { color: config.textColor }]}>
+      <Text style={[styles.toastText, textStart, { color: config.textColor }]}>
         {toast.text}
       </Text>
       <TouchableOpacity onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -172,6 +174,5 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Typography.sizes.bodyMd,
     fontFamily: Typography.fontFamilySemiBold,
-    textAlign: 'left',
   },
 });

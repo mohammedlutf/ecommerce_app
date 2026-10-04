@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Animated,
 } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { impactLight, notifySuccess } from '../utils/haptics';
 import Icon from './Icon';
 import UOMSelector from './UOMSelector';
 import QuantityStepper from './QuantityStepper';
@@ -22,17 +22,28 @@ import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../context/ToastContext';
 import { useAdmin } from '../context/AdminContext';
+import useDirectional from '../hooks/useDirectional';
 
 export default function ProductCard({
   product,
   onPress,
   horizontal = false,
   showToastOnAdd = true,
+  /**
+   * Height of the image area.
+   *
+   * Defaults to 140pt, which is right for a 2-up phone grid but reads as a thin
+   * letterbox once the card is one of four or five across a desktop window.
+   * `ProductGrid` passes a value scaled to the column width so the card keeps a
+   * consistent proportion instead of losing its image to whitespace.
+   */
+  imageHeight = 140,
 }) {
   const { items: cartItems, addToCart, updateQuantity, removeItem } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
   const toast = useToast();
   const { isAdmin, openEditor } = useAdmin();
+  const { textStart, insetStart, insetEnd } = useDirectional();
 
   const availableUoms =
     product.uoms && product.uoms.length > 0
@@ -76,7 +87,7 @@ export default function ProductCard({
     setWishlistLoading(true);
     try {
       const added = await toggleWishlist(product.item_code);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      impactLight();
       const nowWishlisted = added !== false;
       if (showToastOnAdd) {
         toast.success(nowWishlisted ? 'أُضيف إلى المفضلة' : 'أُزيل من المفضلة');
@@ -93,7 +104,7 @@ export default function ProductCard({
     setCartActionLoading(true);
     try {
       await addToCart(product.item_code, 1, selectedUom, product);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      notifySuccess();
       if (showToastOnAdd) toast.success('تمت الإضافة إلى السلة');
     } catch (err) {
       toast.error(err?.message || 'تعذر إضافة المنتج');
@@ -138,7 +149,7 @@ export default function ProductCard({
       ]}
     >
       {/* Media resizeMode="contain"*/}
-      <View style={styles.imageContainer}>
+      <View style={[styles.imageContainer, { height: imageHeight }]}>
         {imageUrl ? (
           <Image source={{ uri: imageUrl }} style={styles.image}  />
         ) : (
@@ -148,8 +159,8 @@ export default function ProductCard({
         )}
 
         {discountPercent ? (
-          <View style={styles.discountBadge}>
-            <Text style={styles.discountText}>{discountPercent}%-</Text>
+          <View style={[styles.discountBadge, insetStart(10)]}>
+            <Text style={[styles.discountText, textStart]}>{discountPercent}%-</Text>
           </View>
         ) : null}
 
@@ -157,7 +168,7 @@ export default function ProductCard({
           activeOpacity={0.7}
           onPress={handleToggleWishlist}
           disabled={wishlistLoading}
-          style={[styles.wishlistBtn, wishlisted && styles.wishlistBtnActive]}
+          style={[styles.wishlistBtn, insetEnd(10), wishlisted && styles.wishlistBtnActive]}
         >
           {wishlistLoading ? (
             <ActivityIndicator size="small" color={Colors.primary} />
@@ -178,7 +189,7 @@ export default function ProductCard({
             onPress={handleOpenEditor}
             accessibilityRole="button"
             accessibilityLabel={`تعديل ${product.item_name || product.item_code}`}
-            style={styles.adminBtn}
+            style={[styles.adminBtn, insetEnd(10)]}
           >
             <Icon name="create-outline" size={18} color={Colors.onPrimary} />
           </TouchableOpacity>
@@ -190,13 +201,13 @@ export default function ProductCard({
         {product.item_group ? (
           <View style={styles.categoryRow}>
             <Icon name="pricetag-outline" size={11} color={Colors.textMuted} />
-            <Text style={styles.categoryText} numberOfLines={1}>
+            <Text style={[styles.categoryText, textStart]} numberOfLines={1}>
               {product.item_group}
             </Text>
           </View>
         ) : null}
 
-        <Text style={styles.title} numberOfLines={2}>
+        <Text style={[styles.title, textStart]} numberOfLines={2}>
           {product.item_name || product.web_item_name || product.item_code}
         </Text>
 
@@ -214,10 +225,10 @@ export default function ProductCard({
 
         {/* Pricing */}
         <View style={styles.priceRow}>
-          <Text style={styles.currentPrice}>{formatCurrency(currentRate)}</Text>
+          <Text style={[styles.currentPrice, textStart]}>{formatCurrency(currentRate)}</Text>
           {originalPrice && originalPrice > currentRate ? (
             <View style={styles.oldPriceWrap}>
-              <Text style={styles.originalPrice}>{formatCurrency(originalPrice)}</Text>
+              <Text style={[styles.originalPrice, textStart]}>{formatCurrency(originalPrice)}</Text>
             </View>
           ) : null}
         </View>
@@ -244,7 +255,7 @@ export default function ProductCard({
               ) : (
                 <>
                   <Icon name="add" size={16} color={Colors.onPrimary} />
-                  <Text style={styles.addToCartText}>أضف للسلة</Text>
+                  <Text style={[styles.addToCartText, textStart]}>أضف للسلة</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -269,6 +280,7 @@ const styles = StyleSheet.create({
   imageContainer: {
     position: 'relative',
     width: '100%',
+    // Overridden by the `imageHeight` prop; this is the phone-grid default.
     height: 140,
     backgroundColor: Colors.surfaceContainerLow,
     alignItems: 'center',
@@ -284,7 +296,6 @@ const styles = StyleSheet.create({
   discountBadge: {
     position: 'absolute',
     top: 10,
-    left: 10,
     backgroundColor: Colors.secondary,
     paddingHorizontal: 9,
     paddingVertical: 4,
@@ -299,7 +310,6 @@ const styles = StyleSheet.create({
   wishlistBtn: {
     position: 'absolute',
     top: 10,
-    right: 10,
     width: 34,
     height: 34,
     borderRadius: Radius.full,
@@ -314,7 +324,6 @@ const styles = StyleSheet.create({
   adminBtn: {
     position: 'absolute',
     bottom: 10,
-    right: 10,
     width: 34,
     height: 34,
     borderRadius: Radius.full,
@@ -341,7 +350,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 6,
     fontFamily: Typography.fontFamilySemiBold,
-    textAlign: 'left',
   },
   priceRow: {
     flexDirection: 'row',

@@ -26,6 +26,7 @@ import { useToast } from '../../context/ToastContext';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Spacing } from '../../theme/spacing';
+import useDirectional from '../../hooks/useDirectional';
 
 /**
  * AdminItemModal — edit one product across Item and Website Item.
@@ -42,6 +43,7 @@ import { Radius, Spacing } from '../../theme/spacing';
  *    the admin just saw on screen.
  */
 export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) {
+  const { textStart } = useDirectional();
   const toast = useToast();
 
   // All hooks first, derived values after. A derived `const` sitting above the
@@ -326,7 +328,7 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
       <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
         <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>تعديل المنتج</Text>
+            <Text style={[styles.headerTitle, textStart]}>تعديل المنتج</Text>
             <Pressable onPress={onClose} accessibilityRole="button" style={styles.closeBtn}>
               <Icon name="close" size={20} color={Colors.onSurface} />
             </Pressable>
@@ -335,7 +337,7 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
             <Icon name="alert-circle-outline" size={40} color={Colors.error} />
             <Text style={styles.centreText}>{loadError}</Text>
             <Pressable onPress={onClose} style={styles.cancelBtn}>
-              <Text style={styles.cancelText}>إغلاق</Text>
+              <Text style={[styles.cancelText, textStart]}>إغلاق</Text>
             </Pressable>
           </View>
         </SafeAreaView>
@@ -348,8 +350,8 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
       <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>تعديل المنتج</Text>
-            <Text style={styles.headerSubtitle}>{itemCode}</Text>
+            <Text style={[styles.headerTitle, textStart]}>تعديل المنتج</Text>
+            <Text style={[styles.headerSubtitle, textStart]}>{itemCode}</Text>
           </View>
           <Pressable
             onPress={onClose}
@@ -382,14 +384,14 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
                     {warnings.map((note) => (
                       <View key={note} style={{ flexDirection: 'row', gap: 6 }}>
                         <Icon name="warning-outline" size={15} color={Colors.warning} />
-                        <Text style={styles.warningText}>{note}</Text>
+                        <Text style={[styles.warningText, textStart]}>{note}</Text>
                       </View>
                     ))}
                   </View>
                 ) : null}
 
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>صورة المنتج</Text>
+                  <Text style={[styles.sectionTitle, textStart]}>صورة المنتج</Text>
                   <View style={styles.imageFrame}>
                     {previewImage ? (
                       <Image source={{ uri: previewImage }} style={styles.image} resizeMode="contain" />
@@ -399,7 +401,7 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
                     {pendingImage ? (
                       <View style={styles.imageBadge}>
                         <Icon name="checkmark-circle" size={12} color={Colors.onPrimary} />
-                        <Text style={styles.imageBadgeText}>بانتظار الحفظ</Text>
+                        <Text style={[styles.imageBadgeText, textStart]}>بانتظار الحفظ</Text>
                       </View>
                     ) : null}
                   </View>
@@ -409,23 +411,23 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
                       style={({ pressed }) => [styles.imageAction, pressed && { opacity: 0.7 }]}
                     >
                       <Icon name="camera-outline" size={18} color={Colors.primary} />
-                      <Text style={styles.imageActionText}>الكاميرا</Text>
+                      <Text style={[styles.imageActionText, textStart]}>الكاميرا</Text>
                     </Pressable>
                     <Pressable
                       onPress={() => handlePickImage('library')}
                       style={({ pressed }) => [styles.imageAction, pressed && { opacity: 0.7 }]}
                     >
                       <Icon name="images-outline" size={18} color={Colors.primary} />
-                      <Text style={styles.imageActionText}>المعرض</Text>
+                      <Text style={[styles.imageActionText, textStart]}>المعرض</Text>
                     </Pressable>
                   </View>
                 </View>
 
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>البيانات الأساسية</Text>
+                  <Text style={[styles.sectionTitle, textStart]}>البيانات الأساسية</Text>
 
                   <View>
-                    <Text style={styles.label}>اسم المنتج</Text>
+                    <Text style={[styles.label, textStart]}>اسم المنتج</Text>
                     <TextInput
                       style={styles.input}
                       value={itemName}
@@ -435,7 +437,7 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
                   </View>
 
                   <View>
-                    <Text style={styles.label}>التصنيف</Text>
+                    <Text style={[styles.label, textStart]}>التصنيف</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                       <View style={styles.chipsRow}>
                         {(references.item_groups || []).map((group) => {
@@ -452,7 +454,7 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
                                 pressed && { opacity: 0.7 },
                               ]}
                             >
-                              <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                              <Text style={[styles.chipText, textStart, selected && styles.chipTextSelected]}>
                                 {group}
                               </Text>
                             </Pressable>
@@ -463,7 +465,7 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
                   </View>
 
                   <View>
-                    <Text style={styles.label}>الترتيب في المتجر</Text>
+                    <Text style={[styles.label, textStart]}>الترتيب في المتجر</Text>
                     <TextInput
                       style={styles.input}
                       value={ranking}
@@ -475,9 +477,9 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
                 </View>
 
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>الوصف</Text>
+                  <Text style={[styles.sectionTitle, textStart]}>الوصف</Text>
                   <View>
-                    <Text style={styles.label}>وصف مختصر</Text>
+                    <Text style={[styles.label, textStart]}>وصف مختصر</Text>
                     <TextInput
                       style={styles.input}
                       value={shortDescription}
@@ -486,7 +488,7 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
                     />
                   </View>
                   <View>
-                    <Text style={styles.label}>الوصف الكامل</Text>
+                    <Text style={[styles.label, textStart]}>الوصف الكامل</Text>
                     <TextInput
                       style={[styles.input, styles.inputMultiline]}
                       value={longDescription}
@@ -505,17 +507,17 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
                 />
 
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>منتجات مقترحة</Text>
-                  <Text style={styles.sectionHint}>
+                  <Text style={[styles.sectionTitle, textStart]}>منتجات مقترحة</Text>
+                  <Text style={[styles.sectionHint, textStart]}>
                     اكتب رمز المنتج (Item Code) كما هو في النظام.
                   </Text>
 
                   {recommended.map((row) => (
                     <View key={row.item_code} style={styles.listRow}>
-                      <Text style={styles.listRowText} numberOfLines={1}>
+                      <Text style={[styles.listRowText, textStart]} numberOfLines={1}>
                         {row.web_item_name || row.item_code}
                       </Text>
-                      <Text style={styles.uomHeaderLabel}>{row.item_code}</Text>
+                      <Text style={[styles.uomHeaderLabel, textStart]}>{row.item_code}</Text>
                       <Pressable
                         onPress={() =>
                           setRecommended((prev) => prev.filter((r) => r.item_code !== row.item_code))
@@ -547,8 +549,8 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
                 <View style={styles.section}>
                   <View style={styles.switchRow}>
                     <View style={styles.switchCopy}>
-                      <Text style={styles.switchTitle}>منشور في المتجر</Text>
-                      <Text style={styles.switchHint}>
+                      <Text style={[styles.switchTitle, textStart]}>منشور في المتجر</Text>
+                      <Text style={[styles.switchHint, textStart]}>
                         عند الإيقاف يختفي المنتج من التطبيق والموقع فوراً.
                       </Text>
                     </View>
@@ -571,7 +573,7 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
                 disabled={saving}
                 style={styles.cancelBtn}
               >
-                <Text style={styles.cancelText}>إلغاء</Text>
+                <Text style={[styles.cancelText, textStart]}>إلغاء</Text>
               </Pressable>
               <Pressable
                 onPress={handleSave}
@@ -588,7 +590,7 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
                 ) : (
                   <>
                     <Icon name="save-outline" size={18} color={Colors.onPrimary} />
-                    <Text style={styles.saveText}>حفظ التعديلات</Text>
+                    <Text style={[styles.saveText, textStart]}>حفظ التعديلات</Text>
                   </>
                 )}
               </Pressable>
