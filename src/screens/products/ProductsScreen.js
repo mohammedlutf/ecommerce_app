@@ -152,7 +152,6 @@ function useAutoRevealRow(activeIndex, rowKey, count) {
   const retryRef = useRef(null);
   const hasInitializedRef = useRef(false);
   activeIndexRef.current = activeIndex;
-  console.log(activeIndex);
   const reveal = useCallback(
     (index) => {
       const scrollNode = scrollRef.current;
