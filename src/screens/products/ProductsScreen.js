@@ -165,7 +165,7 @@ function useAutoRevealRow(activeIndex, rowKey, count) {
       let target;
       let canInitialize = false;
 
-      // if (isRTL) {
+      if (isRTL) {
         if (!hasInitializedRef.current && activeIndex === 0) {
           // Snap to far right on initial load
           target = Math.max(0, contentWidth - viewportWidth);
@@ -177,14 +177,14 @@ function useAutoRevealRow(activeIndex, rowKey, count) {
           target = Math.max(0, Math.min(contentWidth - viewportWidth, target));
           canInitialize = true;
         }
-      // } else {
-      //   if (!metric) return null;
-      //   target = Math.max(
-      //     0,
-      //     Math.min(contentWidth - viewportWidth, metric.x + metric.size / 2 - viewportWidth / 2)
-      //   );
-      //   canInitialize = true;
-      // }
+      } else {
+        if (!metric) return null;
+        target = Math.max(
+          0,
+          Math.min(contentWidth - viewportWidth, metric.x + metric.size / 2 - viewportWidth / 2)
+        );
+        canInitialize = true;
+      }
 
       const last = lastRevealRef.current;
       const isFirstMount = !hasInitializedRef.current;
