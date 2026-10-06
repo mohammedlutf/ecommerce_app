@@ -43,7 +43,7 @@ export const OrdersAPI = {
    */
   getOrders({ start = 0, pageSize = ORDERS_PAGE_SIZE } = {}) {
     return frappeCall(
-      'ecommerce.api.orders',
+      'webshop.my_api.api.orders',
       { start: Math.max(0, parseInt(start, 10) || 0), page_length: parseInt(pageSize, 10) || ORDERS_PAGE_SIZE },
       'GET'
     ).then(normalizeOrdersResponse);
@@ -53,14 +53,14 @@ export const OrdersAPI = {
    * Cancel open sales order
    */
   cancelOrder(orderName) {
-    return frappeCall('ecommerce.api.cancel_order', { order_name: orderName }, 'POST');
+    return frappeCall('webshop.my_api.api.cancel_order', { order_name: orderName }, 'POST');
   },
 
   /**
    * Reorder items from past sales order into cart
    */
   reorderOrder(orderName) {
-    return frappeCall('ecommerce.api.reorder_order', { order_name: orderName }, 'POST');
+    return frappeCall('webshop.my_api.api.reorder_order', { order_name: orderName }, 'POST');
   },
 };
 

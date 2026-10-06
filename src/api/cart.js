@@ -5,7 +5,7 @@ export const CartAPI = {
    * Get current cart data
    */
   getCart() {
-    return frappeCall('ecommerce.api.cart', {}, 'GET');
+    return frappeCall('webshop.my_api.api.cart', {}, 'GET');
   },
 
   /**
@@ -17,7 +17,7 @@ export const CartAPI = {
       qty: parseFloat(qty) || 1,
     };
     if (uom) args.uom = uom;
-    return frappeCall('ecommerce.api.cart', args, 'POST');
+    return frappeCall('webshop.my_api.api.cart', args, 'POST');
   },
 
   /**
@@ -30,7 +30,7 @@ export const CartAPI = {
     };
     if (uom) args.uom = uom;
     if (previousUom) args.previous_uom = previousUom;
-    return frappeCall('ecommerce.api.update_cart_line', args, 'POST');
+    return frappeCall('webshop.my_api.api.update_cart_line', args, 'POST');
   },
 
   /**
@@ -40,7 +40,7 @@ export const CartAPI = {
   removeFromCart(itemCode, uom = null) {
     const args = { item_code: itemCode };
     if (uom) args.uom = uom;
-    return frappeCall('ecommerce.api.remove_from_cart', args, 'POST');
+    return frappeCall('webshop.my_api.api.remove_from_cart', args, 'POST');
   },
 
   /**
@@ -56,7 +56,7 @@ export const CartAPI = {
    */
   getDeliveryEstimate(addressName) {
     const args = addressName ? { address: addressName } : {};
-    return frappeCall('ecommerce.api.delivery_estimate', args, 'GET');
+    return frappeCall('webshop.my_api.api.delivery_estimate', args, 'GET');
   },
 
   /**
@@ -75,7 +75,7 @@ export const CartAPI = {
       delivery_charges: deliveryCharges === undefined || deliveryCharges === null ? 0 : deliveryCharges,
       shipping_account: shippingAccount || '',
     };
-    return frappeCall('ecommerce.api.submit_order', args, 'POST');
+    return frappeCall('webshop.my_api.api.submit_order', args, 'POST');
   },
 };
 

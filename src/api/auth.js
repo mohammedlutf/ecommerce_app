@@ -93,7 +93,7 @@ function buildProfile(value, doc) {
 }
 
 /**
- * Normalise whatever `ecommerce.api.get_current_user` answers with.
+ * Normalise whatever `webshop.my_api.api.get_current_user` answers with.
  *
  * The endpoint replies with the full Frappe `User` document for an active
  * session, but three other shapes are still in the wild:
@@ -181,7 +181,7 @@ export const AuthAPI = {
    * the country and make two different countries collide on one account.
    */
   async register(combinedNumber, fullName, newPassword) {
-    return frappeCall('ecommerce.www.login.register_user_by_phone', {
+    return frappeCall('webshop.my_api.admin_api.register_user_by_phone', {
       phone: digitsOnly(combinedNumber),
       full_name: fullName,
       new_password: newPassword,
@@ -211,7 +211,7 @@ export const AuthAPI = {
   async getSessionProfile() {
     let raw;
     try {
-      raw = await frappeCall('ecommerce.api.get_current_user', {}, 'GET');
+      raw = await frappeCall('webshop.my_api.api.get_current_user', {}, 'GET');
     } catch (err) {
       if (isSignedOutError(err && err.message)) return null;
       throw err;

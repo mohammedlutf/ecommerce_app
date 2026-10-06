@@ -20,7 +20,7 @@ const REAL_GUEST = [
   'user_image=; Path=/; SameSite=Lax',
 ];
 
-// GET /api/method/ecommerce.api.get_current_user with a dead sid.
+// GET /api/method/webshop.my_api.api.get_current_user with a dead sid.
 // The server expires our cookie AND tells us the session is gone.
 const REAL_EXPIRED = [
   'sid=Guest; Expires=Sun, 04 Oct 2026 20:00:10 GMT; Max-Age=612000; HttpOnly; Path=/; SameSite=Lax',

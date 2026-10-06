@@ -153,7 +153,7 @@ const plan = (list) => {
   console.log('\nregister payload:');
   plan([]);
   await auth.register('201012345678', 'Ahmed', 'secret');
-  eq('method is register_user_by_phone', attempts[0].method, 'ecommerce.www.login.register_user_by_phone');
+  eq('method is register_user_by_phone', attempts[0].method, 'webshop.my_api.admin_api.register_user_by_phone');
   eq('sends combined number, not truncated', attempts[0].args.phone, '201012345678');
   eq('sends name and password', [attempts[0].args.full_name, attempts[0].args.new_password], ['Ahmed', 'secret']);
   eq('no leftover country_code field', 'country_code' in attempts[0].args, false);

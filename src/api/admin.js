@@ -17,7 +17,7 @@ export const AdminAPI = {
   /** Capability probe. Never throws — the UI uses it to hide admin controls. */
   async isAdmin() {
     try {
-      const res = await frappeCall('ecommerce.admin_api.admin_is_admin', {}, 'GET');
+      const res = await frappeCall('webshop.my_api.admin_api.admin_is_admin', {}, 'GET');
       return !!(res && res.is_admin);
     } catch {
       // An unreachable server must not strand a shopper on a broken screen; the
@@ -28,13 +28,13 @@ export const AdminAPI = {
 
   /** Item groups, UOMs and warehouses, for the create-product form. */
   async getReferenceData() {
-    return frappeCall('ecommerce.admin_api.admin_reference_data', {}, 'GET');
+    return frappeCall('webshop.my_api.admin_api.admin_reference_data', {}, 'GET');
   },
 
   /** Everything the editor needs for one product. */
   async getItemPayload(itemCode) {
     return frappeCall(
-      'ecommerce.admin_api.admin_item_payload',
+      'webshop.my_api.admin_api.admin_item_payload',
       { item_code: itemCode },
       'GET'
     );
@@ -63,7 +63,7 @@ export const AdminAPI = {
       args.image_name = changes.imageName || 'product.jpg';
     }
 
-    return frappeCall('ecommerce.admin_api.admin_update_item', args, 'POST');
+    return frappeCall('webshop.my_api.admin_api.admin_update_item', args, 'POST');
   },
 
   /** Create a product across Item, Item Price and Website Item. */
@@ -86,7 +86,7 @@ export const AdminAPI = {
       args.image_base64 = data.imageBase64;
       args.image_name = data.imageName || 'product.jpg';
     }
-    return frappeCall('ecommerce.admin_api.admin_create_item', args, 'POST');
+    return frappeCall('webshop.my_api.admin_api.admin_create_item', args, 'POST');
   },
 };
 

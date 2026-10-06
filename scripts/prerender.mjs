@@ -223,7 +223,7 @@ function renderPage(template, { locale, title, description, canonicalPath, jsonL
 
 async function loadProducts() {
   try {
-    const data = await frappeGet('ecommerce.api.catalog', { limit: MAX_PRODUCTS });
+    const data = await frappeGet('webshop.my_api.api.catalog', { limit: MAX_PRODUCTS });
     const items = (data && data.items) || [];
     console.log(`  fetched ${items.length} products`);
     return items;
@@ -237,7 +237,7 @@ async function loadProducts() {
 
 async function loadGroups() {
   try {
-    const leaves = await frappeGet('ecommerce.api.get_groups');
+    const leaves = await frappeGet('webshop.my_api.api.get_groups');
     const byParent = new Map();
     for (const leaf of Array.isArray(leaves) ? leaves : []) {
       const parent = (leaf.parent_item_group || '').trim();

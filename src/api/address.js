@@ -44,7 +44,7 @@ export const AddressAPI = {
    * Get list of addresses for current customer
    */
   getAddresses() {
-    return frappeCall('ecommerce.api.addresses', {}, 'GET');
+    return frappeCall('webshop.my_api.api.addresses', {}, 'GET');
   },
 
   /**
@@ -73,7 +73,7 @@ export const AddressAPI = {
       placeName,
       isDefault,
     });
-    return frappeCall('ecommerce.api.add_address', args, 'POST');
+    return frappeCall('webshop.my_api.api.add_address', args, 'POST');
   },
 
   /**
@@ -93,7 +93,7 @@ export const AddressAPI = {
       args,
       buildAddressArgs({ addressTitle, addressLine1, city, phone, coords, placeName, isDefault })
     );
-    return frappeCall('ecommerce.api.update_address', args, 'POST');
+    return frappeCall('webshop.my_api.api.update_address', args, 'POST');
   },
 
   /**
@@ -103,7 +103,7 @@ export const AddressAPI = {
    */
   async deleteAddress(addressName) {
     if (!addressName) throw new Error('معرف العنوان مفقود');
-    return frappeCall('ecommerce.api.delete_address', { address_name: addressName }, 'POST');
+    return frappeCall('webshop.my_api.api.delete_address', { address_name: addressName }, 'POST');
   },
 
   /**
@@ -113,7 +113,7 @@ export const AddressAPI = {
    */
   async setDefaultAddress(addressName) {
     if (!addressName) throw new Error('معرف العنوان مفقود');
-    return frappeCall('ecommerce.api.set_default_address', { address_name: addressName }, 'POST');
+    return frappeCall('webshop.my_api.api.set_default_address', { address_name: addressName }, 'POST');
   },
 
 };

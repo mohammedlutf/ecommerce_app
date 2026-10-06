@@ -27,7 +27,7 @@ export const CatalogAPI = {
     const args = { limit };
     if (offset > 0) args.offset = offset;
     if (itemGroup && itemGroup !== 'all') args.item_group = itemGroup;
-    return frappeCall('ecommerce.api.catalog', args, 'GET');
+    return frappeCall('webshop.my_api.api.catalog', args, 'GET');
   },
 
   /**
@@ -46,7 +46,7 @@ export const CatalogAPI = {
 
     const args = { search: term, limit };
     if (offset > 0) args.offset = offset;
-    return frappeCall('ecommerce.api.catalog', args, 'GET');
+    return frappeCall('webshop.my_api.api.catalog', args, 'GET');
   },
 
   /**
@@ -58,7 +58,7 @@ export const CatalogAPI = {
     const args = {};
     if (itemCode) args.item_code = itemCode;
     if (route) args.route = route;
-    return frappeCall('ecommerce.api.item', args, 'GET');
+    return frappeCall('webshop.my_api.api.item', args, 'GET');
   },
 
   /**
@@ -71,12 +71,12 @@ export const CatalogAPI = {
       review_title: reviewTitle || 'تقييم المنتج',
       comment: comment || '',
     };
-    return frappeCall('ecommerce.api.reviews', args, 'POST');
+    return frappeCall('webshop.my_api.api.reviews', args, 'POST');
   },
 
   /**
    * The storefront's feature switches, from `Webshop Settings` via the
-   * whitelisted `ecommerce.api.webshop_settings`.
+   * whitelisted `webshop.my_api.api.webshop_settings`.
    *
    * Cached because this is site-wide configuration that changes a handful of
    * times a year, while it is read on every product page.
@@ -91,7 +91,7 @@ export const CatalogAPI = {
     if (settingsCache && elapsed < SETTINGS_CACHE_TTL) return settingsCache;
 
     try {
-      const raw = await frappeCall('ecommerce.api.webshop_settings', {}, 'GET');
+      const raw = await frappeCall('webshop.my_api.api.webshop_settings', {}, 'GET');
       settingsCache = {
         enableReviews: !!(raw && raw.enable_reviews),
         enableRecommendations: !!(raw && raw.enable_recommendations),
@@ -105,7 +105,7 @@ export const CatalogAPI = {
   },
 
   /**
-   * Load the two-level Item Group nav from `ecommerce.api.get_group_hierarchy`.
+   * Load the two-level Item Group nav from `webshop.my_api.api.get_group_hierarchy`.
    *
    * The tree is built and ranked SERVER-side. It used to be assembled here from
    * the flat leaf list returned by `get_groups`, but that list holds only
@@ -125,7 +125,7 @@ export const CatalogAPI = {
     if (groupsCache === null && elapsed < GROUPS_FAIL_TTL) return null;
 
     try {
-      const raw = await frappeCall('ecommerce.api.get_group_hierarchy', {}, 'GET');
+      const raw = await frappeCall('webshop.my_api.api.get_group_hierarchy', {}, 'GET');
       if (!Array.isArray(raw) || raw.length === 0) {
         groupsCache = null;
         groupsCacheAt = Date.now();

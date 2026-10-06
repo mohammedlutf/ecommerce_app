@@ -48,7 +48,7 @@ export { hasSessionCookie };
 
 /**
  * Call a Frappe whitelisted method through the SDK.
- * Methods hang off `ecommerce.api.*` / ERPNext standard endpoints.
+ * Methods hang off `webshop.my_api.api.*` / ERPNext standard endpoints.
  */
 export async function frappeCall(method, args = {}, httpMethod = 'POST') {
   const call = getCall();
