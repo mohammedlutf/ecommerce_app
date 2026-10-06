@@ -165,19 +165,18 @@ function useAutoRevealRow(activeIndex, rowKey, count) {
       let target;
       let canInitialize = false;
 
-      if (isRTL) {
-        if (!hasInitializedRef.current && activeIndex === 0) {
-          // Snap to far right on initial load
-          target = Math.max(0, contentWidth - viewportWidth);
-          canInitialize = true;
+        if (isRTL) {
+          if (!hasInitializedRef.current && activeIndex === 0) {
+            // Snap to far right on initial load
+            target = Math.max(0, contentWidth - viewportWidth);
+            canInitialize = true;
+          } else {
+            if (!metric) return null; // Wait until the active item metric is measured
+            target = Math.round(metric.x + metric.size / 2 - viewportWidth / 2);
+            target = Math.max(0, Math.min(contentWidth - viewportWidth, target));
+            canInitialize = true;
+          }
         } else {
-          if (!metric) return null; // Wait until the active item metric is measured
-          const physicalCenter = metric.x + metric.size / 2;
-          target = contentWidth - physicalCenter - viewportWidth / 2;
-          target = Math.max(0, Math.min(contentWidth - viewportWidth, target));
-          canInitialize = true;
-        }
-      } else {
         if (!metric) return null;
         target = Math.max(
           0,
