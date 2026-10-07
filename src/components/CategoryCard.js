@@ -154,8 +154,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   imageWrap: {
-    width: 64,
-    height: 64,
+    width: 86,
+    height: 86,
     borderRadius: Radius.xl,
     alignItems: 'center',
     justifyContent: 'center',

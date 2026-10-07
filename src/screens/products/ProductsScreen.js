@@ -602,9 +602,9 @@ export default function ProductsScreen({ route, navigation }) {
       return;
     }
     // Drop cached pages first so a removed product cannot linger on a later page.
-    setLoadedKeys({});
-    setProductsByKey({});
-    setHasMoreByKey({});
+    // setLoadedKeys({});
+    // setProductsByKey({});
+    // setHasMoreByKey({});
     refreshKey(activeKey);
   }, [savedTick]);
 

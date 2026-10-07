@@ -76,7 +76,7 @@ export function AdminProvider({ children }) {
 
   const closeEditor = useCallback(() => setEditingItem(null), []);
 
-  const handleSaved = useCallback(() => {
+  const handleSaved = useCallback((result) => {
     // A counter rather than a broadcast: list screens already know how to reload,
     // and this keeps each of them from reimplementing a subscription.
     setSavedTick((n) => n + 1);
