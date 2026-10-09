@@ -69,13 +69,7 @@ export default function WelcomeScreen({ navigation }) {
         >
           {/* Animation stage */}
           <View style={styles.artWrap}>
-            <View style={styles.logoBadge}>
-              <Image
-                source={require('../../../assets/login_icon.png')}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-            </View>
+            
             <LottieView
               source={WELCOME_ANIMATION}
               autoPlay

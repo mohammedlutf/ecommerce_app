@@ -35,7 +35,7 @@ export default function WishlistScreen({ navigation }) {
 
   if (!isAuthenticated) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <EmptyState
           icon="lock-closed-outline"
           title="تسجيل الدخول مطلوب"
@@ -48,7 +48,7 @@ export default function WishlistScreen({ navigation }) {
   }
  
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <Text style={[styles.title, textStart]}>قائمة رغباتي ({items.length})</Text>
       </View>
@@ -68,6 +68,7 @@ export default function WishlistScreen({ navigation }) {
           data={items}
           keyExtractor={(item, index) => item.item_code || item.name || String(index)}
           numColumns={2}
+          showsVerticalScrollIndicator={false}
           columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}
           refreshControl={

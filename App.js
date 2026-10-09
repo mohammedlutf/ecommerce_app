@@ -60,7 +60,7 @@ if (Platform.OS !== 'web') {
  */
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-const SPLASH_IMAGE = require('./assets/splash.png');
+const SPLASH_ANIMATION = require('./assets/lottie/splash.json');
 
 /**
  * Rendered only once BOTH the fonts and the session bootstrap are done.
@@ -206,7 +206,7 @@ function AppContent({ fontsReady }) {
         <AnimatedSplash
           visible={ready}
           revealed={splashRevealed}
-          artwork={SPLASH_IMAGE}
+          artwork={SPLASH_ANIMATION}
           onPainted={revealSplash}
           onHidden={handleSplashHidden}
         />

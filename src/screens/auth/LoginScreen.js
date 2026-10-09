@@ -19,6 +19,7 @@ import { useI18n } from '../../i18n/I18nContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Icon from '../../components/Icon';
+import LottieView from 'lottie-react-native';
 import CountryCodeInput from '../../components/CountryCodeInput';
 import { DEFAULT_COUNTRY, minDigitsFor, toCombinedDigits, MAX_DIGITS } from '../../constants/countries';
 import { useAuth } from '../../context/AuthContext';
@@ -217,7 +218,7 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <LinearGradient colors={['#F3FBF6', '#F8FAF9', '#FFFFFF']} style={{ flex: 1 }}>
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
         <KeyboardAvoidingView
           // Android uses `softwareKeyboardLayoutMode: "pan"`, so the window is
           // never resized and no extra offset is needed here. iOS does resize
@@ -254,12 +255,18 @@ export default function LoginScreen({ navigation }) {
                   <Icon name="storefront" size={38} color="#ffffff" />
                 </LinearGradient> */}
 
-                <Image
+                {/* <Image
                           source={require('../../../assets/login_icon.png')}
                           style={styles.brandImage}
                           resizeMode="contain"
-                        />
-              
+                        /> */}
+                 <LottieView
+                              source={require('../../../assets/lottie/login.json')}
+                              autoPlay
+                              loop
+                              style={styles.animation}
+                              renderMode="HARDWARE"
+                            />
               {/* <Text style={[styles.brandTitle, textStart]}>زاد ماركت</Text> */}
              <Text style={[styles.brandTagline, textStart]}>تسوق طازج وتوصيل سريع حتى باب منزلك</Text>
             </View>
@@ -564,6 +571,7 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyRegular,
     marginBottom: 18,
   },
+  
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -643,5 +651,14 @@ const styles = StyleSheet.create({
   brandImage: {
     width: 130,
     height: 130,
+  },
+  animation: {
+    
+    width: 200,
+    height: 200,
+    aspectRatio: 1,
+    maxWidth: 340,
+    alignSelf: 'center',
+    marginTop: -18,
   },
 });

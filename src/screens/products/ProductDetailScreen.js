@@ -317,7 +317,7 @@ export default function ProductDetailScreen({ route, navigation }) {
 
   if (loading || !product) {
     return (
-      <SafeAreaView style={styles.centerContainer}>
+      <SafeAreaView style={styles.centerContainer} edges={['left', 'right']}>
         <ActivityIndicator size="large" color={Colors.primary} />
         <Text style={[styles.loadingText, textStart]}>جاري تحميل تفاصيل المنتج...</Text>
       </SafeAreaView>
@@ -428,8 +428,8 @@ export default function ProductDetailScreen({ route, navigation }) {
   }
   
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Image */}
         <View style={styles.imageWrapper}>
           {imageUrl ? (

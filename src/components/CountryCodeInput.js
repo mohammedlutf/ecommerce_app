@@ -156,6 +156,7 @@ export default function CountryCodeInput({
           <FlatList
             data={results}
             keyExtractor={(item) => item.code}
+            showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="always"
             keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'none'}
             contentContainerStyle={[

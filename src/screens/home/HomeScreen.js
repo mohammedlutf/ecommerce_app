@@ -219,7 +219,7 @@ function handleSelectCategory(catName) {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       {/*
         In-screen mobile header.
 
@@ -253,6 +253,7 @@ function handleSelectCategory(catName) {
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

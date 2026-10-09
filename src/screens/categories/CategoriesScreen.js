@@ -156,7 +156,7 @@ export default function CategoriesScreen({ navigation }) {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
         <View style={styles.skeletonList}>
           {[1, 2, 3].map((i) => (
             <View key={i} style={styles.skeletonCard}>
@@ -175,7 +175,7 @@ export default function CategoriesScreen({ navigation }) {
 
   if (!hierarchy || hierarchy.length === 0) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
         <EmptyState
           icon="pricetags-outline"
           title="تعذر تحميل التصنيفات"
@@ -188,7 +188,7 @@ export default function CategoriesScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
       <ScrollView
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}

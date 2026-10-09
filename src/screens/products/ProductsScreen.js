@@ -335,6 +335,7 @@ function SearchResults({ state, onOpen, onLoadMore, refreshing, onRefresh, onCle
       columnWrapperStyle={columns > 1 ? rowStyle : undefined}
       contentContainerStyle={styles.listContent}
       keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
       initialNumToRender={8}
       maxToRenderPerBatch={10}
       updateCellsBatchingPeriod={60}
@@ -1088,7 +1089,7 @@ export default function ProductsScreen({ route, navigation }) {
   });
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       {/*
         Search bar.
 
@@ -1250,6 +1251,7 @@ export default function ProductsScreen({ route, navigation }) {
                             numColumns={gridColumns}
                             columnWrapperStyle={gridColumns > 1 ? gridRowStyle : undefined}
                             contentContainerStyle={styles.listContent}
+                            showsVerticalScrollIndicator={false}
                             initialNumToRender={6}
                             maxToRenderPerBatch={10}
                             updateCellsBatchingPeriod={60}

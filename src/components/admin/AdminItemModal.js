@@ -373,6 +373,7 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
           <ScrollView
             style={styles.flex}
             contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
             {loading ? (

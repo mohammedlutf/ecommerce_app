@@ -24,7 +24,7 @@ export default function OrderConfirmationScreen({ route, navigation }) {
   const hasTotals = grandTotal > 0;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       {/*
        * A ScrollView rather than a centred flex column.
        *

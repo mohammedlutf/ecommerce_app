@@ -51,6 +51,16 @@ const CSS = `
 *::-webkit-scrollbar-thumb { background: #C3CDD6; border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
 *::-webkit-scrollbar-thumb:hover { background: #9AA6B2; background-clip: content-box; }
 
+/* Touch devices draw the vertical scrollbar on the inline-start edge (the left
+   in an RTL app) and it bleeds over content on phones. Native ScrollViews turn
+   their indicator off via showsVerticalScrollIndicator, so the web build
+   follows suit here. Desktop keeps the slim scrollbars above: a mouse user
+   needs the affordance a thumb-sized scrollbar provides. */
+@media (hover: none) and (pointer: coarse) {
+  * { scrollbar-width: none; -ms-overflow-style: none; }
+  *::-webkit-scrollbar { display: none; width: 0; height: 0; }
+}
+
 /* Leaflet renders real DOM nodes inside our View tree; without this they pick
    up the RNW text reset and the attribution becomes unreadable. */
 .leaflet-container { font: inherit; background: #ECF1EE; }

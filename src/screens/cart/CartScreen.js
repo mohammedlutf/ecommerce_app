@@ -236,7 +236,7 @@ export default function CartScreen({ navigation }) {
 
   if (loading && items.length === 0) {
     return (
-      <SafeAreaView style={styles.centerContainer}>
+      <SafeAreaView style={styles.centerContainer} edges={['top', 'left', 'right']}>
         <ActivityIndicator size="large" color={Colors.primary} />
         <Text style={[styles.loadingText, textStart]}>جاري تحميل السلة...</Text>
       </SafeAreaView>
@@ -245,7 +245,7 @@ export default function CartScreen({ navigation }) {
 
   if (items.length === 0) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <EmptyState
           icon="basket-outline"
           title="سلة التسوق فارغة"
@@ -475,8 +475,8 @@ export default function CartScreen({ navigation }) {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.pageInner}>
           {isDesktop ? (
             /*

@@ -238,6 +238,7 @@ export default function AdminNewItemScreen({ navigation }) {
         <ScrollView
           style={styles.flex}
           contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.section}>

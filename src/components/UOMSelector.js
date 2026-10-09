@@ -1,11 +1,22 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 
 /**
  * UOMSelector — responsive single-row pill switcher for product pack sizes.
  * Falls back to displaying stockUom if uoms list is empty or has a single item.
+ *
+ * ## Why a horizontal ScrollView
+ *
+ * Every pill previously shared the row with `flex: 1`, so on a narrow phone
+ * card a product with several pack sizes squeezed each pill down until its
+ * label truncated to a single character ("ح", "ك", ...). Pills are now
+ * content-sized with a `MIN_PILL_WIDTH` that always fits at least four
+ * letters; when the pills outgrow the card they scroll sideways instead of
+ * being crushed. `flexGrow: 1` keeps a short list stretching to fill the row.
  */
+const MIN_PILL_WIDTH = 52;
+
 export default function UOMSelector({
   uoms = [],
   stockUom,
@@ -33,7 +44,7 @@ export default function UOMSelector({
   if (displayList.length <= 1) {
     const singleName = typeof displayList[0] === 'string' ? displayList[0] : displayList[0]?.uom;
     if (!singleName) return null;
-    
+
     return (
       <View style={styles.container}>
         <View style={[styles.pill, styles.pillActive]}>
@@ -46,7 +57,11 @@ export default function UOMSelector({
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.container}
+    >
       {displayList.map((unit) => {
         const uomName = typeof unit === 'string' ? unit : unit.uom;
         const isSelected = uomName === selectedUom;
@@ -74,13 +89,14 @@ export default function UOMSelector({
           </TouchableOpacity>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
+    flexGrow: 1,
     backgroundColor: '#EDF3ED',
     padding: 4,
     borderRadius: 8,
@@ -88,8 +104,11 @@ const styles = StyleSheet.create({
     marginVertical: 6,
   },
   pill: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 0,
+    minWidth: MIN_PILL_WIDTH,
     paddingVertical: 6,
+    paddingHorizontal: 10,
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
