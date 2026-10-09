@@ -1,9 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, StyleSheet, View, ActivityIndicator } from 'react-native';
+import { Animated, Easing, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors } from '../theme/colors';
-import { Radius, Spacing } from '../theme/spacing';
 
 /**
  * AnimatedSplash — the full-bleed launch screen.
@@ -27,36 +24,48 @@ import { Radius, Spacing } from '../theme/spacing';
  *   - exit: fade with a small push forward, so the app appears to come out of
  *     the splash rather than being cross-faded with it.
  *
- * The minimum-visible floor matters more than it looks. The splash is held until
- * the fonts and the stored session are both ready, and on a warm start that can
- * be a few dozen milliseconds — enough for the entrance to be cut off mid-zoom,
- * which reads as a stutter rather than as an animation.
+ * Timing is anchored to the *reveal*, not to this component's mount: the OS
+ * splash is what the user sees until App.js drops it, so a floor measured from
+ * mount would be spent looking at the OS's square icon rather than at the
+ * artwork. Two gates therefore decide when the exit starts — `revealed` (the
+ * artwork owns the screen) and `visible` (fonts, session and onboarding are all
+ * resolved) — and neither may fire the exit on its own.
  */
 
 const MIN_VISIBLE_MS = 700;
 const ENTER_MS = 620;
 const EXIT_MS = 420;
+// Grace after `ready` before the fade begins. `ready` only means the state has
+// flipped; the navigator still needs a few frames to lay out and paint behind
+// the opaque artwork, otherwise the fade reveals a half-composed screen.
+const SETTLE_MS = 300;
 const SHEEN_WIDTH = 260;
 const AMBIENT_MS = 2600;
 
 /**
  * The artwork's own top and bottom rows, sampled from the file: `#FFFFFF` along
  * the top edge and `#E7F6EC` along the bottom, with the left and right edges
- * identical at every height. That last part is what makes an exact fit possible.
+ * identical at every height.
  *
- * The image is drawn with `contain`, so the whole artwork is always visible and
- * is never cropped — on a screen taller than the artwork's 1284x2778 there is a
- * band left over, and this gradient is what fills it. Because the two colours are
- * a pixel-match of the artwork's own vertical fade, the band is indistinguishable
- * from the image: there is no visible line where the picture stops.
+ * The image is drawn with `cover`, so it fills the screen edge to edge exactly
+ * as designed — no letterbox bands, no background colour showing around it.
+ * Cropping is invisible by construction: the artwork's side edges are identical
+ * at every height, so on a screen wider than the artwork only the matching
+ * left/right edges are trimmed. The gradient below is what shows through that
+ * first moment: the reveal is triggered by the bitmap's paint, so a frame where
+ * the image has not landed yet still shows these exact edge colours rather than
+ * the OS splash's flat white or the app underneath.
  *
  * Re-sample these if the artwork is ever replaced.
  */
 const ART_TOP = '#FFFFFF';
 const ART_BOTTOM = '#E7F6EC';
 
-export default function AnimatedSplash({ visible, artwork, onHidden }) {
+export default function AnimatedSplash({ visible, revealed, artwork, onPainted, onHidden }) {
   const [mounted, setMounted] = useState(true);
+  // Flips once the artwork has been decoded *and* committed to a frame, which
+  // is the earliest moment it is safe to drop the native splash.
+  const [painted, setPainted] = useState(false);
 
   // Entrance
   const fade = useRef(new Animated.Value(0)).current;
@@ -71,7 +80,10 @@ export default function AnimatedSplash({ visible, artwork, onHidden }) {
   const exitFade = useRef(new Animated.Value(1)).current;
   const exitScale = useRef(new Animated.Value(1)).current;
 
-  const mountedAt = useRef(Date.now());
+  // When the artwork took over from the native splash, and when the app became
+  // ready — the exit waits out both clocks.
+  const revealedAt = useRef(null);
+  const readyAt = useRef(null);
   const exitTimer = useRef(null);
   const loops = useRef([]);
 
@@ -143,12 +155,36 @@ export default function AnimatedSplash({ visible, artwork, onHidden }) {
     };
   }, [fade, artScale, glowOpacity, glowScale, sheenX]);
 
-  // Exit, gated on the minimum-visible floor.
+  // Hand the "you may go now" signal to App.js the moment the artwork is
+  // actually on screen. Two frames after `onLoad` the bitmap has been through a
+  // commit, so the reveal cannot land on a frame where only the backdrop below
+  // it has been drawn.
   useEffect(() => {
-    if (!visible) return undefined;
+    if (!painted || !onPainted) return;
+    onPainted();
+  }, [painted, onPainted]);
 
-    const elapsed = Date.now() - mountedAt.current;
-    const wait = Math.max(0, MIN_VISIBLE_MS - elapsed);
+  // Exit, gated on the artwork owning the screen and on the app being ready.
+  // Both stamps are taken in effects declared ahead of the exit effect, so when
+  // the two flip in the same commit they are already recorded by the time the
+  // exit effect reads them.
+  useEffect(() => {
+    if (revealed && revealedAt.current == null) revealedAt.current = Date.now();
+  }, [revealed]);
+
+  useEffect(() => {
+    if (visible && readyAt.current == null) readyAt.current = Date.now();
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible || !revealed) return undefined;
+
+    const now = Date.now();
+    const sinceReveal = revealedAt.current != null ? now - revealedAt.current : 0;
+    const sinceReady = readyAt.current != null ? now - readyAt.current : 0;
+    // Hold the artwork for the floor after the reveal, and never start the fade
+    // until the freshly mounted navigator has had a moment to paint behind it.
+    const wait = Math.max(MIN_VISIBLE_MS - sinceReveal, SETTLE_MS - sinceReady, 0);
 
     exitTimer.current = setTimeout(() => {
       stopLoops();
@@ -175,7 +211,7 @@ export default function AnimatedSplash({ visible, artwork, onHidden }) {
     return () => {
       if (exitTimer.current) clearTimeout(exitTimer.current);
     };
-  }, [visible, exitFade, exitScale, onHidden]);
+  }, [visible, revealed, exitFade, exitScale, onHidden]);
 
   if (!mounted) return null;
 
@@ -189,8 +225,10 @@ export default function AnimatedSplash({ visible, artwork, onHidden }) {
 
   return (
     <Animated.View pointerEvents="auto" style={[StyleSheet.absoluteFill, { opacity: exitFade }]}>
-      {/* Backdrop first, unscaled, so it always reaches the screen edges however
-          the artwork is letterboxed inside it. */}
+      {/* Backdrop first, unscaled and opaque, in the artwork's own edge colours:
+          a reveal that lands a frame before the bitmap is drawn still shows a
+          white-to-mint field identical to the artwork's border rather than the
+          app (or the OS splash's flat white) underneath. */}
       <LinearGradient
         colors={[ART_TOP, ART_BOTTOM]}
         style={StyleSheet.absoluteFill}
@@ -206,15 +244,25 @@ export default function AnimatedSplash({ visible, artwork, onHidden }) {
           },
         ]}
       >
-        {/* `contain`, not `cover`: `cover` would crop the artwork to fill, which
-            is the opposite of showing it exactly as designed. */}
+        {/* `cover`, not `contain`: `contain` letterboxes the artwork against a
+            backdrop colour, and the edges of that band are exactly what reads
+            as "a background colour around the splash". `cover` fills the frame
+            edge to edge (crop is invisible, see the artwork notes above). */}
         <Animated.Image
           source={artwork}
           style={StyleSheet.absoluteFill}
-          resizeMode="contain"
-          // Kept slightly under 1 until the entrance lifts it, so the art never
-          // flashes at full opacity against the white window behind it.
+          resizeMode="cover"
+          // Kept under 1 until the entrance lifts it, so the art never flashes at
+          // full opacity against the white window behind it.
           opacity={fade}
+          // Two frames after the decode: this is what tells App.js it may drop
+          // the native splash. A failed or missing `onLoad` is not fatal —
+          // App.js falls back to revealing once the app is ready.
+          onLoad={() => {
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => setPainted(true))
+            );
+          }}
         />
       </Animated.View>
 
@@ -244,14 +292,6 @@ export default function AnimatedSplash({ visible, artwork, onHidden }) {
           end={{ x: 1, y: 0.5 }}
         />
       </Animated.View>
-
-      {/* The splash is held open while fonts and the stored session resolve, so
-          this says so: a spinner with no explanation reads as a hung app. */}
-      <SafeAreaView pointerEvents="none" style={styles.footer}>
-        <View style={styles.busy}>
-          <ActivityIndicator size="small" color={Colors.onPrimary} />
-        </View>
-      </SafeAreaView>
     </Animated.View>
   );
 }
@@ -274,17 +314,5 @@ const styles = StyleSheet.create({
   sheen: {
     width: SHEEN_WIDTH,
     flex: 1,
-  },
-  footer: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    paddingBottom: Spacing.xxxl,
-  },
-  busy: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.full,
-    backgroundColor: 'rgba(11, 18, 32, 0.35)',
   },
 });

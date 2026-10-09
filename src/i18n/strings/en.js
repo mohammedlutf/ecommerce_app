@@ -3,8 +3,34 @@
  */
 export default {
   app: {
-    name: 'Hadhramaut Supermarket',
+    name: 'Zad Market',
     tagline: 'Everything you need, every day, in one place',
+  },
+
+  onboarding: {
+    welcomeTitle: 'Welcome to Zad Market',
+    welcomeSubtitle: 'Fresh daily essentials delivered to your door, fast and fresh.',
+    benefit1: 'Fresh products every day',
+    benefit2: 'Fast delivery to your door',
+    benefit3: 'Exclusive offers and deals',
+    getStarted: 'Get Started',
+    skip: 'Skip for now',
+    registerTitle: 'Create your account',
+    registerSubtitle: 'Just one step until you are ready to shop',
+    nameLabel: 'Full name',
+    namePlaceholder: 'Enter your full name',
+    phoneLabel: 'Phone number',
+    phonePlaceholder: '771234567',
+    passwordLabel: 'Password',
+    passwordPlaceholder: 'Password (at least 6 characters)',
+    createAccount: 'Create account',
+    creatingAccount: 'Creating your account...',
+    back: 'Back',
+    loginSuccess: 'Your account was created and you are signed in. Welcome!',
+    errNameRequired: 'Please enter your full name',
+    errPhoneInvalid: 'Please enter a valid phone number',
+    errPasswordShort: 'Password must be at least 6 characters',
+    errRegisterFailed: 'Something went wrong while creating your account',
   },
 
   common: {

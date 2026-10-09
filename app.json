@@ -39,7 +39,7 @@
       "runtimeVersion": "1.0.0",
       "config": {
         "googleMaps": {
-          "apiKey": "REPLACE_WITH_YOUR_GOOGLE_MAPS_API_KEY"
+          "apiKey": "AIzaSyDBcAeAB-f9kfecvzFKZQgzENHsNuC27yo"
         }
       },
       "permissions": [
@@ -50,7 +50,7 @@
       ]
     },
     "extra": {
-      "apiUrl": "http://192.168.1.33:8000",
+      "apiUrl": "http://84.247.175.69/",
       "eas": {
         "projectId": "1ea621da-1e71-4e8a-90e4-cd60b706ffcf"
       }

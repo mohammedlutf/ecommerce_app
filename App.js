@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -17,6 +17,7 @@ import { CartProvider } from './src/context/CartContext';
 import { AdminProvider } from './src/context/AdminContext';
 import { WishlistProvider } from './src/context/WishlistContext';
 import { ToastProvider } from './src/context/ToastContext';
+import { OnboardingProvider, useOnboarding } from './src/context/OnboardingContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import AnimatedSplash from './src/components/AnimatedSplash';
@@ -72,12 +73,13 @@ const SPLASH_IMAGE = require('./assets/splash.png');
  */
 function AppContent({ fontsReady }) {
   const { loading: authLoading } = useAuth();
-  const ready = fontsReady && !authLoading;
+  const { done: onboardingDone, loading: onboardingLoading } = useOnboarding();
+  const ready = fontsReady && !authLoading && !onboardingLoading;
 
   /*
-   * The overlay only exists to be revealed by `SplashScreen.hideAsync()` once
-   * the native splash is dismissed — on Android 12+ the OS crops the artwork
-   * down to an icon, so the full-bleed image has to be painted by us.
+   * The overlay only exists to be revealed by `SplashScreen.hideAsync()` — on
+   * Android 12+ the OS crops the artwork down to a centred square on a flat
+   * colour, so the full-bleed image has to be painted by us.
    *
    * Web has no native splash to cover and `hideAsync()` is a no-op there, so the
    * overlay buys nothing and only carries risk: it is `absoluteFill` at full
@@ -89,6 +91,22 @@ function AppContent({ fontsReady }) {
   const isWeb = Platform.OS === 'web';
 
   const [splashMounted, setSplashMounted] = useState(!isWeb);
+
+  // True once the JS splash owns the screen (the OS splash has been dropped).
+  const [splashRevealed, setSplashRevealed] = useState(false);
+  const revealedRef = useRef(false);
+
+  const revealSplash = useCallback(() => {
+    if (revealedRef.current) return;
+    revealedRef.current = true;
+    setSplashRevealed(true);
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
+
+  // Stable identity: `AnimatedSplash`'s exit effect holds a timer whose deps
+  // include this callback, so an inline function would reschedule that timer on
+  // every render of this component.
+  const handleSplashHidden = useCallback(() => setSplashMounted(false), []);
 
   useEffect(() => {
     if (isWeb) {
@@ -141,28 +159,56 @@ function AppContent({ fontsReady }) {
     };
   }, []);
 
+  /*
+   * Reveal as soon as the artwork has painted, not when `ready` flips.
+   *
+   * Android 12+ cannot draw a full-bleed splash: the OS shows a centred square
+   * crop of the artwork on a flat white field for as long as we hold its splash
+   * open. Holding that until fonts, session and onboarding have all resolved is
+   * what put the square (the "background colour around a not-full image") on
+   * screen for the whole launch. Dropping it at paint leaves the OS splash
+   * bridging only JS boot, and the full-bleed artwork carries the rest.
+   *
+   * Revealing a frame early is still seamless: `AnimatedSplash` paints an opaque
+   * backdrop in the artwork's own edge colours underneath the bitmap.
+   */
   useEffect(() => {
-    if (!ready || isWeb) return undefined;
-
-    // The artwork is already mounted underneath the native splash, so dropping
-    // the native splash reveals a fully painted, fully running animation rather
-    // than a blank frame. `AnimatedSplash` owns the entrance and the exit; this
-    // only has to hand over the "you may go now" signal.
-    SplashScreen.hideAsync().catch(() => {});
-
-    return undefined;
-  }, [ready, isWeb]);
+    if (isWeb || !ready) return;
+    // Fallback: the artwork never signalled paint (failed or very slow decode).
+    // Reveal anyway — the OS splash must not outlive the app.
+    revealSplash();
+  }, [ready, isWeb, revealSplash]);
 
   return (
     <View style={styles.root}>
       <StatusBar style="dark" backgroundColor={Colors.background} />
-      <RootNavigator />
+
+      {/*
+       * The navigator is mounted once the onboarding state has resolved (and only
+       * then). On a returning install the first-frame state is
+       * `onboardingDone = false`, and mounting the navigator at that moment
+       * paints the welcome screen underneath the still-fading splash — the
+       * sub-second flash of onboarding before the app appears. Waiting for the
+       * storage read means the very first mount already renders the *correct*
+       * root (shell or onboarding), and doing it a step before `ready` — while
+       * the fonts and session finish loading under the opaque splash — means the
+       * shell is fully painted by the time the fade reveals it. Web always mounts
+       * immediately: it has no splash to cover the wait, and a blank page there
+       * was the exact bug this file already fixed.
+       */}
+      {!onboardingLoading || isWeb ? (
+        <RootNavigator onboardingDone={onboardingDone} />
+      ) : (
+        <View style={styles.launchBackdrop} />
+      )}
 
       {splashMounted ? (
         <AnimatedSplash
           visible={ready}
+          revealed={splashRevealed}
           artwork={SPLASH_IMAGE}
-          onHidden={() => setSplashMounted(false)}
+          onPainted={revealSplash}
+          onHidden={handleSplashHidden}
         />
       ) : null}
     </View>
@@ -191,7 +237,9 @@ export default function App() {
                   {/* Inside AuthProvider: the admin flag is keyed on the signed-in
                       user and must reset on sign-in/sign-out. */}
                   <AdminProvider>
-                    <AppContent fontsReady={fontsLoaded} />
+                    <OnboardingProvider>
+                      <AppContent fontsReady={fontsLoaded} />
+                    </OnboardingProvider>
                   </AdminProvider>
                 </WishlistProvider>
               </CartProvider>
@@ -207,5 +255,14 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  /**
+   * Exactly the splash artwork's top-row colour, so during the entrance fade —
+   * before `ready` mounts the navigator — the empty frame behind the animation
+   * is indistinguishable from the artwork's own edge instead of showing app UI.
+   */
+  launchBackdrop: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
   },
 });

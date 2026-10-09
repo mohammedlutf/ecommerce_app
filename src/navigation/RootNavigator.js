@@ -1,11 +1,13 @@
 import React, { useMemo } from 'react';
+import { Platform } from 'react-native';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import AppShell from './AppShell';
+import OnboardingStack from './stacks/OnboardingStack';
 import { navigationRef } from './navigationRef';
 import { linking } from '../seo/linking';
 import { Colors } from '../theme/colors';
 
-export default function RootNavigator() {
+export default function RootNavigator({ onboardingDone }) {
   /**
    * Navigation theme.
    *
@@ -42,9 +44,15 @@ export default function RootNavigator() {
      * with, and supplying it unconditionally means the same navigator object is
      * used in the browser and in a deep link on a device — one route table, not
      * two that can disagree.
+     *
+     * On the first native launch the onboarding stack replaces the app shell
+     * until the shopper registers (or skips). The web build always renders the
+     * shell: `OnboardingProvider` reports `done` unconditionally there, and the
+     * extra web guard below keeps the store reachable even if that contract
+     * were ever broken.
      */
     <NavigationContainer ref={navigationRef} theme={navTheme} linking={linking}>
-      <AppShell />
+      {Platform.OS !== 'web' && !onboardingDone ? <OnboardingStack /> : <AppShell />}
     </NavigationContainer>
   );
 }

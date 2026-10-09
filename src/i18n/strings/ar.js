@@ -7,8 +7,34 @@
  */
 export default {
   app: {
-    name: 'سوبرماركت حضرموت',
+    name: 'زاد ماركت',
     tagline: 'كل احتياجاتك اليومية.. في مكان واحد',
+  },
+
+  onboarding: {
+    welcomeTitle: 'أهلاً بك في زاد ماركت',
+    welcomeSubtitle: 'كل احتياجاتك الطازجة تصلك حتى باب منزلك، بأسرع وقت وبأفضل جودة.',
+    benefit1: 'منتجات طازجة يومياً',
+    benefit2: 'توصيل سريع حتى بابك',
+    benefit3: 'عروض وخصومات حصرية',
+    getStarted: 'ابدأ الآن',
+    skip: 'تخطي الآن',
+    registerTitle: 'أنشئ حسابك',
+    registerSubtitle: 'خطوة واحدة وتستعد للتسوق',
+    nameLabel: 'الاسم الكامل',
+    namePlaceholder: 'أدخل اسمك الكامل',
+    phoneLabel: 'رقم الجوال',
+    phonePlaceholder: '771234567',
+    passwordLabel: 'كلمة المرور',
+    passwordPlaceholder: 'كلمة المرور (6 أحرف على الأقل)',
+    createAccount: 'إنشاء الحساب',
+    creatingAccount: 'جاري إنشاء الحساب...',
+    back: 'رجوع',
+    loginSuccess: 'تم إنشاء حسابك وتسجيل الدخول بنجاح، أهلاً بك!',
+    errNameRequired: 'يرجى إدخال الاسم الكامل',
+    errPhoneInvalid: 'يرجى إدخال رقم هاتف صحيح',
+    errPasswordShort: 'كلمة المرور يجب أن لا تقل عن 6 أحرف',
+    errRegisterFailed: 'حدث خطأ أثناء إنشاء الحساب',
   },
 
   common: {
