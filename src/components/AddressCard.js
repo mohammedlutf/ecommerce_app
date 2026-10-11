@@ -4,7 +4,7 @@ import useDirectional from '../hooks/useDirectional';
 import Icon from './Icon';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
-import { Radius } from '../theme/spacing';
+import { Radius, Shadows } from '../theme/spacing';
 import { parseCoords, formatCoordsForDisplay } from '../utils/geo';
 
 /**
@@ -46,7 +46,9 @@ export default function AddressCard({
                 {isSelected ? <View style={styles.radioInner} /> : null}
               </View>
             ) : (
-              <Icon name="location" size={18} color={Colors.primary} />
+              <View style={styles.iconCircle}>
+                <Icon name="location" size={16} color={Colors.primary} />
+              </View>
             )}
             <Text style={[styles.title, textStart]} numberOfLines={1}>
               {address.address_title || 'عنوان التوصيل'}
@@ -143,14 +145,16 @@ export default function AddressCard({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surfaceContainerLowest,
-    borderRadius: Radius.lg,
-    padding: 14,
-    marginBottom: 10,
+    borderRadius: Radius.xl,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1.5,
+    ...Shadows.xs,
   },
   cardSelected: {
     borderColor: Colors.primary,
-    backgroundColor: Colors.surfaceContainerLow,
+    backgroundColor: Colors.surfaceContainerLowest,
+    ...Shadows.focus,
   },
   cardUnselected: {
     borderColor: Colors.outlineVariant,
@@ -159,7 +163,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 10,
     gap: 8,
   },
   radioWrapper: {
@@ -168,10 +172,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
+  iconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   radioOuter: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 2,
     borderColor: Colors.outlineVariant,
     alignItems: 'center',
@@ -181,9 +193,9 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   radioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: Colors.primary,
   },
   title: {
@@ -209,8 +221,8 @@ const styles = StyleSheet.create({
   addressLine: {
     fontSize: Typography.sizes.bodyMd,
     color: Colors.onSurfaceVariant,
-    lineHeight: 21,
-    marginBottom: 3,
+    lineHeight: 22,
+    marginBottom: 4,
     fontFamily: Typography.fontFamilyRegular,
   },
   // `address_line2` holds the raw "lat,lng" pin. It is kept small and muted:
@@ -239,16 +251,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: 8,
-    marginTop: 8,
+    marginTop: 10,
   },
   infoPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.surfaceContainerLowest,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: Radius.md,
+    gap: 5,
+    backgroundColor: Colors.surfaceContainerLow,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radius.full,
+    borderWidth: 0.5,
+    borderColor: Colors.outlineVariant,
   },
   infoText: {
     fontSize: Typography.sizes.labelSm,
@@ -265,7 +279,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginTop: 12,
-    paddingTop: 10,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: Colors.borderSubtle,
   },
@@ -274,9 +288,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.primaryContainer,
+    paddingVertical: 7,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primaryLight,
   },
   actionDanger: {
     backgroundColor: Colors.errorContainer,
@@ -290,7 +304,7 @@ const styles = StyleSheet.create({
   actionText: {
     fontSize: Typography.sizes.labelMd,
     fontFamily: Typography.fontFamilySemiBold,
-    color: Colors.onPrimaryContainer,
+    color: Colors.primary,
   },
   actionTextDanger: {
     color: Colors.error,

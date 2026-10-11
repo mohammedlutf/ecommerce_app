@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from './Icon';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
-import { Radius } from '../theme/spacing';
+import { Radius, Shadows } from '../theme/spacing';
 import useDirectional from '../hooks/useDirectional';
 
 export default function EmptyState({
@@ -17,13 +17,19 @@ export default function EmptyState({
   const { textStart } = useDirectional();
   return (
     <View style={styles.container}>
-      <View style={[styles.iconCircle, { backgroundColor: Colors.primaryContainer }]}>
-        <Icon name={icon} size={38} color={iconColor} />
+      <View style={styles.iconOuterRing}>
+        <View style={styles.iconCircle}>
+          <Icon name={icon} size={40} color={iconColor} />
+        </View>
       </View>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.description}>{description}</Text>
       {actionLabel && onAction && (
-        <TouchableOpacity activeOpacity={0.85} onPress={onAction} style={styles.actionBtn}>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={onAction}
+          style={[styles.actionBtn, Shadows.sm]}
+        >
           <Text style={[styles.actionText, textStart]}>{actionLabel}</Text>
         </TouchableOpacity>
       )}
@@ -38,13 +44,25 @@ const styles = StyleSheet.create({
     paddingVertical: 48,
     paddingHorizontal: 24,
   },
-  iconCircle: {
-    width: 84,
-    height: 84,
+  iconOuterRing: {
+    width: 96,
+    height: 96,
     borderRadius: Radius.full,
+    backgroundColor: Colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+  },
+  iconCircle: {
+    width: 76,
+    height: 76,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceContainerLowest,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.xs,
   },
   title: {
     fontSize: Typography.sizes.headlineSm,
@@ -57,16 +75,16 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.bodyMd,
     color: Colors.textMuted,
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 20,
-    maxWidth: 300,
+    lineHeight: 24,
+    marginBottom: 24,
+    maxWidth: 320,
     fontFamily: Typography.fontFamilyRegular,
   },
   actionBtn: {
     backgroundColor: Colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: Radius.lg,
+    paddingHorizontal: 28,
+    paddingVertical: 13,
+    borderRadius: Radius.full,
   },
   actionText: {
     color: '#ffffff',

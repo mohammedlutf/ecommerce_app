@@ -4,7 +4,7 @@ import useDirectional from '../hooks/useDirectional';
 import Icon from './Icon';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
-import { Radius } from '../theme/spacing';
+import { Radius, Shadows } from '../theme/spacing';
 
 export default function TrustBadge({ icon = 'rocket-outline', title, subtitle }) {
   const { textStart, rowFixed } = useDirectional();
@@ -32,17 +32,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surfaceContainerLowest,
-    padding: 13,
-    borderRadius: Radius.lg,
+    padding: 14,
+    borderRadius: Radius.xl,
     borderWidth: 1,
     borderColor: Colors.borderSubtle,
     gap: 12,
+    ...Shadows.xs,
   },
   iconCircle: {
     width: 44,
     height: 44,
     borderRadius: Radius.full,
-    backgroundColor: Colors.primaryContainer,
+    backgroundColor: Colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },

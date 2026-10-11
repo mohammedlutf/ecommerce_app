@@ -55,7 +55,7 @@ export default function WishlistScreen({ navigation }) {
 
       {loading && items.length === 0 ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.primaryContainer} />
+          <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={[styles.loadingText, textStart]}>جاري تحميل قائمة الرغبات...</Text>
         </View>
       ) : (
@@ -75,7 +75,8 @@ export default function WishlistScreen({ navigation }) {
             <RefreshControl
               refreshing={loading}
               onRefresh={fetchWishlist}
-              colors={[Colors.primaryContainer]}
+              colors={[Colors.primary]}
+              tintColor={Colors.primary}
             />
           }
           renderItem={({ item }) => (
@@ -86,7 +87,7 @@ export default function WishlistScreen({ navigation }) {
               />
             </View>
           )}
-ListEmptyComponent={
+          ListEmptyComponent={
             <EmptyState
               icon="heart-outline"
               title="لا توجد منتجات مفضلة"
@@ -95,7 +96,6 @@ ListEmptyComponent={
               onAction={() => openProducts(navigation)}
             />
           }
-
           ListFooterComponent={<PageFooter />}
         />
       )}
@@ -106,7 +106,7 @@ ListEmptyComponent={
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.background,
   },
   header: {
     paddingHorizontal: 16,
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: Typography.sizes.headlineSm,
-    fontWeight: '800',
+    fontFamily: Typography.fontFamilyExtraBold,
     color: Colors.onSurface,
   },
   centerContainer: {
@@ -128,6 +128,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: Typography.sizes.bodyMd,
+    fontFamily: Typography.fontFamilyMedium,
     color: Colors.textMuted,
   },
   listContent: {

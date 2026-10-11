@@ -55,8 +55,10 @@ export default function ProductCard({
   );
   const [wishlistLoading, setWishlistLoading] = useState(false);
   const [cartActionLoading, setCartActionLoading] = useState(false);
+  const [addedToCart, setAddedToCart] = useState(false);
 
   const scale = useRef(new Animated.Value(1)).current;
+  const wishlistScale = useRef(new Animated.Value(1)).current;
 
   const currentRate = rateForUom(product, selectedUom);
   // product.price  || 
@@ -73,8 +75,15 @@ export default function ProductCard({
 
   function animatePress() {
     Animated.sequence([
-      Animated.timing(scale, { toValue: 0.96, duration: 90, useNativeDriver: true }),
-      Animated.spring(scale, { toValue: 1, friction: 4, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 0.97, duration: 100, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1, friction: 5, tension: 300, useNativeDriver: true }),
+    ]).start();
+  }
+
+  function animateWishlist() {
+    Animated.sequence([
+      Animated.timing(wishlistScale, { toValue: 1.3, duration: 120, useNativeDriver: true }),
+      Animated.spring(wishlistScale, { toValue: 1, friction: 4, useNativeDriver: true }),
     ]).start();
   }
 
@@ -85,6 +94,7 @@ export default function ProductCard({
 
   async function handleToggleWishlist() {
     setWishlistLoading(true);
+    animateWishlist();
     try {
       const added = await toggleWishlist(product.item_code);
       impactLight();
@@ -105,6 +115,8 @@ export default function ProductCard({
     try {
       await addToCart(product.item_code, 1, selectedUom, product);
       notifySuccess();
+      setAddedToCart(true);
+      setTimeout(() => setAddedToCart(false), 1200);
       if (showToastOnAdd) toast.success('تمت الإضافة إلى السلة');
     } catch (err) {
       toast.error(err?.message || 'تعذر إضافة المنتج');
@@ -138,131 +150,138 @@ export default function ProductCard({
       setCartActionLoading(false);
     }
   }
-// console.log('Selected UOM changed:', selectedUom, 'Current Rate:', currentRate);
+
   return (
-    <TouchableOpacity
-      activeOpacity={0.92}
-      onPress={() => onPress && onPress(product)}
-      style={[
-        styles.card,
-        horizontal ? styles.cardHorizontal : styles.cardVertical,
-      ]}
-    >
-      {/* Media resizeMode="contain"*/}
-      <View style={[styles.imageContainer, { height: imageHeight }]}>
-        {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={styles.image}  />
-        ) : (
-          <View style={styles.placeholderImage}>
-            <Icon name="bag-handle-outline" size={42} color={Colors.textMuted} />
-          </View>
-        )}
-
-        {discountPercent ? (
-          <View style={[styles.discountBadge, insetStart(10)]}>
-            <Text style={[styles.discountText, textStart]}>{discountPercent}%-</Text>
-          </View>
-        ) : null}
-
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={handleToggleWishlist}
-          disabled={wishlistLoading}
-          style={[styles.wishlistBtn, insetEnd(10), wishlisted && styles.wishlistBtnActive]}
-        >
-          {wishlistLoading ? (
-            <ActivityIndicator size="small" color={Colors.primary} />
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <TouchableOpacity
+        activeOpacity={0.92}
+        onPress={() => onPress && onPress(product)}
+        style={[
+          styles.card,
+          horizontal ? styles.cardHorizontal : styles.cardVertical,
+        ]}
+      >
+        {/* Media */}
+        <View style={[styles.imageContainer, { height: imageHeight }]}>
+          {imageUrl ? (
+            <Image source={{ uri: imageUrl }} style={styles.image} />
           ) : (
-            <Icon
-              name={wishlisted ? 'heart' : 'heart-outline'}
-              size={18}
-              color={wishlisted ? Colors.error : Colors.onSurface}
-            />
+            <View style={styles.placeholderImage}>
+              <Icon name="bag-handle-outline" size={42} color={Colors.textMuted} />
+            </View>
           )}
-        </TouchableOpacity>
 
-        {/* Admin-only. The backend enforces this too; hiding it is a courtesy to
-            shoppers, not the control itself. */}
-        {isAdmin ? (
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={handleOpenEditor}
-            accessibilityRole="button"
-            accessibilityLabel={`تعديل ${product.item_name || product.item_code}`}
-            style={[styles.adminBtn, insetEnd(10)]}
-          >
-            <Icon name="create-outline" size={18} color={Colors.onPrimary} />
-          </TouchableOpacity>
-        ) : null}
-      </View>
+          {discountPercent ? (
+            <View style={[styles.discountBadge, insetStart(8)]}>
+              <Text style={[styles.discountText, textStart]}>{discountPercent}%-</Text>
+            </View>
+          ) : null}
 
-      {/* Content */}
-      <View style={styles.content}>
-        {product.item_group ? (
-          <View style={styles.categoryRow}>
-            <Icon name="pricetag-outline" size={11} color={Colors.textMuted} />
-            <Text style={[styles.categoryText, textStart]} numberOfLines={1}>
-              {product.item_group}
-            </Text>
-          </View>
-        ) : null}
+          <Animated.View style={[{ transform: [{ scale: wishlistScale }] }]}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={handleToggleWishlist}
+              disabled={wishlistLoading}
+              style={[styles.wishlistBtn, insetEnd(8), wishlisted && styles.wishlistBtnActive]}
+            >
+              {wishlistLoading ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <Icon
+                  name={wishlisted ? 'heart' : 'heart-outline'}
+                  size={17}
+                  color={wishlisted ? Colors.error : Colors.onSurfaceVariant}
+                />
+              )}
+            </TouchableOpacity>
+          </Animated.View>
 
-        <Text style={[styles.title, textStart]} numberOfLines={2}>
-          {product.item_name || product.web_item_name || product.item_code}
-        </Text>
+          {/* Admin-only. The backend enforces this too; hiding it is a courtesy to
+              shoppers, not the control itself. */}
+          {isAdmin ? (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={handleOpenEditor}
+              accessibilityRole="button"
+              accessibilityLabel={`تعديل ${product.item_name || product.item_code}`}
+              style={[styles.adminBtn, insetEnd(8)]}
+            >
+              <Icon name="create-outline" size={17} color={Colors.onPrimary} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
 
-        
+        {/* Content */}
+        <View style={styles.content}>
+          {product.item_group ? (
+            <View style={styles.categoryRow}>
+              <Icon name="pricetag-outline" size={10} color={Colors.textMuted} />
+              <Text style={[styles.categoryText, textStart]} numberOfLines={1}>
+                {product.item_group}
+              </Text>
+            </View>
+          ) : null}
+
+          <Text style={[styles.title, textStart]} numberOfLines={2}>
+            {product.item_name || product.web_item_name || product.item_code}
+          </Text>
+
           <UOMSelector
             uoms={availableUoms}
             stockUom={product.stock_uom}
             selectedUom={selectedUom}
             onSelectUom={(uomName, unitObj) => {
-            setSelectedUom(uomName);
-          }}
+              setSelectedUom(uomName);
+            }}
             size="sm"
           />
-        
 
-        {/* Pricing */}
-        <View style={styles.priceRow}>
-          <Text style={[styles.currentPrice, textStart]}>{formatCurrency(currentRate)}</Text>
-          {originalPrice && originalPrice > currentRate ? (
-            <View style={styles.oldPriceWrap}>
-              <Text style={[styles.originalPrice, textStart]}>{formatCurrency(originalPrice)}</Text>
-            </View>
-          ) : null}
-        </View>
+          {/* Pricing */}
+          <View style={styles.priceRow}>
+            <Text style={[styles.currentPrice, textStart]}>{formatCurrency(currentRate)}</Text>
+            {originalPrice && originalPrice > currentRate ? (
+              <View style={styles.oldPriceWrap}>
+                <Text style={[styles.originalPrice, textStart]}>{formatCurrency(originalPrice)}</Text>
+              </View>
+            ) : null}
+          </View>
 
-        {/* Action */}
-        <View style={styles.actionContainer}>
-          {inCartQty > 0 ? (
-            <QuantityStepper
-              quantity={inCartQty}
-              onIncrement={handleIncrement}
-              onDecrement={handleDecrement}
-              loading={cartActionLoading}
-              size="sm"
-            />
-          ) : (
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={handleAddToCart}
-              disabled={cartActionLoading}
-              style={styles.addToCartBtn}
-            >
-              {cartActionLoading ? (
-                <ActivityIndicator size="small" color={Colors.onPrimary} />
-              ) : (
-                <>
-                  <Icon name="add" size={16} color={Colors.onPrimary} />
-                  <Text style={[styles.addToCartText, textStart]}>أضف للسلة</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
+          {/* Action */}
+          <View style={styles.actionContainer}>
+            {inCartQty > 0 ? (
+              <QuantityStepper
+                quantity={inCartQty}
+                onIncrement={handleIncrement}
+                onDecrement={handleDecrement}
+                loading={cartActionLoading}
+                size="sm"
+              />
+            ) : (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={handleAddToCart}
+                disabled={cartActionLoading}
+                style={styles.addToCartBtn}
+              >
+                {cartActionLoading ? (
+                  <ActivityIndicator size="small" color={Colors.onPrimary} />
+                ) : addedToCart ? (
+                  <>
+                    <Icon name="checkmark" size={16} color={Colors.onPrimary} />
+                    <Text style={[styles.addToCartText, textStart]}>تمت الإضافة</Text>
+                  </>
+                ) : (
+                  <>
+                    <Icon name="add" size={16} color={Colors.onPrimary} />
+                    <Text style={[styles.addToCartText, textStart]}>أضف للسلة</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
@@ -270,7 +289,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surfaceContainerLowest,
     borderRadius: Radius.xl,
-    borderWidth: 1,
+    borderWidth: 0.5,
     borderColor: Colors.borderSubtle,
     overflow: 'hidden',
     ...Shadows.sm,
@@ -286,7 +305,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  image: { width: '92%', height: '92%' },
+  image: { width: '90%', height: '90%' },
   placeholderImage: {
     width: '100%',
     height: '100%',
@@ -295,12 +314,12 @@ const styles = StyleSheet.create({
   },
   discountBadge: {
     position: 'absolute',
-    top: 10,
+    top: 8,
     backgroundColor: Colors.secondary,
-    paddingHorizontal: 9,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: Radius.full,
-    ...Shadows.sm,
+    borderRadius: Radius.sm,
+    ...Shadows.xs,
   },
   discountText: {
     color: '#ffffff',
@@ -309,21 +328,24 @@ const styles = StyleSheet.create({
   },
   wishlistBtn: {
     position: 'absolute',
-    top: 10,
+    top: 8,
     width: 34,
     height: 34,
     borderRadius: Radius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    backgroundColor: Colors.glass,
     alignItems: 'center',
     justifyContent: 'center',
-    ...Shadows.sm,
+    borderWidth: 0.5,
+    borderColor: Colors.glassBorder,
+    ...Shadows.xs,
   },
   wishlistBtnActive: {
-    backgroundColor: '#fff0f0',
+    backgroundColor: '#FEF2F2',
+    borderColor: 'rgba(220, 38, 38, 0.15)',
   },
   adminBtn: {
     position: 'absolute',
-    bottom: 10,
+    bottom: 8,
     width: 34,
     height: 34,
     borderRadius: Radius.full,
@@ -337,7 +359,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginBottom: 3,
+    marginBottom: 4,
   },
   categoryText: {
     fontSize: Typography.sizes.labelSm,
@@ -347,7 +369,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: Typography.sizes.titleSm,
     color: Colors.onSurface,
-    lineHeight: 20,
+    lineHeight: Typography.lineHeights.titleSm,
     marginBottom: 6,
     fontFamily: Typography.fontFamilySemiBold,
   },
@@ -375,10 +397,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.primary,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.md,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    gap: 4,
+    gap: 5,
+    ...Shadows.xs,
   },
   addToCartText: {
     color: Colors.onPrimary,

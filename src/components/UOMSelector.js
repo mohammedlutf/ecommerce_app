@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
+import { Typography } from '../theme/typography';
+import { Radius, Shadows } from '../theme/spacing';
 
 const MIN_PILL_WIDTH = 52;
 
@@ -88,29 +90,25 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     flexGrow: 1,
-    backgroundColor: '#EDF3ED',
+    backgroundColor: Colors.surfaceContainerLow || '#EDF3ED',
     padding: 3,
-    borderRadius: 8,
-    gap: 0,
+    borderRadius: Radius.md,
+    gap: 2,
     marginVertical: 2,
   },
   pill: {
     flexGrow: 1,
     flexShrink: 0,
     minWidth: MIN_PILL_WIDTH,
-    paddingVertical: 6,
-    paddingHorizontal: 6,
-    borderRadius: 6,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: Radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
   pillActive: {
-    backgroundColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-    elevation: 1,
+    backgroundColor: Colors.surfaceContainerLowest || '#ffffff',
+    ...Shadows.xs,
   },
   pillInactive: {
     backgroundColor: 'transparent',
@@ -120,11 +118,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   pillTextActive: {
-    color: '#000000',
-    fontWeight: 'bold',
+    color: Colors.primary,
+    fontFamily: Typography.fontFamilyBold,
   },
   pillTextInactive: {
-    color: '#334155',
-    fontWeight: '500',
+    color: Colors.textMuted,
+    fontFamily: Typography.fontFamilyMedium,
   },
 });

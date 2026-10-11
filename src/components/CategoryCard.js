@@ -1,10 +1,10 @@
 import React from 'react';
-import { Text, Image, TouchableOpacity, StyleSheet, View } from 'react-native';
+import { Text, Image, TouchableOpacity, StyleSheet, View, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from './Icon';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
-import { Radius } from '../theme/spacing';
+import { Radius, Shadows } from '../theme/spacing';
 import { getImageUrl } from '../api/client';
 import useDirectional from '../hooks/useDirectional';
 
@@ -123,7 +123,7 @@ export default function CategoryCard({
             style={styles.image}
           >
             {style.icon ? (
-              <Icon name={style.icon} size={24} color={Colors.primaryDark} />
+              <Icon name={style.icon} size={26} color={Colors.primaryDark} />
             ) : (
               <Text style={[styles.monogram, textStart]}>{style.monogram}</Text>
             )}
@@ -151,21 +151,23 @@ const styles = StyleSheet.create({
   // Tile variant
   tile: {
     alignItems: 'center',
-    gap: 6,
+    gap: 7,
   },
   imageWrap: {
-    width: 86,
-    height: 86,
+    width: 92,
+    height: 92,
     borderRadius: Radius.xl,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: Colors.borderSubtle,
+    ...Shadows.xs,
   },
   imageWrapSelected: {
-    borderWidth: 2,
+    borderWidth: 2.5,
     borderColor: Colors.primary,
+    ...Shadows.sm,
   },
   image: {
     width: '100%',
@@ -174,27 +176,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   monogram: {
-    fontSize: Typography.sizes.titleLg,
+    fontSize: Typography.sizes.headlineSm,
     fontFamily: Typography.fontFamilyExtraBold,
     color: Colors.primaryDark,
   },
   checkBadge: {
     position: 'absolute',
-    top: 3,
-    right: 3,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    top: 4,
+    right: 4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    ...Shadows.xs,
   },
   name: {
     fontSize: Typography.sizes.labelSm,
     fontFamily: Typography.fontFamilyMedium,
     color: Colors.onSurfaceVariant,
     textAlign: 'center',
-    maxWidth: '100%',
+    maxWidth: 92,
   },
   nameSelected: {
     color: Colors.primary,
@@ -209,8 +212,8 @@ const styles = StyleSheet.create({
 
   // Chip variant
   chip: {
-    paddingHorizontal: 11,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: Radius.full,
     flexDirection: 'row',
     alignItems: 'center',
@@ -221,6 +224,7 @@ const styles = StyleSheet.create({
   chipActive: {
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
+    ...Shadows.xs,
   },
   chipInactive: {
     backgroundColor: Colors.surfaceContainerLowest,

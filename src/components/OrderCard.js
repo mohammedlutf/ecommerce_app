@@ -39,88 +39,96 @@ export default function OrderCard({
 
   return (
     <View style={styles.card}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={[styles.orderRef, textStart]}>
-          <Text style={[styles.orderId, textStart]}>طلب #{order.name}</Text>
-          <Text style={[styles.orderDate, textStart]}>{formatDate(order.transaction_date)}</Text>
-        </View>
-        <View style={[styles.statusBadge, { backgroundColor: statusInfo.bg }]}>
-          <Icon name={statusInfo.icon} size={13} color={statusInfo.text} />
-          <Text style={[styles.statusText, textStart, { color: statusInfo.text }]}>{statusInfo.label}</Text>
-        </View>
-      </View>
+      {/* Accent Indicator */}
+      <View style={[styles.statusAccent, { backgroundColor: statusInfo.text }]} />
 
-      {/* Items preview */}
-      {order.items && order.items.length > 0 && (
-        <View style={styles.itemsSection}>
-          <Text style={[styles.itemsSummary, textStart]}>
-            {order.items.length} {order.items.length === 1 ? 'منتج' : 'منتجات'}:{' '}
-            {order.items
-              .map((i) => `${i.item_name} (${i.qty} ${i.uom})`)
-              .slice(0, 2)
-              .join('، ')}
-            {order.items.length > 2 ? ' ...' : ''}
-          </Text>
-
-          {expanded && (
-            <View style={styles.expandedItems}>
-              {order.items.map((item, idx) => (
-                <View key={idx} style={styles.itemRow}>
-                  <Text style={[styles.itemName, textStart]} numberOfLines={1}>
-                    {item.item_name}
-                  </Text>
-                  <Text style={styles.itemQtyUom}>
-                    {item.qty} × {formatCurrency(item.rate)}
-                  </Text>
-                  <Text style={styles.itemAmount}>{formatCurrency(item.amount)}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {order.items.length > 1 && (
-            <TouchableOpacity activeOpacity={0.7} onPress={() => setExpanded(!expanded)} style={styles.toggleBtn}>
-              <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color={Colors.primary} />
-              <Text style={[styles.toggleText, textStart]}>
-                {expanded ? 'إخفاء التفاصيل' : 'عرض كافة المنتجات'}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
-
-      {/* Footer */}
-      <View style={styles.footer}>
-        <View>
-          <Text style={[styles.totalLabel, textStart]}>الإجمالي:</Text>
-          <Text style={[styles.totalValue, textStart]}>{formatCurrency(order.grand_total, order.currency)}</Text>
+      <View style={styles.content}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={[styles.orderRef, textStart]}>
+            <Text style={[styles.orderId, textStart]}>طلب #{order.name}</Text>
+            <Text style={[styles.orderDate, textStart]}>{formatDate(order.transaction_date)}</Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: statusInfo.bg }]}>
+            <Icon name={statusInfo.icon} size={13} color={statusInfo.text} />
+            <Text style={[styles.statusText, textStart, { color: statusInfo.text }]}>{statusInfo.label}</Text>
+          </View>
         </View>
 
-        <View style={styles.actionsRow}>
-          {canCancel && (
-            <TouchableOpacity
-              activeOpacity={0.72}
-              disabled={actionLoading}
-              onPress={() => onCancelOrder && onCancelOrder(order.name)}
-              style={styles.cancelBtn}
-            >
-              <Text style={[styles.cancelText, textStart]}>إلغاء الطلب</Text>
-            </TouchableOpacity>
-          )}
+        {/* Items preview */}
+        {order.items && order.items.length > 0 && (
+          <View style={styles.itemsSection}>
+            <Text style={[styles.itemsSummary, textStart]}>
+              {order.items.length} {order.items.length === 1 ? 'منتج' : 'منتجات'}:{' '}
+              {order.items
+                .map((i) => `${i.item_name} (${i.qty} ${i.uom})`)
+                .slice(0, 2)
+                .join('، ')}
+              {order.items.length > 2 ? ' ...' : ''}
+            </Text>
 
-          <TouchableOpacity
-            activeOpacity={0.85}
-            disabled={actionLoading}
-            onPress={() => onReorder && onReorder(order.name)}
-            style={styles.reorderBtn}
-          >
-            {actionLoading ? (
-              <ActivityIndicator size="small" color="#ffffff" />
-            ) : (
-              <Text style={[styles.reorderText, textStart]}>إعادة الطلب</Text>
+            {expanded && (
+              <View style={styles.expandedItems}>
+                {order.items.map((item, idx) => (
+                  <View key={idx} style={styles.itemRow}>
+                    <Text style={[styles.itemName, textStart]} numberOfLines={1}>
+                      {item.item_name}
+                    </Text>
+                    <Text style={styles.itemQtyUom}>
+                      {item.qty} × {formatCurrency(item.rate)}
+                    </Text>
+                    <Text style={styles.itemAmount}>{formatCurrency(item.amount)}</Text>
+                  </View>
+                ))}
+              </View>
             )}
-          </TouchableOpacity>
+
+            {order.items.length > 1 && (
+              <TouchableOpacity activeOpacity={0.7} onPress={() => setExpanded(!expanded)} style={styles.toggleBtn}>
+                <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color={Colors.primary} />
+                <Text style={[styles.toggleText, textStart]}>
+                  {expanded ? 'إخفاء التفاصيل' : 'عرض كافة المنتجات'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Footer */}
+        <View style={styles.footer}>
+          <View>
+            <Text style={[styles.totalLabel, textStart]}>الإجمالي</Text>
+            <Text style={[styles.totalValue, textStart]}>{formatCurrency(order.grand_total, order.currency)}</Text>
+          </View>
+
+          <View style={styles.actionsRow}>
+            {canCancel && (
+              <TouchableOpacity
+                activeOpacity={0.72}
+                disabled={actionLoading}
+                onPress={() => onCancelOrder && onCancelOrder(order.name)}
+                style={styles.cancelBtn}
+              >
+                <Text style={[styles.cancelText, textStart]}>إلغاء الطلب</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              disabled={actionLoading}
+              onPress={() => onReorder && onReorder(order.name)}
+              style={[styles.reorderBtn, Shadows.xs]}
+            >
+              {actionLoading ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <>
+                  <Icon name="refresh-outline" size={15} color="#ffffff" />
+                  <Text style={[styles.reorderText, textStart]}>إعادة الطلب</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </View>
@@ -130,12 +138,20 @@ export default function OrderCard({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surfaceContainerLowest,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.xl,
     borderWidth: 1,
     borderColor: Colors.borderSubtle,
-    padding: 16,
-    marginBottom: 12,
+    marginBottom: 14,
+    overflow: 'hidden',
+    flexDirection: 'row',
     ...Shadows.sm,
+  },
+  statusAccent: {
+    width: 4,
+  },
+  content: {
+    flex: 1,
+    padding: 16,
   },
   orderRef: {
     flex: 1,
@@ -162,9 +178,9 @@ const styles = StyleSheet.create({
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: Radius.full,
   },
   statusText: {
@@ -172,20 +188,20 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyBold,
   },
   itemsSection: {
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
   itemsSummary: {
     fontSize: Typography.sizes.bodySm,
     color: Colors.onSurfaceVariant,
-    lineHeight: 18,
+    lineHeight: 20,
     fontFamily: Typography.fontFamilyRegular,
   },
   expandedItems: {
-    marginTop: 8,
-    paddingTop: 8,
+    marginTop: 10,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: Colors.borderSubtle,
-    gap: 6,
+    gap: 8,
   },
   itemRow: {
     flexDirection: 'row',
@@ -212,7 +228,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   toggleBtn: {
-    marginTop: 6,
+    marginTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -236,6 +252,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.labelSm,
     color: Colors.textMuted,
     fontFamily: Typography.fontFamilyMedium,
+    marginBottom: 2,
   },
   totalValue: {
     fontSize: Typography.sizes.titleLg,
@@ -248,9 +265,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cancelBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: Radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: Colors.error,
   },
@@ -262,9 +279,10 @@ const styles = StyleSheet.create({
   reorderBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: Radius.md,
+    gap: 5,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: Radius.full,
     backgroundColor: Colors.primary,
   },
   reorderText: {

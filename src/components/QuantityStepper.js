@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from './Icon';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
-import { Radius } from '../theme/spacing';
+import { Radius, Shadows } from '../theme/spacing';
 
 export default function QuantityStepper({
   quantity = 1,
@@ -23,15 +23,24 @@ export default function QuantityStepper({
   return (
     <View style={[styles.container, isSm && styles.containerSm, isLg && styles.containerLg]}>
       <TouchableOpacity
-        activeOpacity={0.7}
+        activeOpacity={0.65}
         onPress={onDecrement}
         disabled={isMin}
-        style={[styles.button, isSm && styles.buttonSm, isLg && styles.buttonLg, isMin && styles.buttonDisabled]}
+        style={[
+          styles.button,
+          isSm && styles.buttonSm,
+          isLg && styles.buttonLg,
+          isMin && styles.buttonDisabled,
+        ]}
       >
-        <Icon name="remove" size={isSm ? 14 : 18} color={isMin ? Colors.outline : Colors.primary} />
+        <Icon
+          name="remove"
+          size={isSm ? 14 : isLg ? 20 : 16}
+          color={isMin ? Colors.outlineVariant : Colors.primary}
+        />
       </TouchableOpacity>
 
-      <View style={[styles.quantityWrapper, isSm && styles.quantityWrapperSm]}>
+      <View style={[styles.quantityWrapper, isSm && styles.quantityWrapperSm, isLg && styles.quantityWrapperLg]}>
         <Text
           style={[
             styles.quantityText,
@@ -44,12 +53,21 @@ export default function QuantityStepper({
       </View>
 
       <TouchableOpacity
-        activeOpacity={0.7}
+        activeOpacity={0.65}
         onPress={onIncrement}
         disabled={isMax}
-        style={[styles.button, isSm && styles.buttonSm, isLg && styles.buttonLg, isMax && styles.buttonDisabled]}
+        style={[
+          styles.button,
+          isSm && styles.buttonSm,
+          isLg && styles.buttonLg,
+          isMax && styles.buttonDisabled,
+        ]}
       >
-        <Icon name="add" size={isSm ? 14 : 18} color={isMax ? Colors.outline : Colors.primary} />
+        <Icon
+          name="add"
+          size={isSm ? 14 : isLg ? 20 : 16}
+          color={isMax ? Colors.outlineVariant : Colors.primary}
+        />
       </TouchableOpacity>
     </View>
   );
@@ -59,38 +77,66 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surfaceContainerLow,
-    borderRadius: Radius.lg,
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: Colors.outlineVariant,
-    overflow: 'hidden',
+    padding: 3,
     alignSelf: 'flex-start',
+    ...Shadows.xs,
   },
-  containerSm: { borderRadius: Radius.md },
-  containerLg: { borderRadius: Radius.lg },
+  containerSm: {
+    borderRadius: Radius.full,
+    padding: 2,
+  },
+  containerLg: {
+    borderRadius: Radius.full,
+    padding: 4,
+  },
   button: {
-    width: 38,
-    height: 38,
+    width: 32,
+    height: 32,
+    borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.surfaceContainerLowest,
+    backgroundColor: Colors.primaryLight,
   },
-  buttonSm: { width: 30, height: 30 },
-  buttonLg: { width: 44, height: 44 },
-  buttonDisabled: { opacity: 0.45 },
+  buttonSm: {
+    width: 26,
+    height: 26,
+  },
+  buttonLg: {
+    width: 40,
+    height: 40,
+  },
+  buttonDisabled: {
+    backgroundColor: Colors.surfaceContainerLow,
+    opacity: 0.6,
+  },
   quantityWrapper: {
-    minWidth: 40,
+    minWidth: 36,
     paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  quantityWrapperSm: { minWidth: 30 },
+  quantityWrapperSm: {
+    minWidth: 26,
+    paddingHorizontal: 4,
+  },
+  quantityWrapperLg: {
+    minWidth: 44,
+    paddingHorizontal: 10,
+  },
   quantityText: {
     fontSize: Typography.sizes.bodyMd,
     fontFamily: Typography.fontFamilyBold,
     color: Colors.onSurface,
     textAlign: 'center',
   },
-  quantityTextSm: { fontSize: Typography.sizes.bodySm },
-  quantityTextLg: { fontSize: Typography.sizes.titleLg },
+  quantityTextSm: {
+    fontSize: Typography.sizes.bodySm,
+  },
+  quantityTextLg: {
+    fontSize: Typography.sizes.titleMd,
+  },
 });

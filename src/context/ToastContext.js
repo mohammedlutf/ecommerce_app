@@ -70,9 +70,10 @@ function ToastItem({ toast, onDone }) {
         duration: 220,
         useNativeDriver: true,
       }),
-      Animated.timing(progress, {
+      Animated.spring(progress, {
         toValue: 1,
-        duration: 260,
+        damping: 15,
+        stiffness: 150,
         useNativeDriver: true,
       }),
     ]).start();
@@ -86,18 +87,20 @@ function ToastItem({ toast, onDone }) {
       style={[
         styles.toast,
         {
-          backgroundColor: config.bg,
           opacity,
           transform: [{ translateY }],
         },
       ]}
     >
-      <Icon name={config.icon} size={22} color={config.iconColor} />
-      <Text style={[styles.toastText, textStart, { color: config.textColor }]}>
+      <View style={[styles.accentIndicator, { backgroundColor: config.iconColor }]} />
+      <View style={[styles.iconWrap, { backgroundColor: config.bg }]}>
+        <Icon name={config.icon} size={20} color={config.iconColor} />
+      </View>
+      <Text style={[styles.toastText, textStart, { color: Colors.onSurface }]}>
         {toast.text}
       </Text>
-      <TouchableOpacity onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-        <Icon name="close" size={18} color={config.textColor} />
+      <TouchableOpacity onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.closeBtn}>
+        <Icon name="close" size={16} color={Colors.textMuted} />
       </TouchableOpacity>
     </Animated.View>
   );
@@ -127,7 +130,6 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={{ show, success, error, info, dismiss: removeToast }}>
       {children}
-
       {toasts.length > 0 && (
         <View
           pointerEvents="box-none"
@@ -164,15 +166,37 @@ const styles = StyleSheet.create({
   toast: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 14,
+    gap: 12,
+    backgroundColor: Colors.surfaceContainerLowest,
     paddingVertical: 12,
-    borderRadius: Radius.lg,
+    paddingHorizontal: 14,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    overflow: 'hidden',
     ...Shadows.md,
+  },
+  accentIndicator: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+  },
+  iconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   toastText: {
     flex: 1,
     fontSize: Typography.sizes.bodyMd,
     fontFamily: Typography.fontFamilySemiBold,
+    lineHeight: 20,
+  },
+  closeBtn: {
+    padding: 2,
   },
 });

@@ -285,13 +285,13 @@ function handleSelectCategory(catName) {
 
         {/* Hero */}
         <LinearGradient
-          colors={['#FEE9D2', '#FDF3E3', '#FFFFFF']}
+          colors={[Colors.primary, Colors.primaryDark || '#00593A']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.heroBanner}
         >
           <View style={styles.heroBadge}>
-            <Icon name="flame" size={13} color={Colors.onSecondary} />
+            <Icon name="flame" size={13} color="#ffffff" />
             <Text style={[styles.heroBadgeText, textStart]}>عروض هذا الأسبوع</Text>
           </View>
           <Text style={[styles.heroTitle, textStart]}>أفضل الأسعار وأجود المنتجات</Text>
@@ -304,7 +304,7 @@ function handleSelectCategory(catName) {
             style={styles.heroCta}
           >
             <Text style={[styles.heroCtaText, textStart]}>تسوق الآن</Text>
-            <Icon name="arrow-forward" size={16} color={Colors.onPrimary} />
+            <Icon name="arrow-forward" size={16} color={Colors.primary} />
           </TouchableOpacity>
         </LinearGradient>
 
@@ -509,19 +509,19 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 16,
     borderRadius: Radius.xxl,
-    padding: 20,
+    padding: 22,
     ...Shadows.md,
   },
   heroBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: Colors.secondary,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderRadius: Radius.full,
     alignSelf: 'flex-start',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   heroBadgeText: {
     color: '#ffffff',
@@ -531,29 +531,29 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: Typography.sizes.headlineSm,
     fontFamily: Typography.fontFamilyExtraBold,
-    color: Colors.onSurface,
+    color: '#ffffff',
     marginBottom: 6,
   },
   heroSubtitle: {
     fontSize: Typography.sizes.bodySm,
-    color: Colors.onSurfaceVariant,
-    lineHeight: 20,
-    marginBottom: 16,
+    color: 'rgba(255, 255, 255, 0.85)',
+    lineHeight: 22,
+    marginBottom: 18,
     fontFamily: Typography.fontFamilyRegular,
   },
   heroCta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 18,
-    paddingVertical: 11,
-    borderRadius: Radius.lg,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: Radius.full,
     alignSelf: 'flex-start',
     ...Shadows.sm,
   },
   heroCtaText: {
-    color: Colors.onPrimary,
+    color: Colors.primary,
     fontSize: Typography.sizes.labelLg,
     fontFamily: Typography.fontFamilyBold,
   },

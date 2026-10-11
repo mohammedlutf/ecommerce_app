@@ -184,8 +184,8 @@ const styles = StyleSheet.create({
   orderCard: {
     width: '100%',
     backgroundColor: Colors.surfaceContainerLowest,
-    borderRadius: Radius.lg,
-    padding: 18,
+    borderRadius: Radius.xxl,
+    padding: 22,
     borderWidth: 1,
     borderColor: Colors.borderSubtle,
     marginBottom: 32,
@@ -230,8 +230,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderTopWidth: 1,
     borderTopColor: Colors.borderSubtle,
-    paddingTop: 14,
-    marginTop: 2,
+    paddingTop: 16,
+    marginTop: 4,
   },
   totalLabel: {
     fontSize: Typography.sizes.bodyMd,
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   totalValue: {
-    fontSize: Typography.sizes.titleSm,
+    fontSize: Typography.sizes.titleMd,
     fontFamily: Typography.fontFamilyExtraBold,
     color: Colors.primary,
   },
@@ -250,8 +250,8 @@ const styles = StyleSheet.create({
   },
   primaryBtn: {
     backgroundColor: Colors.primary,
-    borderRadius: Radius.lg,
-    paddingVertical: 15,
+    borderRadius: Radius.full,
+    paddingVertical: 16,
     alignItems: 'center',
     ...Shadows.md,
   },
@@ -262,8 +262,8 @@ const styles = StyleSheet.create({
   },
   secondaryBtn: {
     backgroundColor: Colors.surfaceContainerLowest,
-    borderRadius: Radius.lg,
-    paddingVertical: 15,
+    borderRadius: Radius.full,
+    paddingVertical: 16,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: Colors.outlineVariant,

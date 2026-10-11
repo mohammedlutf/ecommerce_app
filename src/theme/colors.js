@@ -5,11 +5,13 @@
 export const Colors = {
   // Brand — Fresh Emerald
   primary: '#004129',
-  primaryDark: '#15803D',
-  primaryPress: '#0F7A3D',
+  primaryDark: '#00593A',
+  primaryLight: '#E8F5EE',
+  primaryPress: '#003822',
   onPrimary: '#FFFFFF',
-  primaryContainer: '#E7F6EC',
-  onPrimaryContainer: '#14532D',
+  primaryContainer: '#DCF2E6',
+  onPrimaryContainer: '#0D3B22',
+  primaryGlow: 'rgba(0, 65, 41, 0.12)',
 
   // Accent — Warm Amber / Orange
   secondary: '#F97316',
@@ -20,41 +22,57 @@ export const Colors = {
   accent: '#F97316',
 
   // Surfaces & Backgrounds
-  background: '#F8FAF9',
+  background: '#F6F8F7',
   surface: '#FFFFFF',
   surfaceContainerLowest: '#FFFFFF',
-  surfaceContainerLow: '#F3F6F4',
-  surfaceContainer: '#ECF1EE',
-  surfaceContainerHigh: '#E4EBE7',
-  surfaceContainerHighest: '#D9E3DD',
+  surfaceContainerLow: '#F2F5F3',
+  surfaceContainer: '#EAEFEC',
+  surfaceContainerHigh: '#E1E8E4',
+  surfaceContainerHighest: '#D6DFD9',
+  surfaceElevated: '#FFFFFF',
 
   // Typography & Text
-  onSurface: '#0B1220',
-  onSurfaceVariant: '#55606E',
-  textSecondary: '#55606E',
-  textMuted: '#8A94A3',
+  onSurface: '#0A1118',
+  onSurfaceVariant: '#4A5565',
+  textSecondary: '#4A5565',
+  textMuted: '#8390A0',
+  textDisabled: '#B0B9C5',
 
   // Borders & Dividers
-  outline: '#9AA6B2',
-  outlineVariant: '#DCE2E9',
-  borderSubtle: '#EBEFF3',
+  outline: '#95A1AD',
+  outlineVariant: '#D6DDE5',
+  borderSubtle: '#E8EDF2',
+  borderFocus: 'rgba(0, 65, 41, 0.35)',
 
   // Semantic
-  error: '#E5383B',
-  errorContainer: '#FFE3E3',
+  error: '#DC2626',
+  errorContainer: '#FEE2E2',
   onError: '#FFFFFF',
-  success: '#12A150',
-  successContainer: '#E4F6EB',
+  success: '#059669',
+  successContainer: '#D1FAE5',
   onSuccess: '#FFFFFF',
-  warning: '#F59E0B',
-  warningContainer: '#FFF3D6',
-  info: '#3B82F6',
-  infoContainer: '#E3EEFF',
+  warning: '#D97706',
+  warningContainer: '#FEF3C7',
+  info: '#2563EB',
+  infoContainer: '#DBEAFE',
 
   // Overlays & Shadows
-  scrim: 'rgba(11, 18, 32, 0.45)',
-  cardShadow: 'rgba(15, 30, 45, 0.08)',
-  overlayLight: 'rgba(255, 255, 255, 0.92)',
+  scrim: 'rgba(10, 17, 24, 0.5)',
+  cardShadow: 'rgba(0, 30, 20, 0.07)',
+  overlayLight: 'rgba(255, 255, 255, 0.94)',
+
+  // Glassmorphism
+  glass: 'rgba(255, 255, 255, 0.78)',
+  glassBorder: 'rgba(255, 255, 255, 0.45)',
+
+  // Gradient pairs
+  gradientPrimaryStart: '#004129',
+  gradientPrimaryEnd: '#00593A',
+  gradientHeroStart: '#FFF4E8',
+  gradientHeroMid: '#FEF7EF',
+  gradientHeroEnd: '#FFFFFF',
+  gradientSurfaceStart: '#F0F4F2',
+  gradientSurfaceEnd: '#FFFFFF',
 };
 
 export default Colors;
