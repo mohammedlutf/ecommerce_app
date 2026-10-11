@@ -17,10 +17,9 @@ export default function UOMSelector({
   if (!uoms || uoms.length === 0) {
     if (!stockUom) return null;
     return (
-      <View style={[styles.singleContainer, isSm && styles.singleContainerSm]}>
-        <View style={styles.singleIndicatorDot} />
+      <View style={styles.singleWrapper}>
         <Text style={[styles.singleText, isSm && styles.singleTextSm]} numberOfLines={1}>
-          {stockUom}
+          لكل {stockUom}
         </Text>
       </View>
     );
@@ -33,10 +32,9 @@ export default function UOMSelector({
     if (!singleName) return null;
 
     return (
-      <View style={[styles.singleContainer, isSm && styles.singleContainerSm]}>
-        <View style={styles.singleIndicatorDot} />
+      <View style={styles.singleWrapper}>
         <Text style={[styles.singleText, isSm && styles.singleTextSm]} numberOfLines={1}>
-          {singleName}
+          لكل {singleName}
         </Text>
       </View>
     );
@@ -46,7 +44,7 @@ export default function UOMSelector({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={[styles.container, isSm && styles.containerSm]}
+      contentContainerStyle={styles.chipsRow}
       nestedScrollEnabled={true}
       directionalLockEnabled={true}
       onStartShouldSetResponder={() => true}
@@ -63,16 +61,16 @@ export default function UOMSelector({
             disabled={disabled}
             onPress={() => onSelectUom && onSelectUom(uomName, unit)}
             style={[
-              styles.pill,
-              isSm && styles.pillSm,
-              isSelected ? styles.pillActive : styles.pillInactive,
+              styles.chip,
+              isSm && styles.chipSm,
+              isSelected ? styles.chipSelected : styles.chipUnselected,
             ]}
           >
             <Text
               style={[
-                styles.pillText,
-                isSm && styles.pillTextSm,
-                isSelected ? styles.pillTextActive : styles.pillTextInactive,
+                styles.chipText,
+                isSm && styles.chipTextSm,
+                isSelected ? styles.chipTextSelected : styles.chipTextUnselected,
               ]}
               numberOfLines={1}
             >
@@ -86,87 +84,56 @@ export default function UOMSelector({
 }
 
 const styles = StyleSheet.create({
-  singleContainer: {
+  singleWrapper: {
+    paddingVertical: 2,
+    alignSelf: 'flex-start',
+  },
+  singleText: {
+    fontSize: 11,
+    fontFamily: Typography.fontFamilyMedium,
+    color: Colors.textMuted,
+  },
+  singleTextSm: {
+    fontSize: 10.5,
+  },
+  chipsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: Colors.surfaceContainerLow || '#F1F5F3',
+    gap: 5,
+    paddingVertical: 3,
+  },
+  chip: {
     paddingVertical: 4,
     paddingHorizontal: 9,
     borderRadius: Radius.full,
-    gap: 5,
-    marginVertical: 2,
-    borderWidth: 0.5,
-    borderColor: Colors.outlineVariant || 'rgba(0,0,0,0.06)',
-  },
-  singleContainerSm: {
-    paddingVertical: 2,
-    paddingHorizontal: 7,
-  },
-  singleIndicatorDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: Colors.primary,
-  },
-  singleText: {
-    fontSize: 12,
-    fontFamily: Typography.fontFamilySemiBold,
-    color: Colors.onSurfaceVariant,
-  },
-  singleTextSm: {
-    fontSize: 11,
-  },
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surfaceContainerLow || '#F1F5F3',
-    padding: 3,
-    borderRadius: Radius.full,
-    gap: 3,
-    marginVertical: 4,
     borderWidth: 1,
-    borderColor: 'rgba(0, 65, 41, 0.06)',
-  },
-  containerSm: {
-    padding: 2,
-    marginVertical: 2,
-  },
-  pill: {
-    flexShrink: 0,
-    minWidth: 48,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pillSm: {
-    minWidth: 40,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
+  chipSm: {
+    paddingVertical: 2.5,
+    paddingHorizontal: 7.5,
   },
-  pillActive: {
-    backgroundColor: Colors.surfaceContainerLowest || '#ffffff',
-    borderWidth: 0.5,
-    borderColor: 'rgba(0, 65, 41, 0.12)',
-    ...Shadows.xs,
+  chipSelected: {
+    backgroundColor: Colors.primaryLight || '#E8F5EE',
+    borderColor: Colors.primary,
   },
-  pillInactive: {
+  chipUnselected: {
     backgroundColor: 'transparent',
+    borderColor: Colors.outlineVariant || '#E2E8F0',
   },
-  pillText: {
-    fontSize: 12,
+  chipText: {
+    fontSize: 11.5,
     textAlign: 'center',
   },
-  pillTextSm: {
-    fontSize: 11,
+  chipTextSm: {
+    fontSize: 10.5,
   },
-  pillTextActive: {
+  chipTextSelected: {
     color: Colors.primary,
     fontFamily: Typography.fontFamilyBold,
   },
-  pillTextInactive: {
+  chipTextUnselected: {
     color: Colors.textMuted,
     fontFamily: Typography.fontFamilyMedium,
   },

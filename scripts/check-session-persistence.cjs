@@ -8,7 +8,7 @@ const COOKIE_KEY = '@ecommerce_session_cookie';
 const PROFILE_KEY = '@ecommerce_user_profile';
 
 /* ------------------------------------------------------------------ *
- * Header strings captured verbatim from http://192.168.1.35:8000
+ * Header strings captured verbatim from http://192.168.1.35:5000
  * ------------------------------------------------------------------ */
 
 // GET /api/method/ping  (anonymous) — sid happens to come FIRST here.
@@ -81,7 +81,7 @@ function loadFrappe() {
   class FakeAxios {
     constructor() {
       this.defaults = {};
-      this.interceptors = { response: { use() {} } };
+      this.interceptors = { response: { use() { } } };
     }
   }
 
