@@ -177,12 +177,18 @@ export default function ProductCard({
             </View>
           ) : null}
 
-          <Animated.View style={[{ transform: [{ scale: wishlistScale }] }]}>
+          <Animated.View
+            style={[
+              styles.wishlistWrapper,
+              insetEnd(8),
+              { transform: [{ scale: wishlistScale }] },
+            ]}
+          >
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={handleToggleWishlist}
               disabled={wishlistLoading}
-              style={[styles.wishlistBtn, insetEnd(8), wishlisted && styles.wishlistBtnActive]}
+              style={[styles.wishlistBtn, wishlisted && styles.wishlistBtnActive]}
             >
               {wishlistLoading ? (
                 <ActivityIndicator size="small" color={Colors.primary} />
@@ -255,6 +261,7 @@ export default function ProductCard({
                 onDecrement={handleDecrement}
                 loading={cartActionLoading}
                 size="sm"
+                fullWidth
               />
             ) : (
               <TouchableOpacity
@@ -326,22 +333,25 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.labelSm,
     fontFamily: Typography.fontFamilyBold,
   },
-  wishlistBtn: {
+  wishlistWrapper: {
     position: 'absolute',
     top: 8,
+    zIndex: 10,
+  },
+  wishlistBtn: {
     width: 34,
     height: 34,
     borderRadius: Radius.full,
-    backgroundColor: Colors.glass,
+    backgroundColor: Colors.surfaceContainerLowest || '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 0.5,
-    borderColor: Colors.glassBorder,
+    borderColor: Colors.borderSubtle,
     ...Shadows.xs,
   },
   wishlistBtnActive: {
     backgroundColor: '#FEF2F2',
-    borderColor: 'rgba(220, 38, 38, 0.15)',
+    borderColor: 'rgba(220, 38, 38, 0.2)',
   },
   adminBtn: {
     position: 'absolute',

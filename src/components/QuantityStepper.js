@@ -13,6 +13,8 @@ export default function QuantityStepper({
   max = 999,
   loading = false,
   size = 'md', // 'sm' | 'md' | 'lg'
+  fullWidth = false,
+  style,
 }) {
   const isMin = quantity <= min;
   const isMax = quantity >= max;
@@ -21,13 +23,22 @@ export default function QuantityStepper({
   const isSm = size === 'sm';
 
   return (
-    <View style={[styles.container, isSm && styles.containerSm, isLg && styles.containerLg]}>
+    <View
+      style={[
+        styles.container,
+        isSm && styles.containerSm,
+        isLg && styles.containerLg,
+        fullWidth && styles.containerFullWidth,
+        style,
+      ]}
+    >
       <TouchableOpacity
         activeOpacity={0.65}
         onPress={onDecrement}
         disabled={isMin}
         style={[
           styles.button,
+          styles.buttonDecrement,
           isSm && styles.buttonSm,
           isLg && styles.buttonLg,
           isMin && styles.buttonDisabled,
@@ -40,7 +51,14 @@ export default function QuantityStepper({
         />
       </TouchableOpacity>
 
-      <View style={[styles.quantityWrapper, isSm && styles.quantityWrapperSm, isLg && styles.quantityWrapperLg]}>
+      <View
+        style={[
+          styles.quantityWrapper,
+          fullWidth && styles.quantityWrapperFullWidth,
+          isSm && styles.quantityWrapperSm,
+          isLg && styles.quantityWrapperLg,
+        ]}
+      >
         <Text
           style={[
             styles.quantityText,
@@ -53,11 +71,12 @@ export default function QuantityStepper({
       </View>
 
       <TouchableOpacity
-        activeOpacity={0.65}
+        activeOpacity={0.75}
         onPress={onIncrement}
         disabled={isMax}
         style={[
           styles.button,
+          styles.buttonIncrement,
           isSm && styles.buttonSm,
           isLg && styles.buttonLg,
           isMax && styles.buttonDisabled,
@@ -65,8 +84,8 @@ export default function QuantityStepper({
       >
         <Icon
           name="add"
-          size={isSm ? 14 : isLg ? 20 : 16}
-          color={isMax ? Colors.outlineVariant : Colors.primary}
+          size={isSm ? 15 : isLg ? 20 : 16}
+          color={isMax ? Colors.outlineVariant : '#ffffff'}
         />
       </TouchableOpacity>
     </View>
@@ -85,13 +104,20 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     ...Shadows.xs,
   },
+  containerFullWidth: {
+    alignSelf: 'stretch',
+    width: '100%',
+    justifyContent: 'space-between',
+  },
   containerSm: {
     borderRadius: Radius.full,
     padding: 2,
+    height: 38,
   },
   containerLg: {
     borderRadius: Radius.full,
     padding: 4,
+    height: 48,
   },
   button: {
     width: 32,
@@ -99,11 +125,16 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primaryLight,
+  },
+  buttonDecrement: {
+    backgroundColor: Colors.primaryLight || '#E8F5EE',
+  },
+  buttonIncrement: {
+    backgroundColor: Colors.primary,
   },
   buttonSm: {
-    width: 26,
-    height: 26,
+    width: 30,
+    height: 30,
   },
   buttonLg: {
     width: 40,
@@ -111,13 +142,16 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     backgroundColor: Colors.surfaceContainerLow,
-    opacity: 0.6,
+    opacity: 0.5,
   },
   quantityWrapper: {
     minWidth: 36,
     paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  quantityWrapperFullWidth: {
+    flex: 1,
   },
   quantityWrapperSm: {
     minWidth: 26,

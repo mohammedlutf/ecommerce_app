@@ -210,77 +210,83 @@ const styles = StyleSheet.create({
     marginTop: -3,
   },
 
-  // Chip variant
+  // Chip variant — child sub-category micro-pills (height ~30dp, compact, non-bulky)
   chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderRadius: Radius.full,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    gap: 5,
+    gap: 4,
   },
   chipActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.primaryLight || '#E8F5EE',
     borderColor: Colors.primary,
-    ...Shadows.xs,
   },
   chipInactive: {
-    backgroundColor: Colors.surfaceContainerLowest,
-    borderColor: Colors.outlineVariant,
+    backgroundColor: Colors.surfaceContainerLowest || '#ffffff',
+    borderColor: Colors.outlineVariant || '#E2E8F0',
   },
-  // Underline variant — flat tab look for the parent groups: a green underline
-  // for the active one, never a rounded green pill.
+  // Parent group variant: Minimalist Compact Tabs with sleek bottom indicator line
   chipUnderlineActive: {
+    backgroundColor: 'transparent',
     borderWidth: 0,
     borderBottomWidth: 2.5,
     borderBottomColor: Colors.primary,
     borderRadius: 0,
-    backgroundColor: 'transparent',
+    paddingHorizontal: 12,
+    paddingTop: 6,
+    paddingBottom: 8,
   },
   chipUnderlineInactive: {
+    backgroundColor: 'transparent',
     borderWidth: 0,
     borderBottomWidth: 2.5,
     borderBottomColor: 'transparent',
     borderRadius: 0,
-    backgroundColor: 'transparent',
+    paddingHorizontal: 12,
+    paddingTop: 6,
+    paddingBottom: 8,
   },
   chipText: {
-    fontSize: Typography.sizes.labelMd,
+    fontSize: 12,
     fontFamily: Typography.fontFamilyMedium,
   },
   chipTextActive: {
-    color: Colors.onPrimary,
+    color: Colors.primary,
     fontFamily: Typography.fontFamilyBold,
   },
   chipTextInactive: {
-    color: Colors.onSurface,
+    color: Colors.textMuted,
     fontFamily: Typography.fontFamilyMedium,
   },
   chipTextUnderlineActive: {
     color: Colors.primary,
     fontFamily: Typography.fontFamilyBold,
+    fontSize: 13,
   },
   chipTextUnderlineInactive: {
-    color: Colors.onSurface,
+    color: Colors.textMuted,
     fontFamily: Typography.fontFamilyMedium,
+    fontSize: 13,
   },
   chipBadge: {
     borderRadius: Radius.full,
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
     paddingVertical: 1,
   },
   chipBadgeActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.24)',
+    backgroundColor: 'rgba(0, 65, 41, 0.1)',
   },
   chipBadgeInactive: {
     backgroundColor: Colors.surfaceContainerLow,
   },
   chipBadgeText: {
-    fontSize: Typography.sizes.labelSm,
+    fontSize: 10,
     fontFamily: Typography.fontFamilyBold,
   },
-  chipBadgeTextActive: { color: '#ffffff' },
+  chipBadgeTextActive: { color: Colors.primary },
   chipBadgeTextInactive: { color: Colors.textMuted },
 });

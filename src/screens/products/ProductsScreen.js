@@ -1396,13 +1396,18 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyMedium,
   },
   chipsGroup: {
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.surfaceContainerLowest,
+    paddingTop: 4,
+    paddingBottom: 0,
     borderBottomWidth: 1,
-    paddingBottom: 6,
     borderBottomColor: Colors.borderSubtle,
   },
   chipsGroupSub: {
+    backgroundColor: Colors.surfaceContainerLow || '#F8FAF9',
+    paddingTop: 6,
     paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderSubtle,
   },
   chipsLabelRow: {
     flexDirection: 'row',
@@ -1418,9 +1423,9 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilySemiBold,
   },
   chipsRow: {
-    
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     gap: 6,
+    alignItems: 'center',
   },
   resultsInfo: {
     paddingHorizontal: 16,
