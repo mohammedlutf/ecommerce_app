@@ -2,19 +2,6 @@ import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 
-/**
- * UOMSelector — responsive single-row pill switcher for product pack sizes.
- * Falls back to displaying stockUom if uoms list is empty or has a single item.
- *
- * ## Why a horizontal ScrollView
- *
- * Every pill previously shared the row with `flex: 1`, so on a narrow phone
- * card a product with several pack sizes squeezed each pill down until its
- * label truncated to a single character ("ح", "ك", ...). Pills are now
- * content-sized with a `MIN_PILL_WIDTH` that always fits at least four
- * letters; when the pills outgrow the card they scroll sideways instead of
- * being crushed. `flexGrow: 1` keeps a short list stretching to fill the row.
- */
 const MIN_PILL_WIDTH = 52;
 
 export default function UOMSelector({
@@ -24,7 +11,6 @@ export default function UOMSelector({
   onSelectUom,
   disabled = false,
 }) {
-  // If there are no uoms at all, but we have a stockUom, display it as a single static badge
   if (!uoms || uoms.length === 0) {
     if (!stockUom) return null;
     return (
@@ -38,7 +24,6 @@ export default function UOMSelector({
     );
   }
 
-  // If there's only 1 uom, display it nicely using the stockUom or the single item
   const displayList = uoms.length === 1 && stockUom ? [stockUom] : uoms;
 
   if (displayList.length <= 1) {
@@ -61,6 +46,12 @@ export default function UOMSelector({
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.container}
+      // --- FIX FOR NESTED HORIZONTAL SCROLLING ---
+      nestedScrollEnabled={true}
+      directionalLockEnabled={true}
+      onStartShouldSetResponder={() => true}
+      onResponderTerminationRequest={() => false}
+      // -------------------------------------------
     >
       {displayList.map((unit) => {
         const uomName = typeof unit === 'string' ? unit : unit.uom;
@@ -114,7 +105,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pillActive: {
-    backgroundColor: '#ffffff', // Matches emerald-mint style
+    backgroundColor: '#ffffff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -133,7 +124,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   pillTextInactive: {
-    color: '#334155', // Matches charcoal-ink style
+    color: '#334155',
     fontWeight: '500',
   },
 });
