@@ -20,7 +20,8 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, strip_html
 import re
-from ecommerce.api import _get_calculated_uoms, _settings
+from webshop.my_api.api import _get_calculated_uoms, _settings
+from frappe.utils.password import update_password
 
 # Mirrors the storefront's own rule, so an item in a hidden group keeps behaving
 # the way the website behaves.
@@ -40,6 +41,39 @@ def slugify(text):
 	text = re.sub(r'[^a-z0-9\s-]', '', text) # Remove invalid chars
 	text = re.sub(r'[\s-]+', '-', text).strip('-') # Collapse spaces/hyphens
 	return text
+
+
+
+
+@frappe.whitelist(allow_guest=True)
+def register_user_by_phone(phone, full_name, new_password):
+    generatedEmail = f"{phone}@yemen.local"
+    
+    # Check if user already exists by email or mobile number
+    if frappe.db.exists("User", generatedEmail) or frappe.db.exists("User", {"mobile_no": phone}):
+        return {"status": "error", "message": "هذا الحساب مسجل مسبقاً، يرجى تسجيل الدخول مباشرة."}
+    
+    try:
+        # Create the user document
+        user = frappe.get_doc({
+            "doctype": "User",
+            "email": generatedEmail,
+            "first_name": full_name,
+            "mobile_no": phone,
+            "user_type": "Website User",
+            "enabled": 1,
+            "send_welcome_email": 0
+        })
+        user.insert(ignore_permissions=True)
+        
+        # Set the password
+        update_password(generatedEmail, new_password)
+        
+        return {"status": "success", "message": "تم إنشاء الحساب بنجاح!"}
+    
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 def _admin_child_doctype():
 	"""The child table behind Webshop Settings.admin_users.
 
