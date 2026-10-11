@@ -50,19 +50,20 @@
       ]
     },
     "extra": {
-      "apiUrl": "http://84.247.175.69/",
+      "apiUrl": "http://192.168.1.35:8000",
       "eas": {
         "projectId": "1ea621da-1e71-4e8a-90e4-cd60b706ffcf"
       }
     },
     "plugins": [
       "expo-font",
-[
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#FFFFFF"
         }
       ],
+      "./plugins/with-clean-splash.js",
       [
       "expo-build-properties",
       {
