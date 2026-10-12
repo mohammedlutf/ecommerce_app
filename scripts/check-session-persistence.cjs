@@ -8,7 +8,7 @@ const COOKIE_KEY = '@ecommerce_session_cookie';
 const PROFILE_KEY = '@ecommerce_user_profile';
 
 /* ------------------------------------------------------------------ *
- * Header strings captured verbatim from http://192.168.1.36:8000
+ * Header strings captured verbatim from http://84.247.175.69/
  * ------------------------------------------------------------------ */
 
 // GET /api/method/ping  (anonymous) — sid happens to come FIRST here.
