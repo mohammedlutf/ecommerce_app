@@ -24,8 +24,37 @@ import { USER_STORAGE_KEY as USER_KEY } from './sessionKeys';
  * Same-Origin Policy, so on web we use a relative URL and let the Metro dev
  * server proxy `/api` & `/files` to the benchmark (see metro.config.js).
  * This sidesteps CORS completely when testing in a browser.
+ *
+ * Set `EXPO_PUBLIC_API_URL` (e.g. in `.env`) to point at a real deployment.
+ * The LAN fallback below only exists so `expo start` works on a dev machine
+ * without extra setup — it is not a production value.
  */
-export const BASE_URL = Platform.OS === 'web' ? '' : 'http://192.168.1.35:5000';
+const CONFIGURED_API_URL = (process.env.EXPO_PUBLIC_API_URL || '').trim();
+const DEV_LAN_FALLBACK = 'http://192.168.1.36:8000';
+
+export const BASE_URL =
+  Platform.OS === 'web'
+    ? CONFIGURED_API_URL
+    : CONFIGURED_API_URL || DEV_LAN_FALLBACK;
+
+// Shipping a non-HTTPS origin puts the session cookie and cart contents on the
+// wire in clear text. Surface it loudly rather than silently downgrading.
+if (
+  !CONFIGURED_API_URL &&
+  typeof __DEV__ !== 'undefined' &&
+  !__DEV__
+) {
+  console.warn(
+    '[frappe] EXPO_PUBLIC_API_URL is not set; falling back to the development ' +
+      'LAN address. Set it to your HTTPS deployment before shipping.'
+  );
+} else if (BASE_URL && !BASE_URL.startsWith('https://') && typeof __DEV__ !== 'undefined' && !__DEV__) {
+  console.warn(
+    '[frappe] API base URL is not HTTPS in a production build; session data ' +
+      'will be sent unencrypted: ' +
+      BASE_URL
+  );
+}
 
 const COOKIE_KEY = '@ecommerce_session_cookie';
 

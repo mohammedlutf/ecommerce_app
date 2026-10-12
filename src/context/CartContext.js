@@ -4,6 +4,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useMemo,
   useRef,
 } from 'react';
 import CartAPI from '../api/cart';
@@ -258,35 +259,22 @@ export function CartProvider({ children }) {
   // user actions only.
   useLiveRefresh(() => fetchCart(true), { intervalMs: 0, isEnabled: !!userKey });
 
-  // Apply a locally-computed next cart immediately (optimistic UI). Updates are
-  // always functional (`setItems(prev => ...)`) so rapid taps build on the
-  // latest state instead of stale closures.
-  function applyOptimistic(updateFn, payload) {
-    setItems((cur) => updateFn(cur, payload));
-  }
-
-  // Reconcile after an API mutation. A mutation response can arrive before the
-  // server's quote document is fully recomputed, so we NEVER replace the local
-  // (optimistically applied) cart from a mutation response — doing so made items
-  // visually "snap back", forced double taps, and resurrected deleted lines.
-  // The local cart is the source of truth during a session; it is reconciled
-  // with the server on initial mount / foreground refresh instead.
-  function reconcile(data, startedVersion) {
-    if (startedVersion !== mutationVersion.current) return;
-    if (data && data.currency) setCurrency(data.currency);
-  }
-
   // Apply a mutation optimistically to the local cart instantly, then run the
   // network request concurrently in the background. If it fails, the exact
   // pre-mutation snapshot is restored — no extra network round-trip required.
-  async function runMutation(updateFn, payload, apiFn) {
+  //
+  // Stable across renders (mutable reads go through refs) so the action
+  // functions can be memoized: a consumer that only calls `addToCart` then does
+  // not re-render just because the provider re-rendered for another reason.
+  const runMutation = useCallback(async (updateFn, payload, apiFn) => {
     setActionLoading(true);
-    const snapshot = items;
+    const snapshot = itemsRef.current;
     const version = ++mutationVersion.current;
-    applyOptimistic(updateFn, payload);
+    // Functional update so rapid taps build on the latest state, not a stale
+    // closure captured when the callback was created.
+    setItems((cur) => updateFn(cur, payload));
     try {
       await apiFn();
-      return;
     } catch (err) {
       // Only roll back if no newer mutation built on top of ours.
       if (mutationVersion.current === version) {
@@ -296,70 +284,98 @@ export function CartProvider({ children }) {
     } finally {
       setActionLoading(false);
     }
-  }
+  }, []);
 
-  function addToCart(itemCode, qty = 1, uom = null, product = null) {
-    return runMutation(
-      optimisticAdd,
-      { itemCode, qty, uom, product },
-      () => CartAPI.addToCart(itemCode, qty, uom)
-    );
-  }
-
-  function updateQuantity(itemCode, qty, uom = null) {
-    return runMutation(
-      optimisticQuantity,
-      { itemCode, qty, uom },
-      () => CartAPI.updateCartLine(itemCode, qty, uom)
-    );
-  }
-
-  function updateUOM(itemCode, newUom, previousUom) {
-    const line = items.find(
-      (i) => i.item_code === itemCode && (i.uom === previousUom || !previousUom)
-    );
-    const qty = line ? line.qty : 1;
-    return runMutation(
-      optimisticUom,
-      { itemCode, newUom, previousUom },
-      () => CartAPI.updateCartLine(itemCode, qty, newUom, previousUom)
-    );
-  }
-
-  function removeItem(itemCode, uom = null) {
-    return runMutation(
-      optimisticRemove,
-      { itemCode, uom },
-      () => CartAPI.removeFromCart(itemCode, uom)
-    );
-  }
-
-  const count = items.reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0);
-  const total = computeTotal(items);
-
-  return (
-    <CartContext.Provider
-      value={{
-        items,
-        total,
-        count,
-        currency,
-        loading,
-        actionLoading,
-        fetchCart,
-        addToCart,
-        updateQuantity,
-        updateUOM,
-        removeItem,
-        clearCart: () => {
-          ++mutationVersion.current;
-          setItems([]);
-        },
-      }}
-    >
-      {children}
-    </CartContext.Provider>
+  const addToCart = useCallback(
+    (itemCode, qty = 1, uom = null, product = null) =>
+      runMutation(
+        optimisticAdd,
+        { itemCode, qty, uom, product },
+        () => CartAPI.addToCart(itemCode, qty, uom)
+      ),
+    [runMutation]
   );
+
+  const updateQuantity = useCallback(
+    (itemCode, qty, uom = null) =>
+      runMutation(
+        optimisticQuantity,
+        { itemCode, qty, uom },
+        () => CartAPI.updateCartLine(itemCode, qty, uom)
+      ),
+    [runMutation]
+  );
+
+  const updateUOM = useCallback(
+    (itemCode, newUom, previousUom) => {
+      const line = itemsRef.current.find(
+        (i) => i.item_code === itemCode && (i.uom === previousUom || !previousUom)
+      );
+      const qty = line ? line.qty : 1;
+      return runMutation(
+        optimisticUom,
+        { itemCode, newUom, previousUom },
+        () => CartAPI.updateCartLine(itemCode, qty, newUom, previousUom)
+      );
+    },
+    [runMutation]
+  );
+
+  const removeItem = useCallback(
+    (itemCode, uom = null) =>
+      runMutation(
+        optimisticRemove,
+        { itemCode, uom },
+        () => CartAPI.removeFromCart(itemCode, uom)
+      ),
+    [runMutation]
+  );
+
+  const clearCart = useCallback(() => {
+    ++mutationVersion.current;
+    setItems([]);
+  }, []);
+
+  const count = useMemo(
+    () => items.reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0),
+    [items]
+  );
+  const total = useMemo(() => computeTotal(items), [items]);
+
+  // Memoised so consumers re-render only when something they can read actually
+  // changed, not on every state update anywhere in the provider.
+  const value = useMemo(
+    () => ({
+      items,
+      total,
+      count,
+      currency,
+      loading,
+      actionLoading,
+      fetchCart,
+      addToCart,
+      updateQuantity,
+      updateUOM,
+      removeItem,
+      clearCart,
+    }),
+    [
+      items,
+      total,
+      count,
+      currency,
+      loading,
+      actionLoading,
+      fetchCart,
+      addToCart,
+      updateQuantity,
+      updateUOM,
+      removeItem,
+      clearCart,
+    ]
+  );
+
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
 
 export function useCart() {

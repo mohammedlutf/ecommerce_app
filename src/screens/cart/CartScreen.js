@@ -3,7 +3,6 @@ import {
   View,
   Text,
   ScrollView,
-  Image,
   TouchableOpacity,
   TextInput,
   StyleSheet,
@@ -16,6 +15,7 @@ import UOMSelector from '../../components/UOMSelector';
 import AddressCard from '../../components/AddressCard';
 import AddressFormModal from '../../components/AddressFormModal';
 import EmptyState from '../../components/EmptyState';
+import ProductImage from '../../components/ProductImage';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -33,7 +33,6 @@ import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
 import { MAX_CONTENT_WIDTH } from '../../theme/responsive';
 import { formatCurrency } from '../../utils/format';
-import { getImageUrl } from '../../api/client';
 
 export default function CartScreen({ navigation }) {
   useResetOnTabPress(navigation, 'CartTab');
@@ -277,15 +276,15 @@ export default function CartScreen({ navigation }) {
   const itemsBlock = (
     <View style={styles.itemsList}>
       {items.map((line, idx) => {
-        const imageUrl = getImageUrl(line.image);
         return (
           <View key={`${line.item_code}-${line.uom || idx}`} style={styles.cartItemCard}>
             <View style={styles.itemImageWrapper}>
-              {imageUrl ? (
-                <Image source={{ uri: imageUrl }} style={styles.itemImage} resizeMode="contain" />
-              ) : (
-                <Icon name="bag-handle-outline" size={26} color={Colors.textMuted} />
-              )}
+              <ProductImage
+                source={line.image}
+                style={styles.itemImage}
+                resizeMode="contain"
+                fallbackIconSize={26}
+              />
             </View>
 
             <View style={styles.itemInfo}>

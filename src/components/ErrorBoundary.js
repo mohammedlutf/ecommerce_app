@@ -69,6 +69,13 @@ export default class ErrorBoundary extends React.Component {
   }
 
   handleReset() {
+    // On web a full reload is the only guaranteed-clean recovery: re-rendering
+    // the same tree usually reproduces the throw. Native has no direct
+    // equivalent, so there we clear the flag and let the tree mount fresh.
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location) {
+      window.location.reload();
+      return;
+    }
     this.setState({ error: null });
   }
 

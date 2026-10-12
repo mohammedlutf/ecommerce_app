@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 import WishlistAPI from '../api/wishlist';
 import { useAuth } from './AuthContext';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
@@ -43,72 +51,81 @@ export function WishlistProvider({ children }) {
   // Keep the wishlist in sync when the app returns to the foreground.
   useLiveRefresh(fetchWishlist, { intervalMs: 0, isEnabled: !!userKey });
 
-  function isWishlisted(itemCode) {
-    if (!itemCode) return false;
-    return items.some((item) => {
-      const code = typeof item === 'string' ? item : (item.item_code || item.name);
-      return code === itemCode;
-    });
-  }
+  // Stable identity per item list so consumers that only depend on these
+  // callbacks are not invalidated by unrelated re-renders.
+  const isWishlisted = useCallback(
+    (itemCode) => {
+      if (!itemCode) return false;
+      return items.some((item) => {
+        const code = typeof item === 'string' ? item : (item.item_code || item.name);
+        return code === itemCode;
+      });
+    },
+    [items]
+  );
 
-  async function toggleWishlist(itemCode) {
-    if (!itemCode) return null;
-    const item = {
-      item_code: itemCode,
-      name: itemCode,
-      _optimistic: true,
-    };
-    const currently = isWishlisted(itemCode);
+  const toggleWishlist = useCallback(
+    async (itemCode) => {
+      if (!itemCode) return null;
+      const item = {
+        item_code: itemCode,
+        name: itemCode,
+        _optimistic: true,
+      };
+      const currently = isWishlisted(itemCode);
 
-    // Optimistic: flip the heart instantly, reconcile with the server after.
-    setItems((cur) =>
-      currently
-        ? cur.filter((item_) => {
-            const code =
-              typeof item_ === 'string' ? item_ : item_.item_code || item_.name;
-            return code !== itemCode;
-          })
-        : [...cur, item]
-    );
-
-    try {
-      const res = await WishlistAPI.toggleWishlist(itemCode);
-      // Reconcile with the authoritative list (quietly).
-      try {
-        const data = await WishlistAPI.getWishlistItems();
-        setItems(Array.isArray(data) ? data : []);
-      } catch (e) {
-        /* keep optimistic state */
-      }
-      return res;
-    } catch (err) {
-      // Revert optimistic change on failure.
+      // Optimistic: flip the heart instantly, reconcile with the server after.
       setItems((cur) =>
         currently
-          ? [...cur, item]
-          : cur.filter((item_) => {
+          ? cur.filter((item_) => {
               const code =
                 typeof item_ === 'string' ? item_ : item_.item_code || item_.name;
               return code !== itemCode;
             })
+          : [...cur, item]
       );
-      throw err;
-    }
-  }
+
+      try {
+        const res = await WishlistAPI.toggleWishlist(itemCode);
+        // Reconcile with the authoritative list (quietly).
+        try {
+          const data = await WishlistAPI.getWishlistItems();
+          setItems(Array.isArray(data) ? data : []);
+        } catch (e) {
+          /* keep optimistic state */
+        }
+        return res;
+      } catch (err) {
+        // Revert optimistic change on failure.
+        setItems((cur) =>
+          currently
+            ? [...cur, item]
+            : cur.filter((item_) => {
+                const code =
+                  typeof item_ === 'string' ? item_ : item_.item_code || item_.name;
+                return code !== itemCode;
+              })
+        );
+        throw err;
+      }
+    },
+    [isWishlisted]
+  );
+
+  const value = useMemo(
+    () => ({
+      items,
+      count: items.length,
+      loading,
+      fetchWishlist,
+      toggleWishlist,
+      isWishlisted,
+    }),
+    [items, loading, fetchWishlist, toggleWishlist, isWishlisted]
+  );
 
   return (
-    <WishlistContext.Provider
-      value={{
-        items,
-        count: items.length,
-        loading,
-        fetchWishlist,
-        toggleWishlist,
-        isWishlisted,
-      }}
-    >
-      {children}
-    </WishlistContext.Provider>
+    <WishlistContext.Provider value={value}>{children}</WishlistContext.Provider>
   );
 }
 

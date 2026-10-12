@@ -1,11 +1,11 @@
 import React from 'react';
-import { Text, Image, TouchableOpacity, StyleSheet, View, Animated } from 'react-native';
+import { Text, TouchableOpacity, StyleSheet, View, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from './Icon';
+import ProductImage from './ProductImage';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
 import { Radius, Shadows } from '../theme/spacing';
-import { getImageUrl } from '../api/client';
 import useDirectional from '../hooks/useDirectional';
 
 // Soft, friendly gradient pair per common category (fallback when no image).
@@ -93,11 +93,10 @@ export default function CategoryCard({
   }
 
   // Image tile — square thumbnail with label (used on the Home screen).
-  const rawImage =
+  const imageSrc =
     typeof category === 'object' && category
       ? category.image || category.website_image || category.icon || null
       : null;
-  const imageSrc = getImageUrl(rawImage);
   const style = pickStyle(name);
 
   return (
@@ -114,7 +113,13 @@ export default function CategoryCard({
         ]}
       >
         {imageSrc ? (
-          <Image source={{ uri: imageSrc }} style={styles.image} resizeMode="cover" />
+          <ProductImage
+            source={imageSrc}
+            style={styles.image}
+            resizeMode="cover"
+            fallbackIcon="pricetags-outline"
+            fallbackIconSize={26}
+          />
         ) : (
           <LinearGradient
             colors={style.colors}

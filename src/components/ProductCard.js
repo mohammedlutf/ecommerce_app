@@ -2,7 +2,6 @@ import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
-  Image,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
@@ -17,14 +16,14 @@ import { Typography } from '../theme/typography';
 import { Radius, Shadows } from '../theme/spacing';
 import { formatCurrency, calculateDiscount } from '../utils/format';
 import { rateForUom } from '../utils/catalog';
-import { getImageUrl } from '../api/client';
+import ProductImage from './ProductImage';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../context/ToastContext';
 import { useAdmin } from '../context/AdminContext';
 import useDirectional from '../hooks/useDirectional';
 
-export default function ProductCard({
+function ProductCard({
   product,
   onPress,
   horizontal = false,
@@ -71,7 +70,6 @@ export default function ProductCard({
   );
   const inCartQty = cartLine ? cartLine.qty : 0;
   const wishlisted = isWishlisted(product.item_code);
-  const imageUrl = getImageUrl(product.website_image || product.image);
 
   function animatePress() {
     Animated.sequence([
@@ -163,13 +161,11 @@ export default function ProductCard({
       >
         {/* Media */}
         <View style={[styles.imageContainer, { height: imageHeight }]}>
-          {imageUrl ? (
-            <Image source={{ uri: imageUrl }} style={styles.image} />
-          ) : (
-            <View style={styles.placeholderImage}>
-              <Icon name="bag-handle-outline" size={42} color={Colors.textMuted} />
-            </View>
-          )}
+          <ProductImage
+            source={product.website_image || product.image}
+            blurhash={product.blurhash}
+            style={styles.image}
+          />
 
           {discountPercent ? (
             <View style={[styles.discountBadge, insetStart(8)]}>
@@ -313,12 +309,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   image: { width: '90%', height: '90%' },
-  placeholderImage: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   discountBadge: {
     position: 'absolute',
     top: 8,
@@ -419,3 +409,10 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyBold,
   },
 });
+
+/**
+ * Memoized: grid rows re-render whenever their parent does, but a card's output
+ * only depends on its `product`, `imageHeight`, `onPress` and layout flags. With
+ * the parent passing stable references, unchanged cards skip re-render entirely.
+ */
+export default React.memo(ProductCard);

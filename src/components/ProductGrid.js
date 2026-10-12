@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { View, FlatList, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, FlatList, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import ProductCard from './ProductCard';
 import EmptyState from './EmptyState';
 import useResponsive from '../hooks/useResponsive';
@@ -84,7 +84,7 @@ export default function ProductGrid({
   const renderItem = useCallback(
     ({ item }) => (
       <View style={cellStyle}>
-        <ProductCard product={item} imageHeight={imageHeight} onPress={() => onPressProduct(item)} />
+        <ProductCard product={item} imageHeight={imageHeight} onPress={onPressProduct} />
       </View>
     ),
     [cellStyle, imageHeight, onPressProduct]
@@ -131,8 +131,14 @@ export default function ProductGrid({
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
       initialNumToRender={columns * 4}
+      maxToRenderPerBatch={columns * 4}
+      updateCellsBatchingPeriod={50}
       windowSize={9}
-      removeClippedSubviews={false}
+      // VirtualizedList defaults this to true on Android, which is where
+      // detaching off-screen rows actually saves memory. iOS and web keep it
+      // off: on web the cells are percentage-width and clipping can blank
+      // them, and iOS wins less from it than it costs in scroll jank.
+      removeClippedSubviews={Platform.OS === 'android'}
     />
   );
 }

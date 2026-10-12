@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
-  Image,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
@@ -14,6 +13,7 @@ import Icon from '../../components/Icon';
 import UOMSelector from '../../components/UOMSelector';
 import QuantityStepper from '../../components/QuantityStepper';
 import ProductCard from '../../components/ProductCard';
+import ProductImage from '../../components/ProductImage';
 import PageFooter from '../../components/layout/PageFooter';
 import CatalogAPI from '../../api/catalog';
 import { useCart } from '../../context/CartContext';
@@ -27,7 +27,6 @@ import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
 import { formatCurrency, calculateDiscount, formatCount, formatDate } from '../../utils/format';
 import { rateForUom } from '../../utils/catalog';
-import { getImageUrl } from '../../api/client';
 import useDocumentHead from '../../seo/useDocumentHead';
 import { organizationNode, productNode, breadcrumbNode } from '../../seo/jsonld';
 import { openProduct } from '../../seo/linking';
@@ -345,7 +344,6 @@ export default function ProductDetailScreen({ route, navigation }) {
   );
   const inCartQty = cartLine ? cartLine.qty : 0;
   const wishlisted = isWishlisted(product.item_code);
-  const imageUrl = getImageUrl(product.website_image || product.image);
   const reviews = Array.isArray(product.reviews) ? product.reviews : [];
   const showReviews = settings.enableReviews;
   const showRecommended = settings.enableRecommendations;
@@ -432,13 +430,13 @@ export default function ProductDetailScreen({ route, navigation }) {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Image */}
         <View style={styles.imageWrapper}>
-          {imageUrl ? (
-            <Image source={{ uri: imageUrl }} style={styles.heroImage} resizeMode="contain" />
-          ) : (
-            <View style={styles.placeholderBox}>
-              <Icon name="bag-handle-outline" size={64} color={Colors.textMuted} />
-            </View>
-          )}
+          <ProductImage
+            source={product.website_image || product.image}
+            blurhash={product.blurhash}
+            style={styles.heroImage}
+            resizeMode="contain"
+            fallbackIconSize={64}
+          />
 
           {discountPercent ? (
             <View style={styles.discountTag}>
@@ -696,10 +694,6 @@ const styles = StyleSheet.create({
   heroImage: {
     width: '85%',
     height: '85%',
-  },
-  placeholderBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   discountTag: {
     position: 'absolute',

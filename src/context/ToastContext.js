@@ -4,6 +4,7 @@ import React, {
   useState,
   useRef,
   useCallback,
+  useMemo,
 } from 'react';
 import {
   View,
@@ -127,8 +128,15 @@ export function ToastProvider({ children }) {
   const error = useCallback((text, duration) => show('error', text, duration), [show]);
   const info = useCallback((text, duration) => show('info', text, duration), [show]);
 
+  // Memoize the context value so a toast banner re-render (or any unrelated
+  // provider re-render) does not invalidate every consumer's subscriptions.
+  const value = useMemo(
+    () => ({ show, success, error, info, dismiss: removeToast }),
+    [show, success, error, info, removeToast]
+  );
+
   return (
-    <ToastContext.Provider value={{ show, success, error, info, dismiss: removeToast }}>
+    <ToastContext.Provider value={value}>
       {children}
       {toasts.length > 0 && (
         <View
