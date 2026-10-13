@@ -85,6 +85,14 @@
           "photosPermission": "نحتاج الوصول إلى معرض الصور لاختيار صور المنتجات.",
           "cameraPermission": "نحتاج الكاميرا لالتقاط صور المنتجات التي تضيفها إلى المتجر."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#004129",
+          "defaultChannel": "default"
+        }
       ]
     ],
     "updates": {

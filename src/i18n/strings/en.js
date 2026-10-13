@@ -302,6 +302,19 @@ export default {
     noOrdersHint: 'Your orders will appear here after your first purchase',
   },
 
+  notifications: {
+    title: 'Notifications',
+    empty: 'No notifications yet',
+    emptyHint: 'New notifications will appear here when they arrive, and you can open them anytime.',
+    markAllRead: 'Mark all as read',
+    justNow: 'Just now',
+    minutesAgo: '{count} minutes ago',
+    hoursAgo: '{count} hours ago',
+    daysAgo: '{count} days ago',
+    permissionDenied: 'Allow notifications in your device settings to get updates and offers',
+    registerFailed: 'Could not register this device for notifications',
+  },
+
   wishlist: {
     title: 'Wishlist',
     empty: 'Your wishlist is empty',

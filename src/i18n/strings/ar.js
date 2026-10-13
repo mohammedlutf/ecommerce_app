@@ -306,6 +306,19 @@ export default {
     noOrdersHint: 'طلباتك ستظهر هنا بعد أول عملية شراء',
   },
 
+  notifications: {
+    title: 'الإشعارات',
+    empty: 'لا توجد إشعارات بعد',
+    emptyHint: 'ستظهر الإشعارات الجديدة هنا عند وصولها، ويمكنك فتحها في أي وقت.',
+    markAllRead: 'تعيين الكل كمقروء',
+    justNow: 'الآن',
+    minutesAgo: 'منذ {count} دقيقة',
+    hoursAgo: 'منذ {count} ساعة',
+    daysAgo: 'منذ {count} يوم',
+    permissionDenied: 'فعّل الإشعارات من إعدادات الجهاز لتلقي التحديثات والعروض',
+    registerFailed: 'تعذر تسجيل هذا الجهاز لتلقي الإشعارات',
+  },
+
   wishlist: {
     title: 'المفضلة',
     empty: 'قائمة المفضلة فارغة',

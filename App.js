@@ -14,6 +14,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { I18nProvider, detectInitialLocale } from './src/i18n/I18nContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { CartProvider } from './src/context/CartContext';
+import { NotificationProvider } from './src/context/NotificationContext';
 import { AdminProvider } from './src/context/AdminContext';
 import { WishlistProvider } from './src/context/WishlistContext';
 import { ToastProvider } from './src/context/ToastContext';
@@ -232,17 +233,22 @@ export default function App() {
         <I18nProvider>
           <ToastProvider>
             <AuthProvider>
-              <CartProvider>
-                <WishlistProvider>
-                  {/* Inside AuthProvider: the admin flag is keyed on the signed-in
-                      user and must reset on sign-in/sign-out. */}
-                  <AdminProvider>
-                    <OnboardingProvider>
-                      <AppContent fontsReady={fontsLoaded} />
-                    </OnboardingProvider>
-                  </AdminProvider>
-                </WishlistProvider>
-              </CartProvider>
+              {/* Inside AuthProvider: push registration re-binds the device to
+                  the signed-in account (or stays a guest token) whenever the
+                  session identity changes. */}
+              <NotificationProvider>
+                <CartProvider>
+                  <WishlistProvider>
+                    {/* Inside AuthProvider: the admin flag is keyed on the signed-in
+                        user and must reset on sign-in/sign-out. */}
+                    <AdminProvider>
+                      <OnboardingProvider>
+                        <AppContent fontsReady={fontsLoaded} />
+                      </OnboardingProvider>
+                    </AdminProvider>
+                  </WishlistProvider>
+                </CartProvider>
+              </NotificationProvider>
             </AuthProvider>
           </ToastProvider>
         </I18nProvider>

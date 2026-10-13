@@ -13,6 +13,7 @@ import { Typography } from '../theme/typography';
 import { Radius } from '../theme/spacing';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
+import { useNotifications } from '../context/NotificationContext';
 import useDirectional from '../hooks/useDirectional';
 
 const Tab = createBottomTabNavigator();
@@ -36,6 +37,7 @@ export default function AppTabs({ hideTabBar = false }) {
   const { textStart } = useDirectional();
   const { count: cartCount } = useCart();
   const { count: wishlistCount } = useWishlist();
+  const { unreadCount } = useNotifications();
   const insets = useSafeAreaInsets();
 
   return (
@@ -128,6 +130,13 @@ export default function AppTabs({ hideTabBar = false }) {
           tabBarIcon: ({ color, focused }) => (
             <View style={styles.iconContainer}>
               <Icon name={focused ? 'person' : 'person-outline'} size={22} color={color} />
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={[styles.badgeText, textStart]}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </View>
+              )}
             </View>
           ),
         }}

@@ -176,6 +176,7 @@ export const linking = {
         screens: {
           Account: 'account',
           Login: 'login',
+          Notifications: 'notifications',
         },
       },
     },

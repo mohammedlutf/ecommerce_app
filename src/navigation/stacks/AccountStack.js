@@ -2,6 +2,7 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AccountScreen from '../../screens/account/AccountScreen';
 import LoginScreen from '../../screens/auth/LoginScreen';
+import NotificationsScreen from '../../screens/notifications/NotificationsScreen';
 import { Colors } from '../../theme/colors';
 
 const Stack = createNativeStackNavigator();
@@ -25,6 +26,11 @@ export default function AccountStack() {
         name="Login"
         component={LoginScreen}
         options={{ title: 'تسجيل الدخول' }}
+      />
+      <Stack.Screen
+        name="Notifications"
+        component={NotificationsScreen}
+        options={{ title: 'الإشعارات' }}
       />
     </Stack.Navigator>
   );

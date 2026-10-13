@@ -25,6 +25,7 @@ import PageFooter from '../../components/layout/PageFooter';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
+import { useNotifications } from '../../context/NotificationContext';
 import { useResetOnTabPress } from '../../hooks/useResetOnTabPress';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import { useSiteChrome } from '../../hooks/useResponsive';
@@ -81,6 +82,7 @@ export default function AccountScreen({ navigation }) {
   const { confirm, confirmDialog } = useConfirm();
   const { fetchCart } = useCart();
   const toast = useToast();
+  const { unreadCount } = useNotifications();
 
   // Scope everything to the signed-in customer. Keying on the email (not just
   // "is logged in") is what makes a logout → login as somebody else start from
@@ -406,6 +408,22 @@ export default function AccountScreen({ navigation }) {
             <Text style={[styles.profileEmail, textStart]}>{user?.mobileNo}</Text>
           </View>
           <TouchableOpacity
+            onPress={() => navigation.navigate('Notifications')}
+            style={styles.notifIconBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="الإشعارات"
+          >
+            <Icon name="notifications-outline" size={22} color={Colors.onSurfaceVariant} />
+            {unreadCount > 0 && (
+              <View style={styles.notifBadge}>
+                <Text style={[styles.notifBadgeText, textStart]}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
             onPress={handleLogout}
             style={styles.logoutIconBtn}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -648,6 +666,29 @@ scrollContent: {
   },
   logoutIconBtn: {
     padding: 8,
+  },
+  notifIconBtn: {
+    padding: 8,
+    position: 'relative',
+  },
+  notifBadge: {
+    position: 'absolute',
+    top: 1,
+    right: 0,
+    backgroundColor: Colors.error,
+    borderRadius: Radius.full,
+    minWidth: 17,
+    height: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: Colors.surfaceContainerLowest,
+  },
+  notifBadgeText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontFamily: Typography.fontFamilyExtraBold,
   },
   tabSwitcher: {
     flexDirection: 'row',

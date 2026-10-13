@@ -86,9 +86,12 @@ const linkingDecl = ast.program.body.find(
     n.declaration.type === 'VariableDeclaration' &&
     (n.declaration.declarations || []).some((d) => d.id.name === 'linking')
 );
-const configMatch = /config:\s*(\{[\s\S]*?\n {2}\}),\n\}/.exec(
-  linkSrc.slice(linkingDecl.start, linkingDecl.end)
-);
+// The slice keeps whatever line endings the working-tree file has; with
+// core.autocrlf enabled that is CRLF on Windows while the committed blob is LF.
+// Normalise before matching (and before `new Function` below) so the test is
+// line-ending agnostic instead of depending on the checkout's eol settings.
+const slice = linkSrc.slice(linkingDecl.start, linkingDecl.end).replace(/\r\n/g, '\n');
+const configMatch = /config:\s*(\{[\s\S]*?\n {2}\}),\n\}/.exec(slice);
 if (!configMatch) throw new Error('could not extract config from linking.js');
 const config = new Function(
   `return ${configMatch[1].replace(/^\s*config:\s*/, '').replace(/:\s*'https?:\/\/[^']*'/g, ":'https://site.test'").replace(/,?\s*'http:\/\/localhost:8081'/g, '')};`
