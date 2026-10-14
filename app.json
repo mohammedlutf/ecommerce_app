@@ -50,7 +50,7 @@
       ]
     },
     "extra": {
-      "apiUrl": "http://192.168.1.33:8000/",
+      "apiUrl": "http://192.168.1.35:8000/",
       "eas": {
         "projectId": "1ea621da-1e71-4e8a-90e4-cd60b706ffcf"
       }
@@ -91,7 +91,8 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#004129",
-          "defaultChannel": "default"
+          "defaultChannel": "default",
+          "enableBackgroundRemoteNotifications": false
         }
       ]
     ],

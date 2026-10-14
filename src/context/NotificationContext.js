@@ -22,7 +22,7 @@ import { navigationRef } from '../navigation/navigationRef';
 const NotificationContext = createContext(null);
 
 /** Android notification channel every push is delivered through. */
-const DEFAULT_CHANNEL_ID = 'default';
+const DEFAULT_CHANNEL_ID = 'default_v2';
 
 /** The in-app inbox is capped so storage stays bounded on a phone. */
 const MAX_INBOX_ITEMS = 100;
