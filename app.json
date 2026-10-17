@@ -36,6 +36,7 @@
       },
       "softwareKeyboardLayoutMode": "resize",
       "package": "com.mohammedlutfdalal.hadramoutecommerce",
+      "googleServicesFile": "./google-services.json",
       "runtimeVersion": "1.0.0",
       "config": {
         "googleMaps": {
@@ -50,7 +51,7 @@
       ]
     },
     "extra": {
-      "apiUrl": "http://192.168.1.35:8000/",
+      "apiUrl": "http://84.247.175.69/",
       "eas": {
         "projectId": "1ea621da-1e71-4e8a-90e4-cd60b706ffcf"
       }
@@ -91,7 +92,7 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#004129",
-          "defaultChannel": "default",
+          "defaultChannel": "default_v2",
           "enableBackgroundRemoteNotifications": false
         }
       ]

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "971368968804",
+    "project_id": "ecommerce-efd8b",
+    "storage_bucket": "ecommerce-efd8b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:971368968804:android:4b46e0f7a09abe3535e571",
+        "android_client_info": {
+          "package_name": "com.mohammedlutfdalal.hadramoutecommerce"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC3iWrj3mYFQpUyeTeDZM3vd36I5FCh2nY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

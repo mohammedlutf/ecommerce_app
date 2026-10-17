@@ -10,11 +10,10 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import Constants from 'expo-constants';
 import { useAuth } from './AuthContext';
 import {
+  DEVICE_TOKEN_STORAGE_KEY,
   NOTIFICATIONS_INBOX_KEY,
-  PUSH_TOKEN_STORAGE_KEY,
 } from '../api/sessionKeys';
 import { registerDeviceToken } from '../api/notifications';
 import { navigationRef } from '../navigation/navigationRef';
@@ -30,7 +29,7 @@ const MAX_INBOX_ITEMS = 100;
 const isNative = Platform.OS !== 'web';
 
 /**
- * Convert a received Expo notification into a persisted inbox record.
+ * Convert a received native notification into a persisted inbox record.
  *
  * `campaign_id` (sent by the backend in `data`) is the stable identity — the
  * native `request.identifier` is generated per-delivery, so relying on it
@@ -61,7 +60,7 @@ export function NotificationProvider({ children }) {
   const userKey = (user && user.email) || null;
 
   const [inbox, setInbox] = useState([]);
-  const [pushToken, setPushToken] = useState(null);
+  const [deviceToken, setDeviceToken] = useState(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [ready, setReady] = useState(isNative ? false : true);
 
@@ -159,8 +158,8 @@ export function NotificationProvider({ children }) {
       }
 
       try {
-        const token = await acquirePushToken();
-        if (!cancelled) setPushToken(token);
+        const token = await acquireDeviceToken();
+        if (!cancelled) setDeviceToken(token);
       } catch (err) {
         console.warn('[push] token acquisition failed:', err);
       }
@@ -186,6 +185,18 @@ export function NotificationProvider({ children }) {
       }
     });
 
+    // FCM rotates registration tokens periodically (and after a restore /
+    // reinstall). When it does, cache the new value and let the registration
+    // effect below re-bind it to the current session.
+    const tokenSub = Notifications.addPushTokenListener
+      ? Notifications.addPushTokenListener((tokenData) => {
+          const next = (tokenData && (tokenData.data || tokenData)) || null;
+          if (!next) return;
+          AsyncStorage.setItem(DEVICE_TOKEN_STORAGE_KEY, next).catch(() => {});
+          setDeviceToken(next);
+        })
+      : null;
+
     // Cold start: the app was launched by tapping a notification. Take the
     // user straight to the inbox like an in-app tap would.
     Notifications.getLastNotificationResponseAsync()
@@ -202,6 +213,7 @@ export function NotificationProvider({ children }) {
       cancelled = true;
       receivedSub.remove();
       responseSub.remove();
+      if (tokenSub) tokenSub.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -220,7 +232,7 @@ export function NotificationProvider({ children }) {
     let cancelled = false;
 
     (async () => {
-      const token = pushToken || (await readCachedPushToken());
+      const token = deviceToken || (await readCachedDeviceToken());
       if (!token || cancelled) return;
       try {
         await registerDeviceToken(token);
@@ -232,7 +244,7 @@ export function NotificationProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [isNative, userKey, authLoading, pushToken]);
+  }, [isNative, userKey, authLoading, deviceToken]);
 
   /* ---- iOS app-icon badge mirrors the unread count ---- */
 
@@ -263,13 +275,19 @@ export function NotificationProvider({ children }) {
 }
 
 /**
- * Ask for permission, then resolve the Expo push token (cached on first use).
+ * Ask for permission, then resolve the device's *native* push token, cached on
+ * first use.
+ *
+ * This is the token the backend addresses through the FCM HTTP v1 API, so it is
+ * deliberately `getDevicePushTokenAsync()` (an FCM registration token on
+ * Android, an APNs device token on iOS) rather than an Expo push token — no part
+ * of delivery goes through Expo's push service.
  *
  * Returns `null` when permissions were denied or the environment has no push
- * capability (simulator, Expo web).
+ * capability (simulator, Expo web, or a build without FCM configured).
  */
-async function acquirePushToken() {
-  const cached = await readCachedPushToken();
+async function acquireDeviceToken() {
+  const cached = await readCachedDeviceToken();
 
   let perms = await Notifications.getPermissionsAsync();
   if (perms && !perms.granted) {
@@ -280,31 +298,23 @@ async function acquirePushToken() {
   if (!granted) return cached || null;
   if (cached) return cached;
 
-  // Expo push simply does not exist on simulators/emulators.
+  // Native push tokens simply do not exist on simulators/emulators.
   if (!Device.isDevice) return null;
 
-  const projectId =
-    (Constants.expoConfig && Constants.expoConfig.extra && Constants.expoConfig.extra.eas
-      && Constants.expoConfig.extra.eas.projectId) ||
-    (Constants.easConfig && Constants.easConfig.projectId);
-
-  if (!projectId) {
-    console.warn('[push] No EAS projectId in app.json extra.eas; cannot mint an Expo token.');
-    return null;
-  }
-
-  const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+  // Throws when the build has no Firebase config (e.g. Expo Go, which uses
+  // Expo's own project). Callers log and continue without push.
+  const tokenData = await Notifications.getDevicePushTokenAsync();
   const token = (tokenData && (tokenData.data || tokenData)) || null;
 
   if (token) {
-    await AsyncStorage.setItem(PUSH_TOKEN_STORAGE_KEY, token).catch(() => {});
+    await AsyncStorage.setItem(DEVICE_TOKEN_STORAGE_KEY, token).catch(() => {});
   }
   return token;
 }
 
-async function readCachedPushToken() {
+async function readCachedDeviceToken() {
   try {
-    return (await AsyncStorage.getItem(PUSH_TOKEN_STORAGE_KEY)) || null;
+    return (await AsyncStorage.getItem(DEVICE_TOKEN_STORAGE_KEY)) || null;
   } catch {
     return null;
   }

@@ -6,3 +6,11 @@ dist-web/
 android/
 *.log
 OVERHAUL_PLAN.md
+
+# Firebase service account private keys (never commit these).
+# NOTE: google-services.json is intentionally NOT ignored — it only holds
+# public identifiers and is required by the Android build.
+# The leading `*` matters: the real key is named
+# `ecommerce-<id>-firebase-adminsdk-<id>.json`, not `firebase-adminsdk-...`.
+*firebase-adminsdk*.json
+*service-account*.json

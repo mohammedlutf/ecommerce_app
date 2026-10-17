@@ -30,7 +30,7 @@ import { USER_STORAGE_KEY as USER_KEY } from './sessionKeys';
  * without extra setup — it is not a production value.
  */
 const CONFIGURED_API_URL = (process.env.EXPO_PUBLIC_API_URL || '').trim();
-const DEV_LAN_FALLBACK = 'http://192.168.1.35:8000/';
+const DEV_LAN_FALLBACK = 'http://84.247.175.69/';
 
 export const BASE_URL =
   Platform.OS === 'web'

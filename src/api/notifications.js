@@ -4,9 +4,11 @@ import { Platform } from 'react-native';
 /**
  * Push notification integration with the `webshop` Frappe app.
  *
- * Only one backend round trip is needed from the device: register the Expo
- * push token. Delivery itself is performed server-side from the "App Push
- * Notification" campaign doctype — the app never talks to Expo directly.
+ * Only one backend round trip is needed from the device: register the native
+ * device push token. Delivery itself is performed server-side from the "App
+ * Push Notification" campaign doctype, which sends through the FCM HTTP v1 API
+ * using a Firebase service-account key — the app never talks to Expo's push
+ * service at all.
  */
 
 // Module path of the token doctype inside the `webshop` app. The backend
@@ -25,7 +27,10 @@ export function platformName() {
 }
 
 /**
- * Register (or refresh) the device's Expo push token with the backend.
+ * Register (or refresh) the device's native push token with the backend.
+ *
+ * The token comes from `expo-notifications`' `getDevicePushTokenAsync()`: an
+ * FCM registration token on Android, an APNs device token on iOS.
  *
  * The server reads `frappe.session.user` from the request itself: when the app
  * is signed in the token gets bound to the account, otherwise it is registered
@@ -33,11 +38,11 @@ export function platformName() {
  * changes — that is what makes a guest -> login transition a re-bind of the
  * same device row instead of a second registration.
  *
- * @param {string} expoToken
+ * @param {string} deviceToken
  * @returns {Promise<{bound_user?: string, is_guest?: number}>}
  */
-export async function registerDeviceToken(expoToken) {
-  const args = { token: expoToken, platform: platformName() };
+export async function registerDeviceToken(deviceToken) {
+  const args = { token: deviceToken, platform: platformName() };
   try {
     return await frappeCall(REGISTER_TOKEN_METHOD, args, 'POST');
   } catch (err) {
@@ -45,7 +50,7 @@ export async function registerDeviceToken(expoToken) {
     // keeps working until the updated doctype file is deployed.
     // eslint-disable-next-line no-console
     console.warn('[push] register_token unavailable, trying save_guest_token:', err?.message);
-    return frappeCall(LEGACY_GUEST_TOKEN_METHOD, { token: expoToken, platform: platformName() });
+    return frappeCall(LEGACY_GUEST_TOKEN_METHOD, { token: deviceToken, platform: platformName() });
   }
 }
 
