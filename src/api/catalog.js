@@ -100,16 +100,16 @@ export const CatalogAPI = {
 
   /**
    * The storefront's public configuration, from `Webshop Settings` via the
-   * whitelisted `webshop.my_api.api.webshop_settings`: the feature switches and
-   * the merchant's home-hero banners.
+   * whitelisted `webshop.my_api.api.webshop_settings`: the feature switches, the
+   * merchant's home-hero banners and whether the home screen draws the shop rail.
    *
    * Cached because this is site-wide configuration that changes a handful of
    * times a year, while it is read on every product page. `force` exists for the
    * home screen's pull-to-refresh, where the shopper has explicitly asked for
-   * fresh content and a ten-minute-old banner list would look like a refresh
-   * that did nothing.
+   * fresh content and a ten-minute-old banner list — or a shops switch flipped a
+   * minute ago — would look like a refresh that did nothing.
    *
-   * Fails OPEN (both switches true, no banners) when the endpoint is
+   * Fails OPEN (both switches true, no banners, shops shown) when the endpoint is
    * unreachable. Hiding a section the merchant turned on is a worse mistake than
    * showing one they turned off, and a settings call that fails must not take
    * the whole product page down with it. No banners is the safe fallback for the
@@ -125,11 +125,20 @@ export const CatalogAPI = {
       settingsCache = {
         enableReviews: !!(raw && raw.enable_reviews),
         enableRecommendations: !!(raw && raw.enable_recommendations),
+        // Only an explicit `false` from the server hides the rail. An older
+        // server that does not send the key at all keeps the shopper's home
+        // screen exactly as it was, shops and all.
+        showShopsOnHome: !(raw && raw.show_shops_on_homescreen === false),
         homepageAds: normalizeHomepageAds(raw && raw.homepage_ads),
       };
     } catch (err) {
       console.warn('Could not load webshop settings:', err.message);
-      settingsCache = { enableReviews: true, enableRecommendations: true, homepageAds: [] };
+      settingsCache = {
+        enableReviews: true,
+        enableRecommendations: true,
+        showShopsOnHome: true,
+        homepageAds: [],
+      };
     }
     settingsCacheAt = Date.now();
     return settingsCache;

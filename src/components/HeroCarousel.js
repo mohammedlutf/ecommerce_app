@@ -18,12 +18,12 @@ const AUTOPLAY_MS = 5000;
 /**
  * Banner shape as width / height.
  *
- * 2.4 (1200x500) is the ratio `Webshop Settings` recommends next to the table.
+ * 2.0 (1200x600) is the ratio `Webshop Settings` recommends next to the table.
  * The frame is fixed and the photo is `cover`-cropped into it, so a carousel
  * that mixes uploads of different sizes still finds one row of page-aligned
  * slides instead of a hero whose height jumps as each banner comes round.
  */
-const BANNER_ASPECT = 2.4;
+const BANNER_ASPECT = 2.0;
 
 /** Gap between the banner and the screen edge — the static hero's own gutter. */
 const GUTTER = 16;

@@ -94,6 +94,11 @@ export default function HomeScreen({ navigation }) {
   // vendors yet renders no rail at all (see the render guard), so this starts
   // empty and a failed fetch simply keeps it that way.
   const [shops, setShops] = useState([]);
+  // Whether the merchant wants the shop rail on this screen at all
+  // (`Webshop Settings` → Show shops on homepage). Starts shown, which is both
+  // what the home screen did before the switch existed and what a settings call
+  // that never answered falls back to.
+  const [showShopsOnHome, setShowShopsOnHome] = useState(true);
   // The merchant's hero banners. Empty is the documented default: with none,
   // the hero is exactly what it was before the advertising table existed.
   const [heroAds, setHeroAds] = useState([]);
@@ -220,34 +225,54 @@ export default function HomeScreen({ navigation }) {
   // product page already makes. Its own fetch rather than part of `fetchHome`:
   // the call is cached and cheap, a site without the advertising table simply
   // answers "none", and a slow one must not hold the catalogue back.
-  const fetchHeroAds = useCallback(async ({ force = false } = {}) => {
+  //
+  // That one answer carries the shop-rail switch too, so the screen reads both
+  // from a single request instead of two. The settings are returned so a caller
+  // can act on the switch without reading state back a render later.
+  const fetchHomeSettings = useCallback(async ({ force = false } = {}) => {
     const settings = await CatalogAPI.getWebshopSettings({ force });
     setHeroAds(settings.homepageAds || []);
+    setShowShopsOnHome(settings.showShopsOnHome);
+    return settings;
   }, []);
+
+  // Settings first, then the shop rail only when the merchant left it on: on a
+  // deployment that hides the shops, the app never makes the shops call and
+  // never downloads logos it would not draw. The settings call is cached, so on
+  // a warm start the rail is not delayed by it.
+  const loadHomeExtras = useCallback(async () => {
+    const settings = await fetchHomeSettings();
+    if (settings.showShopsOnHome) fetchShops();
+  }, [fetchHomeSettings, fetchShops]);
 
   useEffect(() => {
     fetchHome();
-    fetchShops();
-    fetchHeroAds();
-  }, [fetchHome, fetchShops, fetchHeroAds]);
+    loadHomeExtras();
+  }, [fetchHome, loadHomeExtras]);
 
   // Live: re-fetch the home strip whenever the app returns to the foreground
   // (no aggressive in-app polling that visually refreshes the list). The banner
-  // list rides along — it answers from the settings cache almost every time, and
-  // a merchant who publishes a banner then reopens the app sees it without
-  // restarting anything.
+  // list and the shops switch ride along — they answer from the settings cache
+  // almost every time, and a merchant who publishes a banner or hides the shops
+  // then reopens the app sees it without restarting anything.
   const refreshOnForeground = useCallback(
-    () => Promise.all([fetchHome(), fetchHeroAds()]),
-    [fetchHome, fetchHeroAds]
+    () => Promise.all([fetchHome(), loadHomeExtras()]),
+    [fetchHome, loadHomeExtras]
   );
   useLiveRefresh(refreshOnForeground, { intervalMs: 0, isEnabled: true });
 
   async function onRefresh() {
     setRefreshing(true);
-    // `force` only on the banners: the shopper explicitly asked for fresh
-    // content, and the settings cache would otherwise answer from ten minutes
-    // ago and make the gesture look like it did nothing.
-    await Promise.all([fetchHome(), fetchShops(), fetchHeroAds({ force: true })]);
+    // `force` on the settings: the shopper explicitly asked for fresh content,
+    // and the cache would otherwise answer from ten minutes ago — with a stale
+    // banner list and a stale shops switch — and make the gesture look like it
+    // did nothing. The shops are re-fetched from that fresh answer rather than
+    // unconditionally, so turning the rail off takes effect on the same gesture
+    // that it is turned on.
+    const settings = await fetchHomeSettings({ force: true });
+    const jobs = [fetchHome()];
+    if (settings.showShopsOnHome) jobs.push(fetchShops());
+    await Promise.all(jobs);
     setRefreshing(false);
   }
 
@@ -436,8 +461,10 @@ function handleSelectCategory(catName) {
 
         {/* Shops — the entry point into the marketplace directory. Rendered only
             when at least one approved vendor exists: an empty rail (and a link
-            to an empty directory) is dead space on a single-shop deployment. */}
-        {shops.length > 0 ? (
+            to an empty directory) is dead space on a single-shop deployment.
+            `Webshop Settings` → Show shops on homepage hides the rail here and
+            here only; the directory is still linked from the Products screen. */}
+        {showShopsOnHome && shops.length > 0 ? (
           <>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, textStart]}>متاجر المنصة</Text>
