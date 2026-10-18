@@ -13,7 +13,7 @@ import Icon from '../../components/Icon';
 import ProductImage from '../../components/ProductImage';
 import ProductCard from '../../components/ProductCard';
 import EmptyState from '../../components/EmptyState';
-import LoadingSkeleton from '../../components/LoadingSkeleton';
+import ProductCardSkeleton, { SKELETON_CARDS } from '../../components/ProductCardSkeleton';
 import SearchBar from '../../components/SearchBar';
 import PageFooter from '../../components/layout/PageFooter';
 import MarketplaceAPI from '../../api/marketplace';
@@ -371,17 +371,9 @@ export default function ShopScreen({ route, navigation }) {
         ListEmptyComponent={
           loading ? (
             <View style={[styles.skeletonGrid, rowStyle]}>
-              {Array.from({ length: columns * 2 }).map((_, index) => (
+              {Array.from({ length: SKELETON_CARDS }).map((_, index) => (
                 <View key={index} style={cellStyle}>
-                  <LoadingSkeleton height={imageHeight} borderRadius={Radius.xl} />
-                  <View style={styles.skeletonCaption}>
-                    <LoadingSkeleton height={16} width="85%" />
-                    <LoadingSkeleton
-                      height={14}
-                      width="40%"
-                      style={styles.skeletonCaptionLine}
-                    />
-                  </View>
+                  <ProductCardSkeleton imageHeight={imageHeight} />
                 </View>
               ))}
             </View>
@@ -532,12 +524,6 @@ const styles = StyleSheet.create({
   skeletonGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-  },
-  skeletonCaption: {
-    marginTop: 8,
-  },
-  skeletonCaptionLine: {
-    marginTop: 6,
   },
   footer: {
     paddingTop: 8,

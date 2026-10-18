@@ -21,7 +21,7 @@ import SearchBar from '../../components/SearchBar';
 import CategoryCard from '../../components/CategoryCard';
 import ProductCard from '../../components/ProductCard';
 import EmptyState from '../../components/EmptyState';
-import LoadingSkeleton from '../../components/LoadingSkeleton';
+import ProductCardSkeleton, { SKELETON_CARDS } from '../../components/ProductCardSkeleton';
 import PageFooter from '../../components/layout/PageFooter';
 import CatalogAPI from '../../api/catalog';
 import { normalizeGroupName } from '../../utils/catalog';
@@ -112,6 +112,26 @@ function PageContent({ children }) {
     >
       {children}
     </Animated.View>
+  );
+}
+
+/**
+ * A page's placeholder grid.
+ *
+ * Six cards (`SKELETON_CARDS`), laid out with the very metrics the real grid
+ * uses (`cellStyle` / `rowStyle` / `imageHeight` from `useGridMetrics`), so the
+ * placeholder and the cards that replace it are geometrically identical and
+ * nothing shifts when the items arrive.
+ */
+function ProductGridSkeleton({ cellStyle, rowStyle, imageHeight }) {
+  return (
+    <View style={[styles.skeletonGrid, rowStyle]}>
+      {Array.from({ length: SKELETON_CARDS }).map((_, i) => (
+        <View key={i} style={cellStyle}>
+          <ProductCardSkeleton imageHeight={imageHeight} />
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -312,13 +332,9 @@ function SearchResults({ state, onOpen, onLoadMore, refreshing, onRefresh, onCle
   if (loading && items.length === 0) {
     return (
       <View style={[styles.skeletonGrid, rowStyle]}>
-        {Array.from({ length: columns * 2 }).map((_, i) => (
+        {Array.from({ length: SKELETON_CARDS }).map((_, i) => (
           <View key={i} style={cellStyle}>
-            <LoadingSkeleton height={imageHeight} borderRadius={Radius.xl} />
-            <View style={{ marginTop: 8 }}>
-              <LoadingSkeleton height={16} width="85%" />
-              <LoadingSkeleton height={14} width="40%" style={{ marginTop: 6 }} />
-            </View>
+            <ProductCardSkeleton imageHeight={imageHeight} />
           </View>
         ))}
       </View>
@@ -451,6 +467,10 @@ export default function ProductsScreen({ route, navigation }) {
   const [productsByKey, setProductsByKey] = useState({});
   const [hasMoreByKey, setHasMoreByKey] = useState({});
   const [loadedKeys, setLoadedKeys] = useState({});
+  // Page keys whose first fetch came back as an error. Tracked so a failed page
+  // shows a retry instead of a skeleton that can never resolve — the skeleton is
+  // only truthful while a request is actually outstanding.
+  const [failedKeys, setFailedKeys] = useState({});
   const [initialLoading, setInitialLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -504,6 +524,9 @@ export default function ProductsScreen({ route, navigation }) {
     });
     setHasMoreByKey((cur) => ({ ...cur, [key]: pageItems.length >= PAGE_SIZE }));
     setLoadedKeys((cur) => (cur[key] ? cur : { ...cur, [key]: true }));
+    // A page that has been fetched is no longer in the "failed" state, whether
+    // this was its first load or a retry of one.
+    setFailedKeys((cur) => (cur[key] ? { ...cur, [key]: false } : cur));
     if (data && Array.isArray(data.groups) && data.groups.length > 0) {
       setCategories(data.groups);
     }
@@ -515,7 +538,12 @@ export default function ProductsScreen({ route, navigation }) {
       const isStale = () => token !== catalogTokenRef.current;
 
       const firstLoad = !loadedKeys[key];
-      if (firstLoad) setInitialLoading(true);
+      if (firstLoad) {
+        setInitialLoading(true);
+        // Cleared here rather than by the caller, so pressing "retry" puts the
+        // page back into its skeleton state for as long as the new request runs.
+        setFailedKeys((cur) => (cur[key] ? { ...cur, [key]: false } : cur));
+      }
       offsetRef.current[key] = 0;
 
       const leaf = key === ALL_PAGE ? ALL_KEY : key;
@@ -556,7 +584,10 @@ export default function ProductsScreen({ route, navigation }) {
 
         mergePageFor(key, data, true);
       } catch (err) {
-        if (!isStale()) console.warn('Failed to fetch catalog:', err);
+        if (!isStale()) {
+          console.warn('Failed to fetch catalog:', err);
+          setFailedKeys((cur) => ({ ...cur, [key]: true }));
+        }
       } finally {
         if (!isStale()) {
           setInitialLoading(false);
@@ -1035,8 +1066,20 @@ export default function ProductsScreen({ route, navigation }) {
   }
 
   const activeProducts = productsByKey[activeKey] || [];
-  // Skeleton only on the very first load; page switches keep the paged UI and
-  // show an inline loader inside the new page instead (smooth swiping).
+  /*
+   * Page loading, and why there are two places a skeleton appears.
+   *
+   * `showSkeleton` covers the very first paint, before any page has data: the
+   * placeholder replaces the pager itself. Afterwards the pager stays mounted and
+   * each page owns its own skeleton, so switching a child group (or a parent,
+   * which resets the child list) shows the grid placeholder straight away instead
+   * of an empty area with a spinner — the same shape in both places, so the two
+   * states are indistinguishable to the shopper.
+   *
+   * `failedKeys` is what keeps the skeleton honest: it is only drawn while a
+   * request for that page is actually outstanding. A page whose fetch errored
+   * shows a retry, not a placeholder that pulses forever.
+   */
   const showSkeleton = initialLoading && Object.keys(productsByKey).length === 0;
 
   const onOpen = useCallback(
@@ -1226,17 +1269,11 @@ export default function ProductsScreen({ route, navigation }) {
       </View> */}
 
           {showSkeleton ? (
-            <View style={[styles.skeletonGrid, gridRowStyle]}>
-              {Array.from({ length: gridColumns * 2 }).map((_, i) => (
-                <View key={i} style={gridCellStyle}>
-                  <LoadingSkeleton height={gridImageHeight} borderRadius={Radius.xl} />
-                  <View style={{ marginTop: 8 }}>
-                    <LoadingSkeleton height={16} width="85%" />
-                    <LoadingSkeleton height={14} width="40%" style={{ marginTop: 6 }} />
-                  </View>
-                </View>
-              ))}
-            </View>
+            <ProductGridSkeleton
+              cellStyle={gridCellStyle}
+              rowStyle={gridRowStyle}
+              imageHeight={gridImageHeight}
+            />
           ) : (
             <View
               {...panResponder.panHandlers}
@@ -1255,6 +1292,9 @@ export default function ProductsScreen({ route, navigation }) {
                   // Only the active page mounts its product list. Other pages are
                   // lightweight placeholders so a parent with many children does not
                   // mount dozens of nested FlatLists / product cards at once.
+                  //
+                  // The active page draws its own skeleton until it has items, so a
+                  // swipe or a chip press never lands on a blank area with a spinner.
                   return (
                     <View
                       key={`${idx}-${key}`}
@@ -1262,59 +1302,75 @@ export default function ProductsScreen({ route, navigation }) {
                     >
                       {isActive ? (
                         <PageContent>
-                          <FlatList
-                            data={pageProducts}
-                            key={`page-grid-${gridColumns}`}
-                            keyExtractor={(item, index) => item.item_code || String(index)}
-                            numColumns={gridColumns}
-                            columnWrapperStyle={gridColumns > 1 ? gridRowStyle : undefined}
-                            contentContainerStyle={styles.listContent}
-                            showsVerticalScrollIndicator={false}
-                            initialNumToRender={6}
-                            maxToRenderPerBatch={10}
-                            updateCellsBatchingPeriod={60}
-                            windowSize={7}
-                            removeClippedSubviews
-                            renderItem={({ item }) => (
-                              <ProductGridCell
-                                product={item}
-                                onOpen={onOpen}
+                          {!loadedKeys[key] ? (
+                            failedKeys[key] ? (
+                              <EmptyState
+                                icon="cloud-offline-outline"
+                                title="تعذّر تحميل المنتجات"
+                                description="حدثت مشكلة أثناء جلب منتجات هذا القسم. تحقق من اتصالك وحاول مرة أخرى."
+                                actionLabel="إعادة المحاولة"
+                                onAction={() => loadKey(key)}
+                              />
+                            ) : (
+                              <ProductGridSkeleton
                                 cellStyle={gridCellStyle}
+                                rowStyle={gridRowStyle}
                                 imageHeight={gridImageHeight}
                               />
-                            )}
-                            onEndReached={() => loadMoreKey(key)}
-                            onEndReachedThreshold={0.4}
-                            refreshControl={
-                              <RefreshControl
-                                refreshing={refreshing}
-                                onRefresh={() => refreshKey(key)}
-                                colors={[Colors.primary]}
-                                tintColor={Colors.primary}
-                              />
-                            }
-                            ListFooterComponent={
-                              <View style={styles.footer}>
-                                {loadingMore ? (
-                                  <>
-                                    <ActivityIndicator size="small" color={Colors.primary} />
-                                    <Text style={[styles.footerText, textStart]}>جاري تحميل المزيد...</Text>
-                                  </>
-                                ) : !hasMoreByKey[key] && pageProducts.length > 0 ? (
-                                  <Text style={[styles.footerText, textStart]}>— لقد وصلت إلى نهاية القائمة —</Text>
-                                ) : null}
+                            )
+                          ) : (
+                            <FlatList
+                              data={pageProducts}
+                              key={`page-grid-${gridColumns}`}
+                              keyExtractor={(item, index) => item.item_code || String(index)}
+                              numColumns={gridColumns}
+                              columnWrapperStyle={gridColumns > 1 ? gridRowStyle : undefined}
+                              contentContainerStyle={styles.listContent}
+                              showsVerticalScrollIndicator={false}
+                              initialNumToRender={6}
+                              maxToRenderPerBatch={10}
+                              updateCellsBatchingPeriod={60}
+                              windowSize={7}
+                              removeClippedSubviews
+                              renderItem={({ item }) => (
+                                <ProductGridCell
+                                  product={item}
+                                  onOpen={onOpen}
+                                  cellStyle={gridCellStyle}
+                                  imageHeight={gridImageHeight}
+                                />
+                              )}
+                              onEndReached={() => loadMoreKey(key)}
+                              onEndReachedThreshold={0.4}
+                              refreshControl={
+                                <RefreshControl
+                                  refreshing={refreshing}
+                                  onRefresh={() => refreshKey(key)}
+                                  colors={[Colors.primary]}
+                                  tintColor={Colors.primary}
+                                />
+                              }
+                              ListFooterComponent={
+                                <View style={styles.footer}>
+                                  {loadingMore ? (
+                                    <>
+                                      <ActivityIndicator size="small" color={Colors.primary} />
+                                      <Text style={[styles.footerText, textStart]}>جاري تحميل المزيد...</Text>
+                                    </>
+                                  ) : !hasMoreByKey[key] && pageProducts.length > 0 ? (
+                                    <Text style={[styles.footerText, textStart]}>— لقد وصلت إلى نهاية القائمة —</Text>
+                                  ) : null}
 
-                                {/*
-                                  Products has no page-level ScrollView, only per-category
-                                  FlatLists inside the pager. `ListFooterComponent` is therefore
-                                  the only position where the footer sits *inside* the scrollable
-                                  area and can actually be reached.
-                                */}
-                                <PageFooter />
-                              </View>
-                            }
-                            ListEmptyComponent={
-                              loadedKeys[key] ? (
+                                  {/*
+                                    Products has no page-level ScrollView, only per-category
+                                    FlatLists inside the pager. `ListFooterComponent` is therefore
+                                    the only position where the footer sits *inside* the scrollable
+                                    area and can actually be reached.
+                                  */}
+                                  <PageFooter />
+                                </View>
+                              }
+                              ListEmptyComponent={
                                 <EmptyState
                                   icon="search-outline"
                                   title="لم يتم العثور على منتجات"
@@ -1322,14 +1378,9 @@ export default function ProductsScreen({ route, navigation }) {
                                   actionLabel="عرض كل المنتجات"
                                   onAction={showAll}
                                 />
-                              ) : initialLoading ? (
-                                <View style={styles.pageLoader}>
-                                  <ActivityIndicator size="small" color={Colors.primary} />
-                                  <Text style={[styles.pageLoaderText, textStart]}>جاري تحميل المنتجات...</Text>
-                                </View>
-                              ) : null
-                            }
-                          />
+                              }
+                            />
+                          )}
                         </PageContent>
                       ) : (
                         <View style={styles.pagePlaceholder}>
@@ -1506,17 +1557,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     paddingHorizontal: 10,
     paddingTop: 8,
-  },
-  pageLoader: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 40,
-  },
-  pageLoaderText: {
-    fontSize: Typography.sizes.bodySm,
-    color: Colors.textMuted,
-    fontFamily: Typography.fontFamilyMedium,
   },
   footer: {
     flexDirection: 'row',

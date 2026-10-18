@@ -8,7 +8,6 @@ import {
   RefreshControl,
   Image,
   Linking,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,6 +15,8 @@ import Icon from '../../components/Icon';
 import SearchBar from '../../components/SearchBar';
 import CategoryCard from '../../components/CategoryCard';
 import ProductCard from '../../components/ProductCard';
+import ProductCardSkeleton, { SKELETON_CARDS } from '../../components/ProductCardSkeleton';
+import LoadingSkeleton from '../../components/LoadingSkeleton';
 import TrustBadge from '../../components/TrustBadge';
 import ProductImage from '../../components/ProductImage';
 import HeroCarousel from '../../components/HeroCarousel';
@@ -72,6 +73,37 @@ function findOffersParent(tree) {
   if (exact) return exact;
   return (
     tree.find((p) => normalizeGroupName(p.name).includes(wanted)) || null
+  );
+}
+
+/**
+ * The placeholder for the offers section while its rails are being fetched.
+ *
+ * The child groups behind those rails are not known yet — the whole section
+ * arrives in one go — so this stands in for the section rather than for a guessed
+ * number of rails: one heading line and one rail of card placeholders, which is
+ * about the height the first real rail takes. The rail scrolls like the real one,
+ * so whatever overflows a narrow screen is still reachable.
+ */
+function OffersSkeleton() {
+  return (
+    <View style={styles.offerBlock}>
+      <View style={styles.offerSkeletonHeader}>
+        <LoadingSkeleton width={7} height={7} circle />
+        <LoadingSkeleton width={140} height={18} />
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.offerRail}
+      >
+        {Array.from({ length: SKELETON_CARDS }).map((_, i) => (
+          <View key={i} style={styles.offerCard}>
+            <ProductCardSkeleton />
+          </View>
+        ))}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -534,9 +566,7 @@ function handleSelectCategory(catName) {
         </View>
 
         {offersLoading ? (
-          <View style={styles.offerRailLoader}>
-            <ActivityIndicator size="small" color={Colors.primary} />
-          </View>
+          <OffersSkeleton />
         ) : offerGroups.length === 0 ? (
           <View style={styles.offersEmpty}>
             <Icon name="pricetags-outline" size={20} color={Colors.textMuted} />
@@ -826,13 +856,12 @@ const styles = StyleSheet.create({
     width: OFFER_CARD_WIDTH,
     marginBottom: 4,
   },
-  offerRailLoader: {
-    height: 180,
-    marginHorizontal: 16,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.surfaceContainerLow,
+  offerSkeletonHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 7,
+    paddingHorizontal: 16,
+    marginBottom: 8,
   },
   offerEmptyText: {
     paddingHorizontal: 16,
