@@ -50,11 +50,23 @@ const ALL_PAGE = '__all__';
  * A page that is in memory is shown as-is: switching back to a group you just
  * visited, or answering a message and returning to the app, costs nothing and —
  * just as important — cannot move the list the shopper was reading. Past this
- * window the page is refreshed silently (merged into what is on screen, so the
- * list never shrinks and the scroll position holds), and an explicit pull-to-
- * refresh always refetches regardless.
+ * window the page is refreshed in place, which patches its rows without shrinking
+ * it, and an explicit pull-to-refresh always refetches regardless.
  */
 const CATALOG_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * Ceiling for the "refresh everything this page has loaded" request made after
+ * an admin save.
+ *
+ * A page can hold several pages' worth of products, and the one that was just
+ * edited can be anywhere in it. Asking for the whole loaded page in one request
+ * is what lets the edit be patched in without rebuilding the list — but the
+ * catalogue endpoint caps a single response at 100 rows, so that is the honest
+ * limit; a page longer than this is patched for its first hundred rows and left
+ * alone below them.
+ */
+const RECONCILE_MAX = 100;
 
 /**
  * Search tuning.
@@ -415,7 +427,7 @@ export default function ProductsScreen({ route, navigation }) {
   const { textStart, isRTL } = useDirectional();
   useResetOnTabPress(navigation, 'ProductsTab');
   const { width } = useWindowDimensions();
-  const { isAdmin, savedTick } = useAdmin();
+  const { isAdmin, savedTick, lastSaved } = useAdmin();
   const { locale, t } = useI18n();
   const { showDesktopChrome } = useSiteChrome();
 
@@ -524,10 +536,67 @@ export default function ProductsScreen({ route, navigation }) {
     }
   }, [activeChildIndex, childPages.length]);
 
-  function mergePageFor(key, data, replace) {
+  /**
+   * Write a fetched page into the cache.
+   *
+   * Three modes, because "show me the current catalogue" and "leave me exactly
+   * where I am" are different jobs:
+   *
+   *  - `replace`  — the page becomes the response, in the server's order. First
+   *    load, an explicit pull-to-refresh, and a newly created product.
+   *  - `append`   — the next page, added to what is already on screen.
+   *  - `reconcile` — refresh the page IN PLACE: every row already on screen is
+   *    patched with the fresh data and keeps its position, anything the response
+   *    has that the page does not is added below, and — for the one product named
+   *    by `focus` — a row the server no longer returns is dropped, because it was
+   *    just unpublished or moved to another group.
+   *
+   * `reconcile` is what an admin save uses, and the point is that it is length-
+   * and order-preserving: `replace` rebuilt the page from its first twenty items,
+   * so a shopper who had scrolled further down was thrown back up the list every
+   * time a product was edited. Note the deliberate restraint in dropping: a row
+   * can also leave the fetched window simply because something else was ranked
+   * above it, and deleting that row on the shopper would be a lie. Only the
+   * product the admin actually edited is ever removed, and only when the server
+   * itself no longer lists it.
+   */
+  function applyPage(key, data, mode, requestedLimit = PAGE_SIZE, focus = null) {
     const pageItems = data && Array.isArray(data.items) ? data.items : [];
     setProductsByKey((cur) => {
-      const base = replace ? [] : cur[key] ? cur[key].slice() : [];
+      const local = cur[key] || [];
+
+      if (mode === 'reconcile') {
+        // An answered request with nothing in it means this group has no products
+        // left to show — every row of it would be a ghost.
+        if (pageItems.length === 0) return { ...cur, [key]: [] };
+
+        const byCode = new Map();
+        for (const item of pageItems) byCode.set(item.item_code || item.name, item);
+
+        // The `focus` row may only be dropped when the fetched window actually
+        // covers the whole page. Beyond the window, "not in the response" means
+        // nothing more than "that far down was not asked for".
+        const coversPage = local.length <= pageItems.length;
+
+        const next = [];
+        const seen = new Set();
+        for (const item of local) {
+          const code = item.item_code || item.name;
+          if (focus && coversPage && code === focus && !byCode.has(code)) continue;
+          next.push(byCode.get(code) || item);
+          if (code) seen.add(code);
+        }
+
+        for (const item of pageItems) {
+          const code = item.item_code || item.name;
+          if (!code || seen.has(code)) continue;
+          next.push(item);
+          seen.add(code);
+        }
+        return { ...cur, [key]: next };
+      }
+
+      const base = mode === 'replace' ? [] : local.slice();
       const merged = base.slice();
       for (const item of pageItems) {
         const code = item.item_code || item.name;
@@ -537,7 +606,9 @@ export default function ProductsScreen({ route, navigation }) {
       }
       return { ...cur, [key]: merged };
     });
-    setHasMoreByKey((cur) => ({ ...cur, [key]: pageItems.length >= PAGE_SIZE }));
+    // Short of what was asked for means the group is exhausted. For a first page
+    // this is exactly the old `pageItems.length >= PAGE_SIZE` test.
+    setHasMoreByKey((cur) => ({ ...cur, [key]: pageItems.length >= requestedLimit }));
     setLoadedKeys((cur) => (cur[key] ? cur : { ...cur, [key]: true }));
     // A page that has been fetched is no longer in the "failed" state, whether
     // this was its first load or a retry of one.
@@ -563,8 +634,17 @@ export default function ProductsScreen({ route, navigation }) {
     return !!at && Date.now() - at < CATALOG_TTL_MS;
   }
 
+  /**
+   * Fetch a page and write it into the cache.
+   *
+   * `mode` is the write mode (see `applyPage`), `limit` how many rows the request
+   * may return and `focus` the one product an admin has just saved. `reconcile`
+   * callers widen the limit to cover everything the page has already loaded — the
+   * product that was edited may be forty rows down — while the routine background
+   * refresh asks for a single page.
+   */
   const loadKey = useCallback(
-    async (key, { silent = false } = {}) => {
+    async (key, { mode = 'replace', limit = PAGE_SIZE, focus = null } = {}) => {
       const token = ++catalogTokenRef.current;
       const isStale = () => token !== catalogTokenRef.current;
 
@@ -592,13 +672,13 @@ export default function ProductsScreen({ route, navigation }) {
         const [leafData, parentData] = await Promise.all([
           CatalogAPI.getCatalog({
             itemGroup: leaf,
-            limit: PAGE_SIZE,
+            limit,
             offset: 0,
           }),
           leaf !== ALL_KEY && parent !== ALL_KEY && parent !== leaf
             ? CatalogAPI.getCatalog({
                 itemGroup: parent,
-                limit: PAGE_SIZE,
+                limit,
                 offset: 0,
               })
             : Promise.resolve(null),
@@ -613,12 +693,7 @@ export default function ProductsScreen({ route, navigation }) {
           leafData && Array.isArray(leafData.items) && leafData.items.length > 0;
         const data = leafHasItems ? leafData : parentData || leafData;
 
-        // A silent refresh merges instead of replacing: the page keeps the items
-        // the shopper has already scrolled through (and their scroll position,
-        // which a shrinking list would clamp away), while anything new is added.
-        // An explicit refresh, and a first load, replace so the order is the
-        // server's again.
-        mergePageFor(key, data, !silent);
+        applyPage(key, data, mode, limit, focus);
       } catch (err) {
         if (!isStale()) {
           console.warn('Failed to fetch catalog:', err);
@@ -647,7 +722,7 @@ export default function ProductsScreen({ route, navigation }) {
         offset: curProducts ? curProducts.length : 0,
       });
       if (token !== catalogTokenRef.current) return;
-      mergePageFor(key, data, false);
+      applyPage(key, data, 'append');
     } catch (err) {
       if (token === catalogTokenRef.current) console.warn('Failed to load more products:', err);
     } finally {
@@ -664,17 +739,46 @@ export default function ProductsScreen({ route, navigation }) {
   // refresh, otherwise "saved" looks like it did nothing. `savedTick` is bumped by
   // AdminContext on every successful save; skipping the very first value keeps a
   // mount from triggering a redundant catalog fetch.
+  //
+  // What it must NOT do is rebuild the page: an admin editing a product in the
+  // list they are scrolled down is not asking to be sent back up it. So an edit
+  // is reconciled in place, and only the page that is actually showing the
+  // product is fetched at all.
   const firstSavedTickRef = useRef(true);
   useEffect(() => {
     if (firstSavedTickRef.current) {
       firstSavedTickRef.current = false;
       return;
     }
-    // Drop cached pages first so a removed product cannot linger on a later page.
-    // setLoadedKeys({});
-    // setProductsByKey({});
-    // setHasMoreByKey({});
-    refreshKey(activeKey);
+
+    // The save may have touched a product that another page of this group is
+    // showing, so no cached page stays trusted — but only this one is on screen
+    // and has to be fetched now.
+    loadedAtRef.current = {};
+
+    // A newly created product is not on any page yet, so there is nothing to
+    // patch: the page is rebuilt from the server in its canonical order.
+    if (lastSaved.kind === 'created') {
+      loadKey(activeKey);
+      return;
+    }
+
+    const local = productsByKey[activeKey] || [];
+    const editedIsOnThisPage = local.some(
+      (p) => (p.item_code || p.name) === lastSaved.itemCode
+    );
+
+    // An edit of a product this page is showing: refreshed IN PLACE, which is
+    // what leaves the shopper exactly where they were. The request covers the
+    // whole loaded page, since the product may be well below the first screenful.
+    if (editedIsOnThisPage) {
+      loadKey(activeKey, {
+        mode: 'reconcile',
+        limit: Math.min(Math.max(PAGE_SIZE, local.length), RECONCILE_MAX),
+        focus: lastSaved.itemCode,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedTick]);
 
   /**
@@ -802,8 +906,9 @@ export default function ProductsScreen({ route, navigation }) {
   }, [activeKey]);
 
   // Live: re-sync the current page when the app returns to the foreground — but
-  // only once the page has gone stale, and then SILENTLY (merged, never replaced,
-  // so the list cannot shrink under the shopper's scroll position).
+  // only once the page has gone stale, and then IN PLACE (`reconcile`), which
+  // patches the rows it can see rather than rebuilding the page under the
+  // shopper's scroll position.
   //
   // Returning from another app used to refetch and rebuild the page every single
   // time, which is what threw a shopper who was deep in the list back to the top
@@ -815,7 +920,7 @@ export default function ProductsScreen({ route, navigation }) {
   useLiveRefresh(
     () => {
       if (isPageFresh(activeKey)) return undefined;
-      return loadKey(activeKey, { silent: true });
+      return loadKey(activeKey, { mode: 'reconcile' });
     },
     {
       intervalMs: 0,

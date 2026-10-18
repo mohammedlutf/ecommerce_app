@@ -24,7 +24,7 @@ export function AdminProvider({ children }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [checked, setChecked] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [savedTick, setSavedTick] = useState(0);
+  const [saved, setSaved] = useState({ tick: 0, kind: null, itemCode: null });
 
   const userKey = (user && user.email) || null;
 
@@ -79,11 +79,33 @@ export function AdminProvider({ children }) {
   const handleSaved = useCallback((result) => {
     // A counter rather than a broadcast: list screens already know how to reload,
     // and this keeps each of them from reimplementing a subscription.
-    setSavedTick((n) => n + 1);
+    //
+    // `kind` travels with it because the two saves want opposite things from a
+    // list. An EDIT of something already on screen must be patched in place, so
+    // the list does not move; a CREATE is something the list has never seen and
+    // has to be rebuilt to show. `itemCode` says which product, so a list showing
+    // some other page can skip the work entirely.
+    setSaved((cur) => ({
+      tick: cur.tick + 1,
+      kind: (result && result.kind) || 'updated',
+      itemCode: (result && result.itemCode) || null,
+    }));
   }, []);
 
   return (
-    <AdminContext.Provider value={{ isAdmin, checked, refresh, openEditor, savedTick }}>
+    <AdminContext.Provider
+      value={{
+        isAdmin,
+        checked,
+        refresh,
+        openEditor,
+        savedTick: saved.tick,
+        lastSaved: saved,
+        // For screens that save without going through the editor sheet (the
+        // create-product form) so their save reaches the lists the same way.
+        notifySaved: handleSaved,
+      }}
+    >
       {children}
       <AdminItemModal
         visible={!!editingItem}
@@ -107,6 +129,8 @@ export function useAdmin() {
       refresh: async () => false,
       openEditor: () => {},
       savedTick: 0,
+      lastSaved: { tick: 0, kind: null, itemCode: null },
+      notifySaved: () => {},
     }
   );
 }

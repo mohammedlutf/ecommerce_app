@@ -44,7 +44,7 @@ import useDirectional from '../../hooks/useDirectional';
 export default function AdminNewItemScreen({ navigation }) {
   const { textStart } = useDirectional();
   const toast = useToast();
-  const { isAdmin } = useAdmin();
+  const { isAdmin, notifySaved } = useAdmin();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -191,8 +191,14 @@ export default function AdminNewItemScreen({ navigation }) {
         toast.success('تم إضافة المنتج بنجاح');
       }
 
-      // Back rather than reset: the list screen refetches on savedTick, and
-      // leaving the admin on an empty form invites a duplicate entry.
+      // Back rather than reset: the list screen rebuilds itself on this save
+      // signal, which is how the product the admin just created appears without
+      // them having to pull to refresh — and leaving the admin on an empty form
+      // invites a duplicate entry.
+      notifySaved({
+        kind: 'created',
+        itemCode: (result && (result.item_code || result.name)) || itemName.trim(),
+      });
       navigation.goBack();
     } catch (err) {
       toast.error(err?.message || 'تعذر إضافة المنتج');

@@ -309,7 +309,7 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
       if (notes.length === 0) {
         toast.success('تم حفظ التعديلات');
         // onSaved && onSaved(result);
-        onSaved && onSaved({ ...result, itemCode});
+        onSaved && onSaved({ ...result, itemCode, kind: 'updated' });
         onClose && onClose();
         return;
       }
@@ -318,7 +318,7 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
       // sheet open so the warnings sit next to the fields that caused them.
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       toast.success('تم الحفظ مع تنبيهات');
-      onSaved && onSaved({ ...result, itemCode});
+      onSaved && onSaved({ ...result, itemCode, kind: 'updated' });
     } catch (err) {
       toast.error(err?.message || 'تعذر حفظ التعديلات');
     } finally {
