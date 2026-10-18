@@ -207,7 +207,7 @@ export default function AdminNewItemScreen({ navigation }) {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.root} edges={['left', 'right']}>
         <View style={styles.centre}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
@@ -217,7 +217,7 @@ export default function AdminNewItemScreen({ navigation }) {
 
   if (loadError) {
     return (
-      <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.root} edges={['left', 'right']}>
         <View style={styles.centre}>
           <Icon name="alert-circle-outline" size={40} color={Colors.error} />
           <Text style={styles.centreText}>{loadError}</Text>
@@ -230,7 +230,7 @@ export default function AdminNewItemScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={styles.root} edges={['bottom']}>
+    <SafeAreaView style={styles.root} edges={['left', 'right']}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

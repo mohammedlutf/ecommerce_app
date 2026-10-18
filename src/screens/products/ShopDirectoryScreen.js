@@ -89,7 +89,7 @@ export default function ShopDirectoryScreen({ navigation }) {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
       <View style={styles.header}>
         <Text style={[styles.title, textStart]}>متاجر المنصة</Text>
         <Text style={[styles.subtitle, textStart]}>

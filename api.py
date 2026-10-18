@@ -452,11 +452,26 @@ def _catalog_filters(item_group=None, search=None, shop=None):
 
 
 
+def _catalog_order_by(shop=None):
+	"""The `ORDER BY` for one catalogue page.
+
+	`ranking` is the merchant's site-wide ordering control and stays that way.
+	A vendor's own ranking is deliberately never written there — otherwise any
+	vendor could push a product to the top of the whole catalogue by editing it
+	— so it lives in `vendor_ranking` and is applied *only* when the listing is
+	already scoped to that vendor's shop (the shop page, or the catalogue
+	filtered by `shop`). The unfiltered catalogue is unaffected by it.
+	"""
+	if shop and mp.has_vendor_ranking_field():
+		return "vendor_ranking desc, modified desc"
+	return "ranking desc, modified desc"
+
+
 def get_catalog(item_group=None, search=None, limit=24, start=0, shop=None):
 	filters, or_filters = _catalog_filters(item_group, search, shop)
 	items = frappe.get_all(
 		"Website Item", filters=filters, or_filters=or_filters, fields=_item_fields(),
-		order_by="ranking desc, modified desc", limit_start=max(cint(start), 0), limit_page_length=min(cint(limit) or 24, 100),
+		order_by=_catalog_order_by(shop), limit_start=max(cint(start), 0), limit_page_length=min(cint(limit) or 24, 100),
 	)
 	# One batched UOM/price resolution for the whole page (was: per row).
 	uom_map = _uom_prices_for_items([row.item_code for row in items])

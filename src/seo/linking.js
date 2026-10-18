@@ -186,6 +186,8 @@ export const linking = {
           Account: 'account',
           Login: 'login',
           Notifications: 'notifications',
+          MyOrders: 'account/orders',
+          MyAddresses: 'account/addresses',
         },
       },
     },

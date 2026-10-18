@@ -36,6 +36,20 @@ def _has_sales_order_fields():
 	return cached
 
 
+def has_vendor_ranking_field():
+	"""Whether Website Item carries the per-shop `vendor_ranking` column yet.
+
+	A vendor's ranking is theirs to set but only meaningful inside their own
+	shop, so it lives in its own column and never in the merchant's site-wide
+	`ranking`.
+	"""
+	cached = getattr(frappe.local, "_mp_has_vendor_ranking", None)
+	if cached is None:
+		cached = bool(frappe.get_meta("Website Item").has_field("vendor_ranking"))
+		frappe.local._mp_has_vendor_ranking = cached
+	return cached
+
+
 # ---------------------------------------------------------------------------
 # Shop metadata
 # ---------------------------------------------------------------------------
@@ -192,8 +206,13 @@ def shops(limit=24, start=0):
 
 
 @frappe.whitelist(allow_guest=True)
-def shop(name, start=0, limit=24):
-	"""A shop's public profile and one page of its products."""
+def shop(name, start=0, limit=24, search=None):
+	"""A shop's public profile and one page of its products.
+
+	`search` narrows that page to this shop's own matches: the same substring
+	match the catalogue search makes, but with the shop filter still applied, so
+	a term can never surface another vendor's products here.
+	"""
 	if not frappe.db.exists("Marketplace Shop", name):
 		frappe.throw(_("This shop does not exist."), frappe.DoesNotExistError)
 
@@ -212,7 +231,15 @@ def shop(name, start=0, limit=24):
 	if shop_row.status != "Approved":
 		frappe.throw(_("This shop is not available."), frappe.DoesNotExistError)
 
+	term = (search or "").strip()
+
 	from webshop.my_api.api import get_catalog, get_catalog_count
+
+	# `total` is the shop's live product count — the profile card means "how big
+	# is this shop", and that must not change because a shopper typed something.
+	# `count` is how many products matched the term; with no term the two are the
+	# same number, so the second query is only paid for on a real search.
+	total = get_catalog_count(shop=name)
 
 	return {
 		"shop": {
@@ -221,6 +248,7 @@ def shop(name, start=0, limit=24):
 			"logo": shop_row.logo or "",
 			"description": shop_row.description or "",
 		},
-		"items": get_catalog(shop=name, limit=limit, start=start),
-		"total": get_catalog_count(shop=name),
+		"items": get_catalog(shop=name, search=term or None, limit=limit, start=start),
+		"total": total,
+		"count": total if not term else get_catalog_count(shop=name, search=term),
 	}

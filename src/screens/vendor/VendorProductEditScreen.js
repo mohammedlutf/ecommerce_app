@@ -415,7 +415,7 @@ export default function VendorProductEditScreen({ navigation, route }) {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.root} edges={['bottom']}>
+      <SafeAreaView style={styles.root} edges={['left', 'right']}>
         <View style={styles.centre}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
@@ -425,7 +425,7 @@ export default function VendorProductEditScreen({ navigation, route }) {
 
   if (loadError) {
     return (
-      <SafeAreaView style={styles.root} edges={['bottom']}>
+      <SafeAreaView style={styles.root} edges={['left', 'right']}>
         <View style={styles.centre}>
           <Icon name="alert-circle-outline" size={40} color={Colors.error} />
           <Text style={styles.centreText}>{loadError}</Text>
@@ -438,7 +438,7 @@ export default function VendorProductEditScreen({ navigation, route }) {
   }
 
   return (
-    <SafeAreaView style={styles.root} edges={['bottom']}>
+    <SafeAreaView style={styles.root} edges={['left', 'right']}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -523,6 +523,9 @@ export default function VendorProductEditScreen({ navigation, route }) {
                 keyboardType="numeric"
                 placeholderTextColor={Colors.textMuted}
               />
+              <Text style={[styles.hint, textStart]}>
+                الرقم الأعلى يظهر أولاً داخل متجرك فقط، ولا يغيّر ترتيب المنتجات في باقي التطبيق.
+              </Text>
             </View>
 
             {!isEdit && references.warehouses && references.warehouses.length > 0 ? (

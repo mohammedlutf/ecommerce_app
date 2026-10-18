@@ -109,7 +109,7 @@ export default function VendorProductsScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={vendorStyles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={vendorStyles.safeArea} edges={['left', 'right']}>
       <View style={styles.searchBar}>
         <View style={styles.searchBox}>
           <Icon name="search-outline" size={18} color={Colors.textMuted} />

@@ -122,6 +122,12 @@ export default StyleSheet.create({
     color: Colors.onSurfaceVariant,
     marginBottom: 6,
   },
+  hint: {
+    marginTop: 6,
+    fontSize: Typography.sizes.bodySm,
+    fontFamily: Typography.fontFamilyRegular,
+    color: Colors.textMuted,
+  },
   input: {
     backgroundColor: Colors.surfaceContainerLow,
     borderWidth: 1,

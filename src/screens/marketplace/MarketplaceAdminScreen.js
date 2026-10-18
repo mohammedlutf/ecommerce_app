@@ -78,7 +78,7 @@ export default function MarketplaceAdminScreen({ navigation }) {
 
   if (!isAdmin) {
     return (
-      <SafeAreaView style={vendorStyles.safeArea} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={vendorStyles.safeArea} edges={['left', 'right']}>
         <View style={vendorStyles.centre}>
           <Icon name="lock-closed-outline" size={40} color={Colors.textMuted} />
           <Text style={vendorStyles.centreText}>هذه الصفحة متاحة لإدارة المنصة فقط.</Text>
@@ -88,7 +88,7 @@ export default function MarketplaceAdminScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={vendorStyles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={vendorStyles.safeArea} edges={['left', 'right']}>
       <ScrollView contentContainerStyle={vendorStyles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={vendorStyles.column}>
           <Text style={[vendorStyles.pageTitle, textStart]}>إدارة المنصة</Text>

@@ -76,7 +76,7 @@ export default function VendorApplyScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={vendorStyles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={vendorStyles.safeArea} edges={['left', 'right']}>
       <KeyboardAvoidingView
         style={vendorStyles.flex1}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

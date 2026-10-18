@@ -119,7 +119,7 @@ export default function VendorPayoutsScreen() {
   }
 
   return (
-    <SafeAreaView style={vendorStyles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={vendorStyles.safeArea} edges={['left', 'right']}>
       <ScrollView
         contentContainerStyle={vendorStyles.scrollContent}
         showsVerticalScrollIndicator={false}

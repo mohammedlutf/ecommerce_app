@@ -115,6 +115,44 @@ def _owned_website_item(shop, item_code):
 	return website_item
 
 
+# ---------------------------------------------------------------------------
+# Per-shop product ordering
+# ---------------------------------------------------------------------------
+#
+# `ranking` on Website Item is the merchant's *site-wide* ordering control, so
+# a vendor's edit must never write it: one vendor raising their own number
+# would otherwise push their product towards the top of the whole catalogue,
+# other shops included. A vendor's ordering is kept in its own
+# `vendor_ranking` column and is only read back where the listing is already
+# scoped to that shop (their own editor, and shop-scoped catalogue pages).
+
+
+def _vendor_ranking(website_item):
+	"""This shop's own ordering for a product (0 until the column exists)."""
+	if not website_item or not mp.has_vendor_ranking_field():
+		return 0
+	return cint(frappe.db.get_value("Website Item", website_item, "vendor_ranking"))
+
+
+def _set_vendor_ranking(website_item, ranking):
+	"""Store the vendor's own ordering.
+
+	Returns warnings instead of writing when the site predates the marketplace
+	migration: silently dropping what the vendor typed is worse than telling
+	them it did not stick.
+	"""
+	if not website_item:
+		return []
+	if not mp.has_vendor_ranking_field():
+		return [
+			_(
+				"The shop ranking was not saved: this site has not been migrated for the marketplace yet."
+			)
+		]
+	frappe.db.set_value("Website Item", website_item, "vendor_ranking", cint(ranking))
+	return []
+
+
 def _shop_projection(shop):
 	row = {field: shop.get(field) for field in _MP_SHOP_FIELDS}
 	row["name"] = shop.name
@@ -640,9 +678,14 @@ def vendor_products(start=0, page_length=20, search=None):
 		"thumbnail",
 		"short_description",
 		"published",
-		"ranking",
 		"modified",
 	]
+	# The vendor's own ordering is reported under `ranking`, so this API only
+	# ever surfaces what the shop controls — never the merchant's site-wide
+	# column, which vendors cannot set.
+	has_vendor_ranking = mp.has_vendor_ranking_field()
+	if has_vendor_ranking:
+		fields.append("vendor_ranking")
 	if frappe.get_meta("Website Item").has_field("blurhash"):
 		fields.append("blurhash")
 
@@ -674,6 +717,7 @@ def vendor_products(start=0, page_length=20, search=None):
 	)
 	for row in rows:
 		row.image = row.website_image or row.thumbnail or ""
+		row["ranking"] = cint(row.pop("vendor_ranking") or 0) if has_vendor_ranking else 0
 
 	return {
 		"items": rows,
@@ -688,8 +732,13 @@ def vendor_products(start=0, page_length=20, search=None):
 def vendor_product_payload(item_code=None):
 	"""The full editor payload for one of this shop's products."""
 	shop = _require_shop()
-	_owned_website_item(shop, item_code)
-	return admin_api._item_payload(item_code)
+	website_item = _owned_website_item(shop, item_code)
+	payload = admin_api._item_payload(item_code)
+	# The editor's ranking field is this shop's own ordering, so it is reported
+	# from `vendor_ranking` and not from the merchant's site-wide `ranking`.
+	if payload.get("website_item"):
+		payload["website_item"]["ranking"] = _vendor_ranking(website_item)
+	return payload
 
 
 @frappe.whitelist(methods=["POST"])
@@ -712,9 +761,10 @@ def vendor_create_product(
 	"""Create a product that belongs to the caller's shop.
 
 	The whole item/price/website-item pipeline is the admin one — the rules for
-	what a valid product is must not fork between who created it. The only
-	difference: the shop is stamped from the session and can never be supplied
-	by the client.
+	what a valid product is must not fork between who created it. Two
+	differences: the shop is stamped from the session and can never be supplied
+	by the client, and the ranking goes to this shop's `vendor_ranking` rather
+	than the merchant's site-wide `ranking`.
 	"""
 	shop = _require_shop()
 	result = admin_api._create_item(
@@ -724,7 +774,6 @@ def vendor_create_product(
 		stock_uom=stock_uom,
 		short_description=short_description,
 		web_long_description=web_long_description,
-		ranking=ranking,
 		price_list_rate=price_list_rate,
 		website_warehouse=website_warehouse,
 		image_base64=image_base64,
@@ -737,6 +786,9 @@ def vendor_create_product(
 		frappe.db.set_value(
 			"Website Item", result["website_item"], "marketplace_shop", shop.name
 		)
+		warnings = _set_vendor_ranking(result["website_item"], ranking or 0)
+		if warnings:
+			result["warnings"] = list(result.get("warnings") or []) + warnings
 	return result
 
 
@@ -756,20 +808,26 @@ def vendor_update_product(
 ):
 	"""Edit one of this shop's products. Same pipeline, ownership-checked."""
 	shop = _require_shop()
-	_owned_website_item(shop, item_code)
-	return admin_api._update_item(
+	website_item = _owned_website_item(shop, item_code)
+	# `ranking` is not forwarded: that would write the merchant's site-wide
+	# ordering. It is applied to this shop's own column below instead.
+	result = admin_api._update_item(
 		item_code=item_code,
 		item_name=item_name,
 		item_group=item_group,
 		short_description=short_description,
 		web_long_description=web_long_description,
-		ranking=ranking,
 		published=published,
 		image_base64=image_base64,
 		image_name=image_name,
 		uoms_json=uoms_json,
 		recommended_json=recommended_json,
 	)
+	if ranking is not None:
+		warnings = _set_vendor_ranking(website_item, ranking)
+		if warnings:
+			result["warnings"] = list(result.get("warnings") or []) + warnings
+	return result
 
 
 # ---------------------------------------------------------------------------

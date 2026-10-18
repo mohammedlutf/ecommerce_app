@@ -194,7 +194,14 @@ def admin_list_shops(status=None, search=None, limit=20, start=0):
 			{"supplier": ["like", like]},
 		]
 
-	total = frappe.db.count("Marketplace Shop", filters=filters, or_filters=or_filters)
+	total = len(
+        frappe.get_all(
+            "Marketplace Shop",
+            filters=filters,
+            or_filters=or_filters,
+            fields=["name"],
+        )
+    )
 	rows = frappe.get_all(
 		"Marketplace Shop",
 		filters=filters,

@@ -1,6 +1,8 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AccountScreen from '../../screens/account/AccountScreen';
+import MyOrdersScreen from '../../screens/account/MyOrdersScreen';
+import MyAddressesScreen from '../../screens/account/MyAddressesScreen';
 import LoginScreen from '../../screens/auth/LoginScreen';
 import NotificationsScreen from '../../screens/notifications/NotificationsScreen';
 import VendorHomeScreen from '../../screens/vendor/VendorHomeScreen';
@@ -43,6 +45,21 @@ export default function AccountStack() {
         name="Notifications"
         component={NotificationsScreen}
         options={{ title: 'الإشعارات' }}
+      />
+
+      {/* --- Shopper account screens ----------------------------------------
+          Split out of the account hub, which is now a directory of these
+          destinations. Both read the auth/vendor context themselves, so there is
+          nothing to gate here; a signed-out visitor gets the login form. */}
+      <Stack.Screen
+        name="MyOrders"
+        component={MyOrdersScreen}
+        options={{ title: 'طلباتي' }}
+      />
+      <Stack.Screen
+        name="MyAddresses"
+        component={MyAddressesScreen}
+        options={{ title: 'عناويني' }}
       />
 
       {/* --- Vendor dashboard ------------------------------------------------

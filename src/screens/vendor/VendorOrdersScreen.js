@@ -107,7 +107,7 @@ export default function VendorOrdersScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={vendorStyles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={vendorStyles.safeArea} edges={['left', 'right']}>
       {/* Filter chips */}
       <View style={styles.filterBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>

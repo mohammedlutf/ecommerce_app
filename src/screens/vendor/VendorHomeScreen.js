@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -67,13 +67,19 @@ export default function VendorHomeScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Mirrors `dashboard` so the focus effect can ask "do we already have figures
+  // on screen?" without taking `dashboard` itself as a dependency.
+  const dashboardRef = useRef(null);
+
   const loadDashboard = useCallback(async ({ showSpinner = true } = {}) => {
     if (showSpinner) setLoading(true);
     try {
       const data = await VendorAPI.getDashboard(30);
+      dashboardRef.current = data;
       setDashboard(data);
     } catch (err) {
       console.warn('Could not load the vendor dashboard:', err.message);
+      dashboardRef.current = null;
       setDashboard(null);
     } finally {
       if (showSpinner) setLoading(false);
@@ -81,11 +87,16 @@ export default function VendorHomeScreen({ navigation }) {
     }
   }, []);
 
+  // Refresh on focus, not on a timer: the figures only move when an order does,
+  // so an idle vendor should not be issuing a request every few seconds. The
+  // callback has to stay referentially stable — `useFocusEffect` re-runs it
+  // whenever its identity changes, and depending on `dashboard` here meant each
+  // response scheduled the next request, hammering the server in a loop.
   useFocusEffect(
     useCallback(() => {
-      if (isApproved) loadDashboard({ showSpinner: !dashboard });
+      if (isApproved) loadDashboard({ showSpinner: !dashboardRef.current });
       return undefined;
-    }, [isApproved, loadDashboard, dashboard])
+    }, [isApproved, loadDashboard])
   );
 
   function handleRefresh() {
@@ -117,7 +128,7 @@ export default function VendorHomeScreen({ navigation }) {
 
   if (!isAuthenticated) {
     return (
-      <SafeAreaView style={vendorStyles.safeArea} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={vendorStyles.safeArea} edges={['left', 'right']}>
         <EmptyState
           icon="lock-closed-outline"
           title="تسجيل الدخول مطلوب"
@@ -131,7 +142,7 @@ export default function VendorHomeScreen({ navigation }) {
 
   if (!checked) {
     return (
-      <SafeAreaView style={vendorStyles.safeArea} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={vendorStyles.safeArea} edges={['left', 'right']}>
         <View style={vendorStyles.centre}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={vendorStyles.centreText}>جاري تحميل حالة المتجر...</Text>
@@ -147,7 +158,7 @@ export default function VendorHomeScreen({ navigation }) {
     const tone = STATUS_TONE[status] || STATUS_TONE.Pending;
 
     return (
-      <SafeAreaView style={vendorStyles.safeArea} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={vendorStyles.safeArea} edges={['left', 'right']}>
         <ScrollView
           contentContainerStyle={vendorStyles.scrollContent}
           refreshControl={
@@ -253,7 +264,7 @@ export default function VendorHomeScreen({ navigation }) {
   if (!isApproved) {
     const tone = STATUS_TONE[status] || STATUS_TONE.Pending;
     return (
-      <SafeAreaView style={vendorStyles.safeArea} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={vendorStyles.safeArea} edges={['left', 'right']}>
         <ScrollView
           contentContainerStyle={vendorStyles.scrollContent}
           refreshControl={
@@ -298,7 +309,7 @@ export default function VendorHomeScreen({ navigation }) {
   ];
 
   return (
-    <SafeAreaView style={vendorStyles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={vendorStyles.safeArea} edges={['left', 'right']}>
       <ScrollView
         contentContainerStyle={vendorStyles.scrollContent}
         showsVerticalScrollIndicator={false}

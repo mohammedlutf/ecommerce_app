@@ -24,17 +24,25 @@ export const MarketplaceAPI = {
     }
   },
 
-  /** One shop's profile plus a page of its products. */
-  getShop(name, { start = 0, limit = 24 } = {}) {
-    return frappeCall(
-      'webshop.my_api.marketplace.shop',
-      {
-        name,
-        start: Math.max(0, parseInt(start, 10) || 0),
-        limit: parseInt(limit, 10) || 24,
-      },
-      'GET'
-    );
+  /**
+   * One shop's profile plus a page of its products.
+   *
+   * `search` narrows the page to this shop's own matches. The term is sent to
+   * the server (rather than filtering the rows already downloaded) because a
+   * shop's catalogue can be larger than one page — and because the shop filter
+   * travels with it, so a term can never surface another vendor's products.
+   * The response carries both counts: `total` (the shop's live product count)
+   * and `count` (how many matched the term).
+   */
+  getShop(name, { start = 0, limit = 24, search = null } = {}) {
+    const args = {
+      name,
+      start: Math.max(0, parseInt(start, 10) || 0),
+      limit: parseInt(limit, 10) || 24,
+    };
+    const term = String(search || '').trim();
+    if (term) args.search = term;
+    return frappeCall('webshop.my_api.marketplace.shop', args, 'GET');
   },
 };
 

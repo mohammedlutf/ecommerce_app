@@ -142,9 +142,10 @@ export default function OrderConfirmationScreen({ route, navigation }) {
               onPress={() => {
                 // No popToTop() here: the Account tab is a sibling tab, so popping
                 // the cart stack first only flashed the empty cart on the way out.
-                // AccountScreen refetches on focus, so the order just placed is
-                // already in the list by the time this screen unmounts.
-                navigation.navigate('AccountTab');
+                // Addressed at the orders screen itself rather than the account
+                // hub: the button says "show my orders", and the hub would add a
+                // tap between the shopper and the order they just placed.
+                navigation.navigate('AccountTab', { screen: 'MyOrders' });
               }}
               style={styles.primaryBtn}
             >

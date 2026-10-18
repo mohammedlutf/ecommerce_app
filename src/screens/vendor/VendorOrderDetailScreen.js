@@ -95,7 +95,7 @@ export default function VendorOrderDetailScreen({ route, navigation }) {
 
   if (loading) {
     return (
-      <SafeAreaView style={vendorStyles.safeArea} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={vendorStyles.safeArea} edges={['left', 'right']}>
         <View style={vendorStyles.centre}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={vendorStyles.centreText}>جاري تحميل الطلب...</Text>
@@ -106,7 +106,7 @@ export default function VendorOrderDetailScreen({ route, navigation }) {
 
   if (error || !order) {
     return (
-      <SafeAreaView style={vendorStyles.safeArea} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={vendorStyles.safeArea} edges={['left', 'right']}>
         <View style={vendorStyles.centre}>
           <Icon name="alert-circle-outline" size={40} color={Colors.error} />
           <Text style={vendorStyles.centreText}>{error || 'الطلب غير متاح'}</Text>
@@ -124,7 +124,7 @@ export default function VendorOrderDetailScreen({ route, navigation }) {
   const itemsTotal = (order.items || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
   return (
-    <SafeAreaView style={vendorStyles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={vendorStyles.safeArea} edges={['left', 'right']}>
       <ScrollView contentContainerStyle={vendorStyles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={vendorStyles.column}>
           {/* Header */}

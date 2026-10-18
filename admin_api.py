@@ -945,3 +945,474 @@ def _recommended_rows(website_item_name):
 
 @frappe.whitelist()
 def admin_update_item(
+	item_code=None,
+	item_name=None,
+	item_group=None,
+	short_description=None,
+	web_long_description=None,
+	ranking=None,
+	published=None,
+	image_base64=None,
+	image_name=None,
+	uoms_json=None,
+	recommended_json=None,
+):
+	"""Apply an edit. Only the arguments actually sent are changed.
+
+	Every parameter defaults to None so a partial save cannot blank a field the
+	editor did not load — the failure mode of an "apply everything" endpoint is a
+	told-together page quietly erasing the product description.
+	"""
+	_require_admin()
+	return _update_item(
+		item_code=item_code,
+		item_name=item_name,
+		item_group=item_group,
+		short_description=short_description,
+		web_long_description=web_long_description,
+		ranking=ranking,
+		published=published,
+		image_base64=image_base64,
+		image_name=image_name,
+		uoms_json=uoms_json,
+		recommended_json=recommended_json,
+	)
+
+
+def _update_item(
+	item_code=None,
+	item_name=None,
+	item_group=None,
+	short_description=None,
+	web_long_description=None,
+	ranking=None,
+	published=None,
+	image_base64=None,
+	image_name=None,
+	uoms_json=None,
+	recommended_json=None,
+):
+	"""The edit itself. Ungated so the vendor API can drive it after proving the
+	item belongs to the caller's shop."""
+	item_code = (item_code or "").strip()
+	if not item_code or not frappe.db.exists("Item", item_code):
+		frappe.throw(_("Item not found."), frappe.DoesNotExistError)
+
+	warnings = []
+
+	# --- name, shown on both the master record and the storefront -------------
+	if item_name is not None:
+		new_name = strip_html((item_name or "").strip())[:140]
+		if not new_name:
+			frappe.throw(_("The item name cannot be empty."))
+		if new_name != frappe.db.get_value("Item", item_code, "item_name"):
+			# Renaming an Item is more than a label: ERPNext keys the Website Item
+			# off item_code but shows these, and the route is generated from the
+			# web name. All four are written together so no surface keeps the old
+			# name.
+			frappe.db.set_value("Item", item_code, "item_name", new_name)
+			website_item_name = frappe.db.get_value("Website Item", {"item_code": item_code}, "name")
+			if website_item_name:
+				frappe.db.set_value(
+					"Website Item", 
+					website_item_name, 
+					{
+						"item_name": new_name, 
+						"web_item_name": new_name
+					}
+				)
+				warnings.extend(_resync_route(website_item_name))
+
+	# --- group ----------------------------------------------------------------
+	if item_group is not None:
+		group = (item_group or "").strip()
+		if not frappe.db.exists("Item Group", group):
+			frappe.throw(_("Item Group `{0}` does not exist.").format(group))
+		frappe.db.set_value("Item", item_code, "item_group", group)
+		website_item_name = frappe.db.get_value("Website Item", {"item_code": item_code}, "name")
+		if website_item_name:
+			frappe.db.set_value("Website Item", website_item_name, "item_group", group)
+			# The catalogue filters on `item_group IN (groups shown in website)`.
+			# Moving a product into a hidden group makes it disappear from the
+			# app and the site with no error anywhere, so it is reported.
+			if not frappe.db.get_value("Item Group", group, "show_in_website"):
+				warnings.append(
+					_("`{0}` is hidden from the website, so this product will not be listed.").format(group)
+				)
+
+	# --- descriptions ---------------------------------------------------------
+	website_item_name = frappe.db.get_value("Website Item", {"item_code": item_code}, "name")
+	if short_description is not None:
+		clean = strip_html(short_description or "").strip()
+		frappe.db.set_value("Item", item_code, "description", clean[:500])
+		if website_item_name:
+			frappe.db.set_value("Website Item", website_item_name, "short_description", clean[:300])
+
+	if web_long_description is not None:
+		if not website_item_name:
+			warnings.append(_("This product has no Website Item yet, so the long description was not saved."))
+		else:
+			frappe.db.set_value(
+				"Website Item", website_item_name, "web_long_description", (web_long_description or "").strip()
+			)
+
+	if ranking is not None and website_item_name:
+		frappe.db.set_value("Website Item", website_item_name, "ranking", cint(ranking))
+
+	if published is not None and website_item_name:
+		frappe.db.set_value("Website Item", website_item_name, "published", cint(published))
+
+	# --- UOMs and prices ------------------------------------------------------
+	if uoms_json is not None:
+		_apply_uoms(item_code, _parse_json_list(uoms_json, "uoms_json"))
+
+	# --- recommended ----------------------------------------------------------
+	if recommended_json is not None:
+		if not website_item_name:
+			warnings.append(_("This product has no Website Item yet, so recommendations were not saved."))
+		else:
+			_apply_recommended(website_item_name, item_code, _parse_json_list(recommended_json, "recommended_json"))
+
+	# --- image ----------------------------------------------------------------
+	image_url = None
+	if image_base64:
+		image_url = _save_item_image(item_code, image_base64, image_name)
+	else:
+		# Try to generate blurhash from existing website image if missing
+		try:
+			wi_name = frappe.db.get_value("Website Item", {"item_code": item_code}, "name")
+			if wi_name:
+				cur = frappe.db.get_value("Website Item", wi_name, ["website_image", "blurhash"], as_dict=True)
+				if cur and cur.website_image and not cur.blurhash:
+					bh = _compute_blurhash_for_image(cur.website_image)
+					if bh:
+						frappe.db.set_value("Website Item", wi_name, "blurhash", bh, update_modified=False)
+		except Exception:
+			pass
+
+	precision_note = _float_precision_warning()
+	if precision_note:
+		warnings.append(precision_note)
+	
+	# print(warnings)
+	return {
+		"ok": True,
+		"image": image_url,
+		"warnings": [],
+		"item": _item_payload(item_code),
+	}
+
+
+def _resync_route(website_item_name):
+	"""Regenerate the product URL after a rename.
+
+	The route is cleared so ERPNext rebuilds it from the new web_item_name using the
+	site's own configured base path. Re-implementing that slug logic here would drift
+	from the website the first time either side changed.
+
+	Note the document is *saved*, not patched. `frappe.db.set_value(...,"route","")`
+	writes the column directly and skips `Document.validate()`, which is where
+	ERPNext calls `set_route()` — so the route would stay empty and every single
+	rename would come back with the "could not be rebuilt" warning.
+	"""
+	frappe.db.set_value("Website Item", website_item_name, "route", "")
+
+	def _current_route():
+		return frappe.db.get_value("Website Item", website_item_name, "route")
+
+	# The normal hook chain first, which is the only version-accurate way to get
+	# the site's real route format.
+	doc = frappe.get_doc("Website Item", website_item_name)
+	try:
+		doc.save(ignore_permissions=True)
+	except Exception:
+		frappe.log_error(title="Website Item route rebuild failed")
+
+	# Older/patched ERPNext builds only call set_route() from the Website Item
+	# generator, so fall back to invoking it directly.
+	if not _current_route():
+		try:
+			doc.set_route()
+			doc.save(ignore_permissions=True)
+		except Exception:
+			frappe.log_error(title="Website Item set_route() failed")
+
+	route = _current_route()
+	if not route:
+		return [
+			_(
+				"The product URL could not be rebuilt automatically. Set a Route on the Website Item before publishing."
+			)
+		]
+	return [_("The product URL changed to `{0}`. Older links to the previous URL will not resolve.").format(route)]
+
+
+def _apply_recommended(website_item_name, item_code, rows):
+	"""Replace the recommended-products list.
+
+	Self-references are dropped rather than rejected: a recommendation carousel
+	that points at its own product is a mistake, but blocking the whole save over
+	one stray row is worse than ignoring it.
+	"""
+	doc = frappe.get_doc("Website Item", website_item_name)
+	for existing in list(doc.recommended_items or []):
+		doc.remove(existing)
+
+	for row in rows:
+		code = (row.get("item_code") or "").strip()
+		if not code or code == item_code:
+			continue
+		if not frappe.db.exists("Item", code):
+			frappe.throw(_("`{0}` is not a valid item code.").format(code))
+		doc.append("recommended_items", {"item_code": code})
+
+	doc.save()
+
+
+def _unique_item_code(preferred, name):
+	"""Return a free Item code derived from the product name.
+
+	The create form sends the name in place of a code, so this is what stands
+	between a product and a duplicate-code error. Three cases, in order:
+
+	- `preferred` is the ASCII slug of the name, used as-is while it is free.
+	- The slug comes back empty when the name holds no Latin letters or digits —
+	  `slugify` keeps only `[a-z0-9\s-]`, so an Arabic name reduces to nothing.
+	  The name itself is then used: `item_code` is free text in ERPNext, so a
+	  non-Latin code is valid, and one the admin can recognise beats an opaque
+	  generated identifier.
+	- A clash gets a numeric suffix rather than an error. Two products may
+	  legitimately share a name, and refusing the second one outright is a worse
+	  failure than a suffixed code.
+	"""
+	base = preferred or (name or "").strip()
+	if not base:
+		frappe.throw(_("An item name is required."))
+	base = base[:140]
+
+	def taken(candidate):
+		return frappe.db.exists("Item", candidate) or frappe.db.exists(
+			"Website Item", {"item_code": candidate}
+		)
+
+	if not taken(base):
+		return base
+
+	# Truncate to leave room for the suffix rather than letting the suffix push
+	# the code past the column, which would be a database error rather than a
+	# message the admin can act on.
+	for suffix in range(2, 1000):
+		tail = "-{0}".format(suffix)
+		candidate = "{0}{1}".format(base[: 140 - len(tail)], tail)
+		if not taken(candidate):
+			return candidate
+
+	frappe.throw(_("Could not derive a unique item code from `{0}`.").format(base))
+
+
+# ---------------------------------------------------------------------------
+# Create
+# ---------------------------------------------------------------------------
+
+
+@frappe.whitelist()
+def admin_create_item(
+	item_code=None,
+	item_name=None,
+	item_group=None,
+	stock_uom=None,
+	short_description=None,
+	web_long_description=None,
+	ranking=None,
+	price_list_rate=None,
+	website_warehouse=None,
+	image_base64=None,
+	image_name=None,
+	uoms_json=None,
+	recommended_json=None,
+	published=1,
+):
+	"""Create a product across Item, Item Price and Website Item.
+
+	Published by default, because the stated intent is to put the product in the
+	shop. A draft is one flag away in the editor.
+	"""
+	_require_admin()
+	return _create_item(
+		item_code=item_code,
+		item_name=item_name,
+		item_group=item_group,
+		stock_uom=stock_uom,
+		short_description=short_description,
+		web_long_description=web_long_description,
+		ranking=ranking,
+		price_list_rate=price_list_rate,
+		website_warehouse=website_warehouse,
+		image_base64=image_base64,
+		image_name=image_name,
+		uoms_json=uoms_json,
+		recommended_json=recommended_json,
+		published=published,
+	)
+
+
+def _create_item(
+	item_code=None,
+	item_name=None,
+	item_group=None,
+	stock_uom=None,
+	short_description=None,
+	web_long_description=None,
+	ranking=None,
+	price_list_rate=None,
+	website_warehouse=None,
+	image_base64=None,
+	image_name=None,
+	uoms_json=None,
+	recommended_json=None,
+	published=1,
+):
+	"""The creation itself. Ungated so the vendor API can create products for
+	the caller's own shop."""
+	name = strip_html((item_name or "").strip())
+	# The create form no longer asks for a code: the name is the only identifier
+	# an admin has to supply. The code is derived from it here.
+	code = _unique_item_code(slugify((item_code or item_name or "").strip()), name)
+	# An older client can still send a code with no name; fall back to it rather
+	# than inserting an Item with a blank item_name.
+	name = name or code
+	group = (item_group or "").strip()
+	if not frappe.db.exists("Item Group", group):
+		frappe.throw(_("Item Group `{0}` does not exist.").format(group))
+
+	base_uom = (stock_uom or "").strip()
+	if not frappe.db.exists("UOM", base_uom):
+		frappe.throw(_("Unit of Measure `{0}` does not exist.").format(base_uom))
+
+	settings = _settings()
+	if not settings.company:
+		frappe.throw(_("Configure a company in Webshop Settings before creating products."))
+
+	uom_rows = _parse_json_list(uoms_json, "uoms_json")
+	for row in uom_rows:
+		uom = (row.get("uom") or "").strip()
+		if not frappe.db.exists("UOM", uom):
+			frappe.throw(_("Unit of Measure `{0}` does not exist.").format(uom))
+		# Every unit is new here, so there is no stored factor to fall back on:
+		# unlike the editor, a missing factor is always an error.
+		if uom != base_uom and (_decimal(row.get("conversion_factor")) or 0) <= 0:
+			frappe.throw(
+				_("Conversion rate for `{0}` must be greater than zero (received `{1}`).").format(
+					uom, row.get("conversion_factor")
+				)
+			)
+
+	short = strip_html(short_description or "").strip()
+
+	item = frappe.get_doc(
+		{
+			"doctype": "Item",
+			"item_code": code,
+			"item_name": name[:140],
+			"item_group": group,
+			"stock_uom": base_uom,
+			"description": short[:500],
+			"is_stock_item": 1,
+			"uoms": [
+				{
+					"uom": (row.get("uom") or "").strip(),
+					"conversion_factor": 1.0
+					if (row.get("uom") or "").strip() == base_uom
+					else _decimal(row.get("conversion_factor")),
+				}
+				for row in uom_rows
+				if (row.get("uom") or "").strip()
+			],
+		}
+	)
+	item.insert(ignore_permissions=True)
+	code = item.item_code
+	website_item = frappe.get_doc(
+		{
+			"doctype": "Website Item",
+			"item_code": code,
+			"web_item_name": name[:140],
+			"item_group": group,
+			"website_warehouse": (website_warehouse or settings.website_warehouse or None),
+			"short_description": short[:300],
+			"web_long_description": (web_long_description or "").strip(),
+			"ranking": cint(ranking or 0),
+			"published": cint(published),
+		}
+	)
+	website_item.insert(ignore_permissions=True)
+	_ensure_route(website_item)
+
+	# The base unit always needs a price, or the product cannot be added to a
+	# cart at all — `ecommerce.api.cart` refuses a zero rate.
+	base_rate = flt(price_list_rate, 0)
+	if base_rate <= 0:
+		frappe.throw(_("A selling price is required for the base unit of measure."))
+	_apply_item_price(code, base_uom, base_rate)
+
+	for row in uom_rows:
+		uom = (row.get("uom") or "").strip()
+		rate = flt(row.get("price_list_rate"), 0)
+		if uom and uom != base_uom and rate > 0:
+			_apply_item_price(code, uom, rate)
+
+	image_url = None
+	if image_base64:
+		image_url = _save_item_image(code, image_base64, image_name)
+	else:
+		try:
+			cur = frappe.db.get_value("Website Item", website_item.name, ["website_image", "blurhash"], as_dict=True)
+			if cur and cur.website_image and not cur.blurhash:
+				bh = _compute_blurhash_for_image(cur.website_image)
+				if bh:
+					frappe.db.set_value("Website Item", website_item.name, "blurhash", bh, update_modified=False)
+		except Exception:
+			pass
+
+	if recommended_json:
+		_apply_recommended(website_item.name, code, _parse_json_list(recommended_json, "recommended_json"))
+
+	return {
+		"ok": True,
+		"item_code": code,
+		"website_item": website_item.name,
+		"route": frappe.db.get_value("Website Item", website_item.name, "route"),
+		"image": image_url,
+		"warnings": _creation_warnings(group, cint(published)),
+	}
+
+
+def _ensure_route(website_item):
+	"""Make sure a new product has a working URL.
+
+	ERPNext normally builds this itself. If it does not, a slug is used, and if
+	that also fails the product is left for the shop owner rather than published
+	under a blank URL.
+	"""
+	route = frappe.db.get_value("Website Item", website_item.name, "route")
+	if route:
+		return
+
+	try:
+		website_item.set_route()
+		website_item.save(ignore_permissions=True)
+	except Exception:
+		frappe.db.set_value(
+			"Website Item", website_item.name, "route", "products/{0}".format(slugify(website_item.item_name or website_item.item_code))
+		)
+
+
+def _creation_warnings(group, published):
+	warnings = []
+	if not frappe.db.get_value("Item Group", group, "show_in_website"):
+		warnings.append(
+			_("`{0}` is hidden from the website, so this product will not be listed until you enable it.").format(group)
+		)
+	if not published:
+		warnings.append(_("The product was created unpublished and is not visible in the shop."))
+	return warnings
