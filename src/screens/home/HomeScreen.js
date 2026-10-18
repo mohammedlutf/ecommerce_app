@@ -54,6 +54,17 @@ const OFFER_CARD_GAP = 10;
 const SHOPS_RAIL_COUNT = 10;
 
 /**
+ * How long the home strip is reused after a successful load.
+ *
+ * The offers, the category rail and the shops rail are read when the screen first
+ * mounts; within this window a return to the app (or to the Home tab) shows what
+ * is already there instead of re-requesting it. It is the same idea as the
+ * catalogue's cache window on the Products screen: fresh enough to trust, slow
+ * enough that the app is not fetching on every app switch.
+ */
+const HOME_TTL_MS = 5 * 60 * 1000;
+
+/**
  * The pseudo-category tile that stands for "everything".
  *
  * Named once because it is a *label*, not an Item Group: nothing in the catalog
@@ -138,6 +149,10 @@ export default function HomeScreen({ navigation }) {
   const [offerProducts, setOfferProducts] = useState({}); // child name -> items
   const [offersLoading, setOffersLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // When the strip above was last loaded successfully. Returning to the app
+  // inside the cache window reuses what is on screen: a home screen that reloads
+  // on every app switch is slow, and it costs a round-trip per offers rail.
+  const homeFetchedAtRef = useRef(0);
 
   const openProduct = useCallback(
     (product) => {
@@ -191,8 +206,21 @@ export default function HomeScreen({ navigation }) {
     [navigation]
   );
 
-  const fetchHome = useCallback(async () => {
-    setOffersLoading(true);
+  /**
+   * Load the home strip: the category rail, the offers parent and one rail of
+   * products per offers child.
+   *
+   * `silent` is for a refresh of data that is already on screen (returning to the
+   * app, an explicit pull-to-refresh that has its own spinner): the sections stay
+   * mounted, no skeleton is shown and nothing reflows — the rails simply swap
+   * their contents when the response lands. A refresh that is visibly a reload is
+   * exactly what made a shopper lose their place.
+   */
+  const fetchHome = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setOffersLoading(true);
+    // Only a completed load may mark the cache fresh, so a failed fetch cannot
+    // buy itself minutes of silence from the next foreground.
+    let ok = false;
     try {
       // The flat group list for the "الأقسام" rail.
       const catalog = await CatalogAPI.getCatalog({ itemGroup: 'all', limit: 20 });
@@ -208,6 +236,7 @@ export default function HomeScreen({ navigation }) {
 
       if (children.length === 0) {
         setOfferProducts({});
+        ok = true;
         return;
       }
 
@@ -237,10 +266,12 @@ export default function HomeScreen({ navigation }) {
         })
       );
       setOfferProducts(Object.fromEntries(results));
+      ok = true;
     } catch (err) {
       console.warn('Could not load home catalog:', err);
     } finally {
       setOffersLoading(false);
+      if (ok) homeFetchedAtRef.current = Date.now();
     }
   }, []);
 
@@ -282,27 +313,33 @@ export default function HomeScreen({ navigation }) {
     loadHomeExtras();
   }, [fetchHome, loadHomeExtras]);
 
-  // Live: re-fetch the home strip whenever the app returns to the foreground
-  // (no aggressive in-app polling that visually refreshes the list). The banner
-  // list and the shops switch ride along — they answer from the settings cache
-  // almost every time, and a merchant who publishes a banner or hides the shops
-  // then reopens the app sees it without restarting anything.
-  const refreshOnForeground = useCallback(
-    () => Promise.all([fetchHome(), loadHomeExtras()]),
-    [fetchHome, loadHomeExtras]
-  );
+  // Live: refresh the home strip when the app returns to the foreground — but
+  // only once what is on screen has gone stale.
+  //
+  // Reloading unconditionally is what made a shopper lose their place: the offers
+  // section was torn down and rebuilt (and, before the rails were silent, the
+  // whole nerve centre of the screen re-rendered) every time they answered a
+  // message and came back. Inside the cache window nothing is requested at all and
+  // the screen is exactly as they left it; past it, one silent refresh per
+  // foreground brings prices and stock back up to date without a visible reload.
+  // The banner list and the shops switch ride along the same gate — the settings
+  // call answers from its own ten-minute cache almost every time anyway.
+  const refreshOnForeground = useCallback(() => {
+    if (Date.now() - homeFetchedAtRef.current < HOME_TTL_MS) return undefined;
+    return Promise.all([fetchHome({ silent: true }), loadHomeExtras()]);
+  }, [fetchHome, loadHomeExtras]);
   useLiveRefresh(refreshOnForeground, { intervalMs: 0, isEnabled: true });
 
   async function onRefresh() {
     setRefreshing(true);
-    // `force` on the settings: the shopper explicitly asked for fresh content,
-    // and the cache would otherwise answer from ten minutes ago — with a stale
-    // banner list and a stale shops switch — and make the gesture look like it
-    // did nothing. The shops are re-fetched from that fresh answer rather than
-    // unconditionally, so turning the rail off takes effect on the same gesture
-    // that it is turned on.
+    // The explicit gesture: `force` on the settings (the shopper asked for fresh
+    // content, and the cache would otherwise answer from ten minutes ago), and a
+    // SILENT catalogue refresh so the rails keep their contents while the request
+    // is in the air — the spinner on the RefreshControl is the progress report.
+    // The shops are re-fetched from the fresh answer rather than unconditionally,
+    // so turning the rail off takes effect on the same gesture that turns it on.
     const settings = await fetchHomeSettings({ force: true });
-    const jobs = [fetchHome()];
+    const jobs = [fetchHome({ silent: true })];
     if (settings.showShopsOnHome) jobs.push(fetchShops());
     await Promise.all(jobs);
     setRefreshing(false);

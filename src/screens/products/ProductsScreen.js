@@ -45,6 +45,18 @@ const ALL_KEY = 'all';
 const ALL_PAGE = '__all__';
 
 /**
+ * How long a loaded page is reused before it may be re-fetched on its own.
+ *
+ * A page that is in memory is shown as-is: switching back to a group you just
+ * visited, or answering a message and returning to the app, costs nothing and —
+ * just as important — cannot move the list the shopper was reading. Past this
+ * window the page is refreshed silently (merged into what is on screen, so the
+ * list never shrinks and the scroll position holds), and an explicit pull-to-
+ * refresh always refetches regardless.
+ */
+const CATALOG_TTL_MS = 5 * 60 * 1000;
+
+/**
  * Search tuning.
  *
  * `DEBOUNCE_MS` is long enough to swallow a burst of keystrokes on a phone
@@ -467,6 +479,9 @@ export default function ProductsScreen({ route, navigation }) {
   const [productsByKey, setProductsByKey] = useState({});
   const [hasMoreByKey, setHasMoreByKey] = useState({});
   const [loadedKeys, setLoadedKeys] = useState({});
+  // When each page was last loaded successfully. A ref, not state: it is read
+  // from the refresh path and must never itself trigger a render.
+  const loadedAtRef = useRef({});
   // Page keys whose first fetch came back as an error. Tracked so a failed page
   // shows a retry instead of a skeleton that can never resolve — the skeleton is
   // only truthful while a request is actually outstanding.
@@ -527,13 +542,29 @@ export default function ProductsScreen({ route, navigation }) {
     // A page that has been fetched is no longer in the "failed" state, whether
     // this was its first load or a retry of one.
     setFailedKeys((cur) => (cur[key] ? { ...cur, [key]: false } : cur));
+    // Stamped on success only: a page that answered is fresh, one that errored is
+    // not, so a failure cannot buy itself the cache window.
+    loadedAtRef.current[key] = Date.now();
     if (data && Array.isArray(data.groups) && data.groups.length > 0) {
       setCategories(data.groups);
     }
   }
 
+  /**
+   * Is this page already in memory and young enough to keep?
+   *
+   * Read from the ref alone rather than from `loadedKeys`, so the answer is the
+   * same before and after a render: the pages that asked this question are React
+   * effects and the AppState listener, and neither may depend on a state value it
+   * happens to have captured.
+   */
+  function isPageFresh(key) {
+    const at = loadedAtRef.current[key];
+    return !!at && Date.now() - at < CATALOG_TTL_MS;
+  }
+
   const loadKey = useCallback(
-    async (key) => {
+    async (key, { silent = false } = {}) => {
       const token = ++catalogTokenRef.current;
       const isStale = () => token !== catalogTokenRef.current;
 
@@ -582,7 +613,12 @@ export default function ProductsScreen({ route, navigation }) {
           leafData && Array.isArray(leafData.items) && leafData.items.length > 0;
         const data = leafHasItems ? leafData : parentData || leafData;
 
-        mergePageFor(key, data, true);
+        // A silent refresh merges instead of replacing: the page keeps the items
+        // the shopper has already scrolled through (and their scroll position,
+        // which a shrinking list would clamp away), while anything new is added.
+        // An explicit refresh, and a first load, replace so the order is the
+        // server's again.
+        mergePageFor(key, data, !silent);
       } catch (err) {
         if (!isStale()) {
           console.warn('Failed to fetch catalog:', err);
@@ -757,19 +793,35 @@ export default function ProductsScreen({ route, navigation }) {
     }
   }, [searchState.query]);
 
-  // Load/refresh the browsed group page whenever the active child group changes.
+  // Load the browsed group page when the active child group changes — unless it
+  // is already in memory and young (`isPageFresh`). Switching back to a group you
+  // just looked at is then instant, and the page you left is untouched.
   useEffect(() => {
-    loadKey(activeKey);
+    if (!isPageFresh(activeKey)) loadKey(activeKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeKey]);
 
-  // Live: re-sync the current page when the app returns to the foreground.
-  // Disabled during a search — the foreground sync refetches a group page, and
-  // doing that mid-search would replace the results with a browsed group.
-  useLiveRefresh(() => loadKey(activeKey), {
-    intervalMs: 0,
-    isEnabled: !isSearchActive,
-  });
+  // Live: re-sync the current page when the app returns to the foreground — but
+  // only once the page has gone stale, and then SILENTLY (merged, never replaced,
+  // so the list cannot shrink under the shopper's scroll position).
+  //
+  // Returning from another app used to refetch and rebuild the page every single
+  // time, which is what threw a shopper who was deep in the list back to the top
+  // and made the screen feel slow. Inside the cache window nothing is requested
+  // at all now.
+  //
+  // Still disabled during a search: the foreground sync refetches a group page,
+  // and doing that mid-search would replace the results with a browsed group.
+  useLiveRefresh(
+    () => {
+      if (isPageFresh(activeKey)) return undefined;
+      return loadKey(activeKey, { silent: true });
+    },
+    {
+      intervalMs: 0,
+      isEnabled: !isSearchActive,
+    }
+  );
 
   // Resolve deep links (category / search from Home or Categories).
   //

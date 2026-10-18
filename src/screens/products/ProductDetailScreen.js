@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -42,6 +42,18 @@ import { useI18n } from '../../i18n/I18nContext';
 const RECOMMENDED_TARGET = 6;
 const RECOMMENDED_CARD_WIDTH = 170;
 const RECOMMENDED_CARD_GAP = 10;
+
+/**
+ * How long the product on screen is reused before the app re-syncs it on its
+ * own.
+ *
+ * Answering a message and coming straight back must not cost a request — and,
+ * because a reload goes through the full-screen loader, must not throw the
+ * shopper back to the top of the page either. Past this window the page
+ * re-syncs itself in the background; pulling to refresh is not wired here, so
+ * opening another product (or restarting) always fetches for real.
+ */
+const PRODUCT_TTL_MS = 5 * 60 * 1000;
 
 /**
  * The items shown under "منتجات ذات صلة".
@@ -160,6 +172,9 @@ export default function ProductDetailScreen({ route, navigation }) {
 
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
+  // When this product was last loaded successfully. A ref, not state: the
+  // refresh path reads it and it must never itself trigger a render.
+  const fetchedAtRef = useRef(0);
   const [selectedUom, setSelectedUom] = useState('حبة');
   const [qty, setQty] = useState(1);
   const [actionLoading, setActionLoading] = useState(false);
@@ -219,32 +234,63 @@ export default function ProductDetailScreen({ route, navigation }) {
     jsonLd: headJsonLd,
   });
 
-  const fetchDetail = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await CatalogAPI.getItem(itemCode);
-      if (data) {
-        setProduct(data);
-        if (data.uoms && data.uoms.length > 0) {
-          
-          setSelectedUom(data.uoms[0].uom);
-        } else if (data.stock_uom) {
-          setSelectedUom(data.stock_uom);
+  /**
+   * Load the product, or quietly re-sync it once its copy has gone stale.
+   *
+   * `silent` is the "this page is already on screen" refresh: it never shows the
+   * full-screen loader (which unmounts the whole page, so it also threw the
+   * shopper back to the top of it) and it never touches what they chose — the
+   * selected unit, the quantity — nor reports a background failure as an error.
+   */
+  const fetchDetail = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!silent) setLoading(true);
+      // Only a completed load may mark this product fresh, so a failed fetch
+      // cannot buy itself the cache window from the next foreground.
+      let ok = false;
+      try {
+        const data = await CatalogAPI.getItem(itemCode);
+        if (data) {
+          setProduct(data);
+          if (!silent) {
+            if (data.uoms && data.uoms.length > 0) {
+              setSelectedUom(data.uoms[0].uom);
+            } else if (data.stock_uom) {
+              setSelectedUom(data.stock_uom);
+            }
+          }
+          ok = true;
         }
+      } catch (err) {
+        // A background refresh has nothing to apologise for: the page it is
+        // refreshing still shows a perfectly usable product.
+        if (!silent) toast.error(err?.message || 'تعذر تحميل تفاصيل المنتج');
+      } finally {
+        if (!silent) setLoading(false);
+        if (ok) fetchedAtRef.current = Date.now();
       }
-    } catch (err) {
-      toast.error(err?.message || 'تعذر تحميل تفاصيل المنتج');
-    } finally {
-      setLoading(false);
-    }
-  }, [itemCode]);
+    },
+    [itemCode, toast]
+  );
 
   useEffect(() => {
+    // A different product is a different page: nothing cached for the previous
+    // one may make this one look fresh.
+    fetchedAtRef.current = 0;
     fetchDetail();
   }, [fetchDetail]);
 
-  // Live: re-fetch the product when the app returns to the foreground.
-  useLiveRefresh(fetchDetail, { intervalMs: 0, isEnabled: true });
+  // Live: re-sync the product when the app returns to the foreground — but only
+  // after what is on screen has gone stale, and silently even then. A product
+  // page that reloads on every app switch is both slow and, because the reload
+  // goes through the full-screen loader, a guaranteed jump back to the top.
+  useLiveRefresh(
+    () => {
+      if (Date.now() - fetchedAtRef.current < PRODUCT_TTL_MS) return undefined;
+      return fetchDetail({ silent: true });
+    },
+    { intervalMs: 0, isEnabled: true }
+  );
 
   // The storefront switches are site-wide, so this is read once per screen and
   // cached by the API layer. Failure is handled there (fails open) — there is
