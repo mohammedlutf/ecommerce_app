@@ -7,6 +7,7 @@ import {
   StyleSheet,
   RefreshControl,
   Image,
+  Linking,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +18,7 @@ import CategoryCard from '../../components/CategoryCard';
 import ProductCard from '../../components/ProductCard';
 import TrustBadge from '../../components/TrustBadge';
 import ProductImage from '../../components/ProductImage';
+import HeroCarousel from '../../components/HeroCarousel';
 import CatalogAPI from '../../api/catalog';
 import MarketplaceAPI from '../../api/marketplace';
 import { useCart } from '../../context/CartContext';
@@ -92,6 +94,9 @@ export default function HomeScreen({ navigation }) {
   // vendors yet renders no rail at all (see the render guard), so this starts
   // empty and a failed fetch simply keeps it that way.
   const [shops, setShops] = useState([]);
+  // The merchant's hero banners. Empty is the documented default: with none,
+  // the hero is exactly what it was before the advertising table existed.
+  const [heroAds, setHeroAds] = useState([]);
   const [offerGroups, setOfferGroups] = useState([]); // [{ name, image }]
   const [offerProducts, setOfferProducts] = useState({}); // child name -> items
   const [offersLoading, setOffersLoading] = useState(true);
@@ -105,6 +110,46 @@ export default function HomeScreen({ navigation }) {
       // entry and the navigator all agree on `/ar/product/CODE` rather than
       // showing the home URL while a product is open.
       navigateToProduct(navigation, itemCode);
+    },
+    [navigation]
+  );
+
+  /*
+   * Where a tapped advertising banner goes.
+   *
+   * The merchant's most specific target wins: a product, then a category, then
+   * an external link. A banner with none of the three is rendered without a
+   * press target at all (see HeroCarousel), so this only ever sees the real
+   * destinations.
+   */
+  const handleAdPress = useCallback(
+    (ad) => {
+      if (!ad) return;
+
+      if (ad.itemCode) {
+        navigateToProduct(navigation, ad.itemCode);
+        return;
+      }
+
+      if (ad.itemGroup) {
+        navigateToProducts(navigation, {
+          itemGroup: ad.itemGroup,
+          // Same reset as a category tile: a leftover search or an earlier
+          // hand-over would otherwise filter the very category being advertised.
+          search: undefined,
+          extra: { focusSearch: undefined },
+        });
+        return;
+      }
+
+      // http(s) only. The field is merchant-entered free text, and anything
+      // else handed to the OS is at best ignored and at worst an unintended
+      // scheme launch.
+      if (ad.url && /^https?:\/\//i.test(ad.url)) {
+        Linking.openURL(ad.url).catch((err) =>
+          console.warn('Could not open advertising link:', err)
+        );
+      }
     },
     [navigation]
   );
@@ -170,18 +215,39 @@ export default function HomeScreen({ navigation }) {
     setShops(rows);
   }, []);
 
+  // The hero is either the merchant's advertising banners or the built-in
+  // gradient hero, and which one it is comes from the same settings call the
+  // product page already makes. Its own fetch rather than part of `fetchHome`:
+  // the call is cached and cheap, a site without the advertising table simply
+  // answers "none", and a slow one must not hold the catalogue back.
+  const fetchHeroAds = useCallback(async ({ force = false } = {}) => {
+    const settings = await CatalogAPI.getWebshopSettings({ force });
+    setHeroAds(settings.homepageAds || []);
+  }, []);
+
   useEffect(() => {
     fetchHome();
     fetchShops();
-  }, [fetchHome, fetchShops]);
+    fetchHeroAds();
+  }, [fetchHome, fetchShops, fetchHeroAds]);
 
   // Live: re-fetch the home strip whenever the app returns to the foreground
-  // (no aggressive in-app polling that visually refreshes the list).
-  useLiveRefresh(fetchHome, { intervalMs: 0, isEnabled: true });
+  // (no aggressive in-app polling that visually refreshes the list). The banner
+  // list rides along — it answers from the settings cache almost every time, and
+  // a merchant who publishes a banner then reopens the app sees it without
+  // restarting anything.
+  const refreshOnForeground = useCallback(
+    () => Promise.all([fetchHome(), fetchHeroAds()]),
+    [fetchHome, fetchHeroAds]
+  );
+  useLiveRefresh(refreshOnForeground, { intervalMs: 0, isEnabled: true });
 
   async function onRefresh() {
     setRefreshing(true);
-    await Promise.all([fetchHome(), fetchShops()]);
+    // `force` only on the banners: the shopper explicitly asked for fresh
+    // content, and the settings cache would otherwise answer from ten minutes
+    // ago and make the gesture look like it did nothing.
+    await Promise.all([fetchHome(), fetchShops(), fetchHeroAds({ force: true })]);
     setRefreshing(false);
   }
 
@@ -301,30 +367,37 @@ function handleSelectCategory(catName) {
           </View>
         )}
 
-        {/* Hero */}
-        <LinearGradient
-          colors={[Colors.primary, Colors.primaryDark || '#00593A']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.heroBanner}
-        >
-          <View style={styles.heroBadge}>
-            <Icon name="flame" size={13} color="#ffffff" />
-            <Text style={[styles.heroBadgeText, textStart]}>عروض هذا الأسبوع</Text>
-          </View>
-          <Text style={[styles.heroTitle, textStart]}>أفضل الأسعار وأجود المنتجات</Text>
-          <Text style={[styles.heroSubtitle, textStart]}>
-            نوفر لكم كافة متطلبات المنزل مع توصيل سريع ومباشر حتى باب المنزل.
-          </Text>
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => navigateToProducts(navigation)}
-            style={styles.heroCta}
+        {/* Hero — the merchant's advertising banners when `Webshop Settings`
+            carries any, the built-in hero otherwise. Only one of the two is ever
+            mounted, so a deployment with no banners renders exactly what it
+            rendered before the table existed. */}
+        {heroAds.length > 0 ? (
+          <HeroCarousel ads={heroAds} onPressAd={handleAdPress} />
+        ) : (
+          <LinearGradient
+            colors={[Colors.primary, Colors.primaryDark || '#00593A']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroBanner}
           >
-            <Text style={[styles.heroCtaText, textStart]}>تسوق الآن</Text>
-            <Icon name="arrow-forward" size={16} color={Colors.primary} />
-          </TouchableOpacity>
-        </LinearGradient>
+            <View style={styles.heroBadge}>
+              <Icon name="flame" size={13} color="#ffffff" />
+              <Text style={[styles.heroBadgeText, textStart]}>عروض هذا الأسبوع</Text>
+            </View>
+            <Text style={[styles.heroTitle, textStart]}>أفضل الأسعار وأجود المنتجات</Text>
+            <Text style={[styles.heroSubtitle, textStart]}>
+              نوفر لكم كافة متطلبات المنزل مع توصيل سريع ومباشر حتى باب المنزل.
+            </Text>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => navigateToProducts(navigation)}
+              style={styles.heroCta}
+            >
+              <Text style={[styles.heroCtaText, textStart]}>تسوق الآن</Text>
+              <Icon name="arrow-forward" size={16} color={Colors.primary} />
+            </TouchableOpacity>
+          </LinearGradient>
+        )}
 
         {/* Categories */}
         <View style={styles.sectionHeader}>

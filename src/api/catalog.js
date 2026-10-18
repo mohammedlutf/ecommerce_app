@@ -9,6 +9,28 @@ const SETTINGS_CACHE_TTL = 10 * 60 * 1000;
 let settingsCache = null;
 let settingsCacheAt = 0;
 
+/**
+ * Home-hero banners, as the screens want them.
+ *
+ * This layer is the only one that knows about transport, so the relative
+ * `/files/...` path the server stores is turned into a full URI here — the same
+ * deal the item-group images get — and screens never have to know what
+ * `getImageUrl` is. A row without an image is dropped rather than rendered as an
+ * empty slide, so the carousel can trust that every entry has something to draw.
+ */
+function normalizeHomepageAds(rows) {
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .filter((row) => row && row.image)
+    .map((row) => ({
+      image: getImageUrl(row.image),
+      title: row.title || '',
+      itemGroup: row.item_group || '',
+      itemCode: row.item_code || '',
+      url: row.url || '',
+    }));
+}
+
 export const CatalogAPI = {
   /**
    * Fetch product catalog with categories
@@ -77,30 +99,37 @@ export const CatalogAPI = {
   },
 
   /**
-   * The storefront's feature switches, from `Webshop Settings` via the
-   * whitelisted `webshop.my_api.api.webshop_settings`.
+   * The storefront's public configuration, from `Webshop Settings` via the
+   * whitelisted `webshop.my_api.api.webshop_settings`: the feature switches and
+   * the merchant's home-hero banners.
    *
    * Cached because this is site-wide configuration that changes a handful of
-   * times a year, while it is read on every product page.
+   * times a year, while it is read on every product page. `force` exists for the
+   * home screen's pull-to-refresh, where the shopper has explicitly asked for
+   * fresh content and a ten-minute-old banner list would look like a refresh
+   * that did nothing.
    *
-   * Fails OPEN (both switches true) when the endpoint is unreachable. Hiding a
-   * section the merchant turned on is a worse mistake than showing one they
-   * turned off, and a settings call that fails must not take the whole product
-   * page down with it.
+   * Fails OPEN (both switches true, no banners) when the endpoint is
+   * unreachable. Hiding a section the merchant turned on is a worse mistake than
+   * showing one they turned off, and a settings call that fails must not take
+   * the whole product page down with it. No banners is the safe fallback for the
+   * hero: the home screen then renders exactly what it rendered before the
+   * advertising table existed.
    */
-  async getWebshopSettings() {
+  async getWebshopSettings({ force = false } = {}) {
     const elapsed = Date.now() - settingsCacheAt;
-    if (settingsCache && elapsed < SETTINGS_CACHE_TTL) return settingsCache;
+    if (!force && settingsCache && elapsed < SETTINGS_CACHE_TTL) return settingsCache;
 
     try {
       const raw = await frappeCall('webshop.my_api.api.webshop_settings', {}, 'GET');
       settingsCache = {
         enableReviews: !!(raw && raw.enable_reviews),
         enableRecommendations: !!(raw && raw.enable_recommendations),
+        homepageAds: normalizeHomepageAds(raw && raw.homepage_ads),
       };
     } catch (err) {
       console.warn('Could not load webshop settings:', err.message);
-      settingsCache = { enableReviews: true, enableRecommendations: true };
+      settingsCache = { enableReviews: true, enableRecommendations: true, homepageAds: [] };
     }
     settingsCacheAt = Date.now();
     return settingsCache;
