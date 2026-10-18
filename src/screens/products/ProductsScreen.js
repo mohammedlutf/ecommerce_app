@@ -11,6 +11,7 @@ import {
   Easing,
   PanResponder,
   Pressable,
+  TouchableOpacity,
   useWindowDimensions,
   I18nManager,
 } from 'react-native';
@@ -383,7 +384,7 @@ function SearchResults({ state, onOpen, onLoadMore, refreshing, onRefresh, onCle
 }
 
 export default function ProductsScreen({ route, navigation }) {
-  const { textStart } = useDirectional();
+  const { textStart, isRTL } = useDirectional();
   useResetOnTabPress(navigation, 'ProductsTab');
   const { width } = useWindowDimensions();
   const { isAdmin, savedTick } = useAdmin();
@@ -1112,6 +1113,23 @@ export default function ProductsScreen({ route, navigation }) {
             onClear={handleClearSearch}
             placeholder="ابحث بالاسم عن متنجك..."          
             />
+          {/* Marketplace entry point. Kept out of the category chips on purpose:
+              a shop is not an item group, and mixing the two taxonomies into one
+              row made both harder to scan. Hidden on desktop, where `SiteHeader`
+              already carries the browse controls. */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('ShopDirectory')}
+            style={styles.shopsBanner}
+          >
+            <Icon name="storefront-outline" size={16} color={Colors.primary} />
+            <Text style={[styles.shopsBannerText, textStart]}>تصفح متاجر المنصة</Text>
+            <Icon
+              name={isRTL ? 'chevron-forward' : 'chevron-back'}
+              size={14}
+              color={Colors.primary}
+            />
+          </TouchableOpacity>
         </View>
       )}
 
@@ -1370,6 +1388,22 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     backgroundColor: Colors.surface,
     
+  },
+  shopsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.primaryLight,
+  },
+  shopsBannerText: {
+    flex: 1,
+    fontSize: Typography.sizes.labelMd,
+    fontFamily: Typography.fontFamilyBold,
+    color: Colors.primary,
   },
   searchHeader: {
     flexDirection: 'row',

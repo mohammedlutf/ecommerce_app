@@ -12,7 +12,24 @@ const STATUS_MAP = {
   'To Deliver and Bill': { bg: Colors.infoContainer, text: Colors.info, label: 'قيد التوصيل', icon: 'time' },
   'To Deliver': { bg: Colors.infoContainer, text: Colors.info, label: 'قيد التوصيل', icon: 'time' },
   Cancelled: { bg: Colors.errorContainer, text: Colors.error, label: 'ملغي', icon: 'close-circle' },
+  // Marketplace statuses, resolved per vendor order on the server and summarised
+  // for the whole checkout.
+  New: { bg: Colors.primaryContainer, text: Colors.primaryDark, label: 'جديد', icon: 'time-outline' },
+  Processing: { bg: Colors.warningContainer, text: Colors.warning, label: 'قيد التجهيز', icon: 'sync' },
+  Ready: { bg: Colors.infoContainer, text: Colors.info, label: 'جاهز للتوصيل', icon: 'cube-outline' },
+  Delivered: { bg: Colors.successContainer, text: Colors.success, label: 'تم التسليم', icon: 'checkmark-circle' },
 };
+
+function statusFor(status) {
+  return (
+    STATUS_MAP[status] || {
+      bg: Colors.primaryContainer,
+      text: Colors.primaryDark,
+      label: status || 'قيد المعالجة',
+      icon: 'sync',
+    }
+  );
+}
 
 export default function OrderCard({
   order,
@@ -23,19 +40,20 @@ export default function OrderCard({
   const { textStart } = useDirectional();
   const [expanded, setExpanded] = useState(false);
 
-  const statusInfo =
-    STATUS_MAP[order.status] ||
-    {
-      bg: Colors.primaryContainer,
-      text: Colors.primaryDark,
-      label: order.status || 'قيد المعالجة',
-      icon: 'sync',
-    };
+  const statusInfo = statusFor(order.status);
+  // A checkout spanning several vendors arrives as one unit carrying a
+  // per-vendor breakdown. The flat `items` still exist for a single-shop order
+  // (and for legacy orders), so only the multi-vendor case changes shape.
+  const vendorOrders = Array.isArray(order.orders) ? order.orders : [];
+  const grouped = !!order.is_group && vendorOrders.length > 0;
 
+  // `docstatus` is 1 on a submitted order. Delivered and cancelled units can no
+  // longer be cancelled, whatever the vendor rows say.
   const canCancel =
     order.docstatus === 1 &&
     order.status !== 'Completed' &&
-    order.status !== 'Cancelled';
+    order.status !== 'Cancelled' &&
+    order.status !== 'Delivered';
 
   return (
     <View style={styles.card}>
@@ -55,43 +73,74 @@ export default function OrderCard({
           </View>
         </View>
 
-        {/* Items preview */}
-        {order.items && order.items.length > 0 && (
-          <View style={styles.itemsSection}>
-            <Text style={[styles.itemsSummary, textStart]}>
-              {order.items.length} {order.items.length === 1 ? 'منتج' : 'منتجات'}:{' '}
-              {order.items
-                .map((i) => `${i.item_name} (${i.qty} ${i.uom})`)
-                .slice(0, 2)
-                .join('، ')}
-              {order.items.length > 2 ? ' ...' : ''}
-            </Text>
-
-            {expanded && (
-              <View style={styles.expandedItems}>
-                {order.items.map((item, idx) => (
-                  <View key={idx} style={styles.itemRow}>
-                    <Text style={[styles.itemName, textStart]} numberOfLines={1}>
-                      {item.item_name}
-                    </Text>
-                    <Text style={styles.itemQtyUom}>
-                      {item.qty} × {formatCurrency(item.rate)}
-                    </Text>
-                    <Text style={styles.itemAmount}>{formatCurrency(item.amount)}</Text>
+        {/* Per-vendor breakdown (multi-shop checkout) */}
+        {grouped ? (
+          <View style={styles.shopList}>
+            {vendorOrders.map((vendorOrder) => {
+              const shopStatus = statusFor(vendorOrder.status);
+              return (
+                <View key={vendorOrder.name} style={styles.shopRow}>
+                  <View style={styles.shopIcon}>
+                    <Icon name="storefront-outline" size={15} color={Colors.primary} />
                   </View>
-                ))}
-              </View>
-            )}
-
-            {order.items.length > 1 && (
-              <TouchableOpacity activeOpacity={0.7} onPress={() => setExpanded(!expanded)} style={styles.toggleBtn}>
-                <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color={Colors.primary} />
-                <Text style={[styles.toggleText, textStart]}>
-                  {expanded ? 'إخفاء التفاصيل' : 'عرض كافة المنتجات'}
-                </Text>
-              </TouchableOpacity>
-            )}
+                  <View style={styles.shopInfo}>
+                    <Text style={[styles.shopName, textStart]} numberOfLines={1}>
+                      {vendorOrder.shop_name || 'متجر'}
+                    </Text>
+                    <Text style={[styles.shopMeta, textStart]} numberOfLines={1}>
+                      {(vendorOrder.items || []).length} منتج · {formatCurrency(vendorOrder.grand_total, order.currency)}
+                    </Text>
+                  </View>
+                  <View style={[styles.statusBadge, { backgroundColor: shopStatus.bg }]}>
+                    <Icon name={shopStatus.icon} size={11} color={shopStatus.text} />
+                    <Text style={[styles.shopStatusText, textStart, { color: shopStatus.text }]}>
+                      {shopStatus.label}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
           </View>
+        ) : (
+          /* Items preview (single order) */
+          order.items &&
+          order.items.length > 0 && (
+            <View style={styles.itemsSection}>
+              <Text style={[styles.itemsSummary, textStart]}>
+                {order.items.length} {order.items.length === 1 ? 'منتج' : 'منتجات'}:{' '}
+                {order.items
+                  .map((i) => `${i.item_name} (${i.qty} ${i.uom})`)
+                  .slice(0, 2)
+                  .join('، ')}
+                {order.items.length > 2 ? ' ...' : ''}
+              </Text>
+
+              {expanded && (
+                <View style={styles.expandedItems}>
+                  {order.items.map((item, idx) => (
+                    <View key={idx} style={styles.itemRow}>
+                      <Text style={[styles.itemName, textStart]} numberOfLines={1}>
+                        {item.item_name}
+                      </Text>
+                      <Text style={styles.itemQtyUom}>
+                        {item.qty} × {formatCurrency(item.rate)}
+                      </Text>
+                      <Text style={styles.itemAmount}>{formatCurrency(item.amount)}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {order.items.length > 1 && (
+                <TouchableOpacity activeOpacity={0.7} onPress={() => setExpanded(!expanded)} style={styles.toggleBtn}>
+                  <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color={Colors.primary} />
+                  <Text style={[styles.toggleText, textStart]}>
+                    {expanded ? 'إخفاء التفاصيل' : 'عرض كافة المنتجات'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )
         )}
 
         {/* Footer */}
@@ -184,6 +233,41 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
   },
   statusText: {
+    fontSize: Typography.sizes.labelSm,
+    fontFamily: Typography.fontFamilyBold,
+  },
+  shopList: {
+    paddingVertical: 12,
+    gap: 10,
+  },
+  shopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  shopIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shopInfo: {
+    flex: 1,
+  },
+  shopName: {
+    fontSize: Typography.sizes.bodySm,
+    fontFamily: Typography.fontFamilyBold,
+    color: Colors.onSurface,
+  },
+  shopMeta: {
+    fontSize: Typography.sizes.labelSm,
+    color: Colors.textMuted,
+    fontFamily: Typography.fontFamilyRegular,
+    marginTop: 1,
+  },
+  shopStatusText: {
     fontSize: Typography.sizes.labelSm,
     fontFamily: Typography.fontFamilyBold,
   },

@@ -21,9 +21,14 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, strip_html
 from frappe.utils.file_manager import save_file
+from frappe.utils.nestedset import get_root_of
 from frappe.utils.password import update_password
 
-from webshop.my_api.api import _get_calculated_uoms, _settings
+from webshop.my_api.api import (
+	_ensure_leaf_customer_group,
+	_get_calculated_uoms,
+	_settings,
+)
 
 try:
 	import blurhash
@@ -73,6 +78,103 @@ def _throttle_registration(phone, limit=10, window=60 * 60):
 	frappe.cache().set_value(key, attempts + 1, expires_in_sec=window)
 
 
+def _ensure_contact_for_user(user):
+	"""Return the Contact for a user, creating it synchronously if it is missing.
+
+	`User.on_update` enqueues `create_contact` to run *after commit*, so at
+	sign-up time the Contact may not exist yet and there would be nothing to link
+	to a new Customer. Creating it here makes that write synchronous; the
+	background job then only finds it and refreshes it.
+	"""
+	from frappe.contacts.doctype.contact.contact import get_contact_name
+	from frappe.core.doctype.user.user import create_contact
+
+	def _find():
+		return get_contact_name(user.email) or frappe.db.get_value(
+			"Contact", {"user": user.name}, "name"
+		)
+
+	contact = _find()
+	if not contact:
+		create_contact(user, ignore_mandatory=True)
+		contact = _find()
+	return contact
+
+
+def _default_customer_group():
+	"""A leaf Customer Group for new sign-ups, whatever the settings hold.
+
+	`Webshop Settings.default_customer_group` may point at a group node, which
+	ERPNext refuses on a Customer. The storefront's own `_ensure_leaf_customer_group`
+	already resolves that; this adds a last-resort leaf so a misconfigured setting
+	does not turn every sign-up into a failure.
+	"""
+	try:
+		group = _ensure_leaf_customer_group()
+	except Exception:
+		frappe.log_error(title="register_user_by_phone: customer group lookup failed")
+		group = None
+
+	if group and not frappe.db.get_value("Customer Group", group, "is_group"):
+		return group
+
+	leaf = frappe.get_all(
+		"Customer Group", filters={"is_group": 0}, pluck="name", limit_page_length=1
+	)
+	return leaf[0] if leaf else None
+
+
+def _create_customer_for_user(user, full_name, phone):
+	"""Create the Customer behind a new website user and link their Contact.
+
+	This is the same thing `webshop...shopping_cart.cart.get_party` does lazily on
+	the first add-to-cart, done at sign-up instead so the Contact that already
+	represents the user is the one linked to the Customer, rather than a second
+	orphaned Contact created later.
+	"""
+	contact = _ensure_contact_for_user(user)
+
+	group = _default_customer_group()
+	if not group:
+		frappe.throw(_("No Customer Group is available to create the customer."))
+
+	settings = _settings()
+	customer = frappe.get_doc(
+		{
+			"doctype": "Customer",
+			"customer_name": full_name,
+			"customer_type": "Individual",
+			"customer_group": group,
+			"territory": get_root_of("Territory"),
+			"email_id": user.email,
+			"mobile_no": phone,
+			# Pre-set so the Customer does not spawn a *second* Contact of its
+			# own, and so this Contact is the customer's primary one.
+			"customer_primary_contact": contact,
+			# Adding the user as a portal user is what makes ERPNext append the
+			# Customer link to that Contact and grant the user the Customer role.
+			"portal_users": [{"user": user.name}],
+		}
+	)
+
+	# Same receivable-account assignment a customer gets when the storefront
+	# creates one lazily, so an existing customer is not missing it.
+	if settings.get("enable_checkout"):
+		try:
+			from webshop.webshop.shopping_cart.cart import get_debtors_account
+
+			account = get_debtors_account(settings)
+			if account:
+				customer.append("accounts", {"company": settings.company, "account": account})
+		except Exception:
+			# The account is an enhancement, not a reason to lose the customer.
+			frappe.log_error(title="register_user_by_phone: debtors account lookup failed")
+
+	customer.flags.ignore_mandatory = True
+	customer.insert(ignore_permissions=True)
+	return customer.name
+
+
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 def register_user_by_phone(phone, full_name, new_password):
 	"""Create a website user from a phone number.
@@ -115,6 +217,14 @@ def register_user_by_phone(phone, full_name, new_password):
 
 		# Set the password
 		update_password(generatedEmail, new_password)
+
+		# Create the Customer and link the user's Contact to it. Kept best-effort
+		# so a customer-setup problem (e.g. an unconfigured Customer Group) does
+		# not stop the account from being created; `get_party` will retry lazily.
+		try:
+			_create_customer_for_user(user, full_name, phone)
+		except Exception:
+			frappe.log_error(title="register_user_by_phone: customer creation failed")
 
 		return {"status": "success", "message": "تم إنشاء الحساب بنجاح!"}
 
@@ -731,8 +841,8 @@ def admin_is_admin():
 		return {"is_admin": _is_admin(), "user": frappe.session.user}
 	except Exception:
 		# A misconfigured admin table must not break the whole catalogue for every
-	# customer, so this probe degrades to "not an admin" and logs. Real admin
-	# actions still throw via _require_admin, where the cause is visible.
+		# customer, so this probe degrades to "not an admin" and logs. Real admin
+		# actions still throw via _require_admin, where the cause is visible.
 		frappe.log_error(title="admin_users lookup failed")
 		return {"is_admin": False}
 
@@ -753,6 +863,12 @@ def admin_reference_data():
 def admin_item_payload(item_code=None):
 	"""Everything the editor needs for one product, in one round trip."""
 	_require_admin()
+	return _item_payload(item_code)
+
+
+def _item_payload(item_code=None):
+	"""The payload itself. Ungated so vendor-scoped callers can reuse it after
+	performing their own ownership check."""
 	item_code = (item_code or "").strip()
 	if not item_code or not frappe.db.exists("Item", item_code):
 		frappe.throw(_("Item not found."), frappe.DoesNotExistError)
@@ -829,408 +945,3 @@ def _recommended_rows(website_item_name):
 
 @frappe.whitelist()
 def admin_update_item(
-	item_code=None,
-	item_name=None,
-	item_group=None,
-	short_description=None,
-	web_long_description=None,
-	ranking=None,
-	published=None,
-	image_base64=None,
-	image_name=None,
-	uoms_json=None,
-	recommended_json=None,
-):
-	"""Apply an edit. Only the arguments actually sent are changed.
-
-	Every parameter defaults to None so a partial save cannot blank a field the
-	editor did not load — the failure mode of an "apply everything" endpoint is a
-	told-together page quietly erasing the product description.
-	"""
-	_require_admin()
-	item_code = (item_code or "").strip()
-	if not item_code or not frappe.db.exists("Item", item_code):
-		frappe.throw(_("Item not found."), frappe.DoesNotExistError)
-
-	warnings = []
-
-	# --- name, shown on both the master record and the storefront -------------
-	if item_name is not None:
-		new_name = strip_html((item_name or "").strip())[:140]
-		if not new_name:
-			frappe.throw(_("The item name cannot be empty."))
-		if new_name != frappe.db.get_value("Item", item_code, "item_name"):
-			# Renaming an Item is more than a label: ERPNext keys the Website Item
-			# off item_code but shows these, and the route is generated from the
-			# web name. All four are written together so no surface keeps the old
-			# name.
-			frappe.db.set_value("Item", item_code, "item_name", new_name)
-			website_item_name = frappe.db.get_value("Website Item", {"item_code": item_code}, "name")
-			if website_item_name:
-				frappe.db.set_value(
-					"Website Item", 
-					website_item_name, 
-					{
-						"item_name": new_name, 
-						"web_item_name": new_name
-					}
-				)
-				warnings.extend(_resync_route(website_item_name))
-
-	# --- group ----------------------------------------------------------------
-	if item_group is not None:
-		group = (item_group or "").strip()
-		if not frappe.db.exists("Item Group", group):
-			frappe.throw(_("Item Group `{0}` does not exist.").format(group))
-		frappe.db.set_value("Item", item_code, "item_group", group)
-		website_item_name = frappe.db.get_value("Website Item", {"item_code": item_code}, "name")
-		if website_item_name:
-			frappe.db.set_value("Website Item", website_item_name, "item_group", group)
-			# The catalogue filters on `item_group IN (groups shown in website)`.
-			# Moving a product into a hidden group makes it disappear from the
-			# app and the site with no error anywhere, so it is reported.
-			if not frappe.db.get_value("Item Group", group, "show_in_website"):
-				warnings.append(
-					_("`{0}` is hidden from the website, so this product will not be listed.").format(group)
-				)
-
-	# --- descriptions ---------------------------------------------------------
-	website_item_name = frappe.db.get_value("Website Item", {"item_code": item_code}, "name")
-	if short_description is not None:
-		clean = strip_html(short_description or "").strip()
-		frappe.db.set_value("Item", item_code, "description", clean[:500])
-		if website_item_name:
-			frappe.db.set_value("Website Item", website_item_name, "short_description", clean[:300])
-
-	if web_long_description is not None:
-		if not website_item_name:
-			warnings.append(_("This product has no Website Item yet, so the long description was not saved."))
-		else:
-			frappe.db.set_value(
-				"Website Item", website_item_name, "web_long_description", (web_long_description or "").strip()
-			)
-
-	if ranking is not None and website_item_name:
-		frappe.db.set_value("Website Item", website_item_name, "ranking", cint(ranking))
-
-	if published is not None and website_item_name:
-		frappe.db.set_value("Website Item", website_item_name, "published", cint(published))
-
-	# --- UOMs and prices ------------------------------------------------------
-	if uoms_json is not None:
-		_apply_uoms(item_code, _parse_json_list(uoms_json, "uoms_json"))
-
-	# --- recommended ----------------------------------------------------------
-	if recommended_json is not None:
-		if not website_item_name:
-			warnings.append(_("This product has no Website Item yet, so recommendations were not saved."))
-		else:
-			_apply_recommended(website_item_name, item_code, _parse_json_list(recommended_json, "recommended_json"))
-
-	# --- image ----------------------------------------------------------------
-	image_url = None
-	if image_base64:
-		image_url = _save_item_image(item_code, image_base64, image_name)
-	else:
-		# Try to generate blurhash from existing website image if missing
-		try:
-			wi_name = frappe.db.get_value("Website Item", {"item_code": item_code}, "name")
-			if wi_name:
-				cur = frappe.db.get_value("Website Item", wi_name, ["website_image", "blurhash"], as_dict=True)
-				if cur and cur.website_image and not cur.blurhash:
-					bh = _compute_blurhash_for_image(cur.website_image)
-					if bh:
-						frappe.db.set_value("Website Item", wi_name, "blurhash", bh, update_modified=False)
-		except Exception:
-			pass
-
-	precision_note = _float_precision_warning()
-	if precision_note:
-		warnings.append(precision_note)
-
-	return {
-		"ok": True,
-		"image": image_url,
-		"warnings": warnings,
-		"item": admin_item_payload(item_code),
-	}
-
-
-def _resync_route(website_item_name):
-	"""Regenerate the product URL after a rename.
-
-	The route is cleared so ERPNext rebuilds it from the new web_item_name using the
-	site's own configured base path. Re-implementing that slug logic here would drift
-	from the website the first time either side changed.
-
-	Note the document is *saved*, not patched. `frappe.db.set_value(...,"route","")`
-	writes the column directly and skips `Document.validate()`, which is where
-	ERPNext calls `set_route()` — so the route would stay empty and every single
-	rename would come back with the "could not be rebuilt" warning.
-	"""
-	frappe.db.set_value("Website Item", website_item_name, "route", "")
-
-	def _current_route():
-		return frappe.db.get_value("Website Item", website_item_name, "route")
-
-	# The normal hook chain first, which is the only version-accurate way to get
-	# the site's real route format.
-	doc = frappe.get_doc("Website Item", website_item_name)
-	try:
-		doc.save(ignore_permissions=True)
-	except Exception:
-		frappe.log_error(title="Website Item route rebuild failed")
-
-	# Older/patched ERPNext builds only call set_route() from the Website Item
-	# generator, so fall back to invoking it directly.
-	if not _current_route():
-		try:
-			doc.set_route()
-			doc.save(ignore_permissions=True)
-		except Exception:
-			frappe.log_error(title="Website Item set_route() failed")
-
-	route = _current_route()
-	if not route:
-		return [
-			_(
-				"The product URL could not be rebuilt automatically. Set a Route on the Website Item before publishing."
-			)
-		]
-	return [_("The product URL changed to `{0}`. Older links to the previous URL will not resolve.").format(route)]
-
-
-def _apply_recommended(website_item_name, item_code, rows):
-	"""Replace the recommended-products list.
-
-	Self-references are dropped rather than rejected: a recommendation carousel
-	that points at its own product is a mistake, but blocking the whole save over
-	one stray row is worse than ignoring it.
-	"""
-	doc = frappe.get_doc("Website Item", website_item_name)
-	for existing in list(doc.recommended_items or []):
-		doc.remove(existing)
-
-	for row in rows:
-		code = (row.get("item_code") or "").strip()
-		if not code or code == item_code:
-			continue
-		if not frappe.db.exists("Item", code):
-			frappe.throw(_("`{0}` is not a valid item code.").format(code))
-		doc.append("recommended_items", {"item_code": code})
-
-	doc.save()
-
-
-def _unique_item_code(preferred, name):
-	"""Return a free Item code derived from the product name.
-
-	The create form sends the name in place of a code, so this is what stands
-	between a product and a duplicate-code error. Three cases, in order:
-
-	- `preferred` is the ASCII slug of the name, used as-is while it is free.
-	- The slug comes back empty when the name holds no Latin letters or digits —
-	  `slugify` keeps only `[a-z0-9\\s-]`, so an Arabic name reduces to nothing.
-	  The name itself is then used: `item_code` is free text in ERPNext, so a
-	  non-Latin code is valid, and one the admin can recognise beats an opaque
-	  generated identifier.
-	- A clash gets a numeric suffix rather than an error. Two products may
-	  legitimately share a name, and refusing the second one outright is a worse
-	  failure than a suffixed code.
-	"""
-	base = preferred or (name or "").strip()
-	if not base:
-		frappe.throw(_("An item name is required."))
-	base = base[:140]
-
-	def taken(candidate):
-		return frappe.db.exists("Item", candidate) or frappe.db.exists(
-			"Website Item", {"item_code": candidate}
-		)
-
-	if not taken(base):
-		return base
-
-	# Truncate to leave room for the suffix rather than letting the suffix push
-	# the code past the column, which would be a database error rather than a
-	# message the admin can act on.
-	for suffix in range(2, 1000):
-		tail = "-{0}".format(suffix)
-		candidate = "{0}{1}".format(base[: 140 - len(tail)], tail)
-		if not taken(candidate):
-			return candidate
-
-	frappe.throw(_("Could not derive a unique item code from `{0}`.").format(base))
-
-
-# ---------------------------------------------------------------------------
-# Create
-# ---------------------------------------------------------------------------
-
-
-@frappe.whitelist()
-def admin_create_item(
-	item_code=None,
-	item_name=None,
-	item_group=None,
-	stock_uom=None,
-	short_description=None,
-	web_long_description=None,
-	ranking=None,
-	price_list_rate=None,
-	website_warehouse=None,
-	image_base64=None,
-	image_name=None,
-	uoms_json=None,
-	recommended_json=None,
-	published=1,
-):
-	"""Create a product across Item, Item Price and Website Item.
-
-	Published by default, because the stated intent is to put the product in the
-	shop. A draft is one flag away in the editor.
-	"""
-	_require_admin()
-
-	name = strip_html((item_name or "").strip())
-	# The create form no longer asks for a code: the name is the only identifier
-	# an admin has to supply. The code is derived from it here.
-	code = _unique_item_code(slugify((item_code or item_name or "").strip()), name)
-	# An older client can still send a code with no name; fall back to it rather
-	# than inserting an Item with a blank item_name.
-	name = name or code
-	group = (item_group or "").strip()
-	if not frappe.db.exists("Item Group", group):
-		frappe.throw(_("Item Group `{0}` does not exist.").format(group))
-
-	base_uom = (stock_uom or "").strip()
-	if not frappe.db.exists("UOM", base_uom):
-		frappe.throw(_("Unit of Measure `{0}` does not exist.").format(base_uom))
-
-	settings = _settings()
-	if not settings.company:
-		frappe.throw(_("Configure a company in Webshop Settings before creating products."))
-
-	uom_rows = _parse_json_list(uoms_json, "uoms_json")
-	for row in uom_rows:
-		uom = (row.get("uom") or "").strip()
-		if not frappe.db.exists("UOM", uom):
-			frappe.throw(_("Unit of Measure `{0}` does not exist.").format(uom))
-		# Every unit is new here, so there is no stored factor to fall back on:
-		# unlike the editor, a missing factor is always an error.
-		if uom != base_uom and (_decimal(row.get("conversion_factor")) or 0) <= 0:
-			frappe.throw(
-				_("Conversion rate for `{0}` must be greater than zero (received `{1}`).").format(
-					uom, row.get("conversion_factor")
-				)
-			)
-
-	short = strip_html(short_description or "").strip()
-
-	item = frappe.get_doc(
-		{
-			"doctype": "Item",
-			"item_code": code,
-			"item_name": name[:140],
-			"item_group": group,
-			"stock_uom": base_uom,
-			"description": short[:500],
-			"is_stock_item": 1,
-			"uoms": [
-				{
-					"uom": (row.get("uom") or "").strip(),
-					"conversion_factor": 1.0
-					if (row.get("uom") or "").strip() == base_uom
-					else _decimal(row.get("conversion_factor")),
-				}
-				for row in uom_rows
-				if (row.get("uom") or "").strip()
-			],
-		}
-	)
-	item.insert(ignore_permissions=True)
-	code = item.item_code
-	website_item = frappe.get_doc(
-		{
-			"doctype": "Website Item",
-			"item_code": code,
-			"web_item_name": name[:140],
-			"item_group": group,
-			"website_warehouse": (website_warehouse or settings.website_warehouse or None),
-			"short_description": short[:300],
-			"web_long_description": (web_long_description or "").strip(),
-			"ranking": cint(ranking or 0),
-			"published": cint(published),
-		}
-	)
-	website_item.insert(ignore_permissions=True)
-	_ensure_route(website_item)
-
-	# The base unit always needs a price, or the product cannot be added to a
-	# cart at all — `ecommerce.api.cart` refuses a zero rate.
-	base_rate = flt(price_list_rate, 0)
-	if base_rate <= 0:
-		frappe.throw(_("A selling price is required for the base unit of measure."))
-	_apply_item_price(code, base_uom, base_rate)
-
-	for row in uom_rows:
-		uom = (row.get("uom") or "").strip()
-		rate = flt(row.get("price_list_rate"), 0)
-		if uom and uom != base_uom and rate > 0:
-			_apply_item_price(code, uom, rate)
-
-	image_url = None
-	if image_base64:
-		image_url = _save_item_image(code, image_base64, image_name)
-	else:
-		try:
-			cur = frappe.db.get_value("Website Item", website_item.name, ["website_image", "blurhash"], as_dict=True)
-			if cur and cur.website_image and not cur.blurhash:
-				bh = _compute_blurhash_for_image(cur.website_image)
-				if bh:
-					frappe.db.set_value("Website Item", website_item.name, "blurhash", bh, update_modified=False)
-		except Exception:
-			pass
-
-	if recommended_json:
-		_apply_recommended(website_item.name, code, _parse_json_list(recommended_json, "recommended_json"))
-
-	return {
-		"ok": True,
-		"item_code": code,
-		"website_item": website_item.name,
-		"route": frappe.db.get_value("Website Item", website_item.name, "route"),
-		"image": image_url,
-		"warnings": _creation_warnings(group, cint(published)),
-	}
-
-
-def _ensure_route(website_item):
-	"""Make sure a new product has a working URL.
-
-	ERPNext normally builds this itself. If it does not, a slug is used, and if
-	that also fails the product is left for the shop owner rather than published
-	under a blank URL.
-	"""
-	route = frappe.db.get_value("Website Item", website_item.name, "route")
-	if route:
-		return
-
-	try:
-		website_item.set_route()
-		website_item.save(ignore_permissions=True)
-	except Exception:
-		frappe.db.set_value(
-			"Website Item", website_item.name, "route", "products/{0}".format(slugify(website_item.item_name or website_item.item_code))
-		)
-
-
-def _creation_warnings(group, published):
-	warnings = []
-	if not frappe.db.get_value("Item Group", group, "show_in_website"):
-		warnings.append(
-			_("`{0}` is hidden from the website, so this product will not be listed until you enable it.").format(group)
-		)
-	if not published:
-		warnings.append(_("The product was created unpublished and is not visible in the shop."))
-	return warnings

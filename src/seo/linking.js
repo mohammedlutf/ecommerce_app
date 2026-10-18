@@ -146,6 +146,15 @@ export const linking = {
         screens: {
           Home: '',
           Categories: 'categories',
+          /*
+           * The marketplace storefront lives on the Home stack only. Declaring
+           * the paths once (not also under ProductsStack, where the routes are
+           * registered too) is deliberate: a linking config is a flat path map,
+           * and the same path in two navigators resolves ambiguously — exactly
+           * why `ProductDetail` is addressable through one stack only.
+           */
+          ShopDirectory: 'shops',
+          Shop: 'shop/:shop',
         },
       },
       ProductsTab: {

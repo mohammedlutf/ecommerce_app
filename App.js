@@ -16,6 +16,7 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { CartProvider } from './src/context/CartContext';
 import { NotificationProvider } from './src/context/NotificationContext';
 import { AdminProvider } from './src/context/AdminContext';
+import { VendorProvider } from './src/context/VendorContext';
 import { WishlistProvider } from './src/context/WishlistContext';
 import { ToastProvider } from './src/context/ToastContext';
 import { OnboardingProvider, useOnboarding } from './src/context/OnboardingContext';
@@ -242,9 +243,14 @@ export default function App() {
                     {/* Inside AuthProvider: the admin flag is keyed on the signed-in
                         user and must reset on sign-in/sign-out. */}
                     <AdminProvider>
-                      <OnboardingProvider>
-                        <AppContent fontsReady={fontsLoaded} />
-                      </OnboardingProvider>
+                      {/* Inside AuthProvider too: the marketplace state is keyed on
+                          the signed-in user and must reset on sign-in/sign-out, or
+                          one vendor's dashboard would briefly belong to the next. */}
+                      <VendorProvider>
+                        <OnboardingProvider>
+                          <AppContent fontsReady={fontsLoaded} />
+                        </OnboardingProvider>
+                      </VendorProvider>
                     </AdminProvider>
                   </WishlistProvider>
                 </CartProvider>

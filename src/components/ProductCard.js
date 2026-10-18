@@ -215,6 +215,21 @@ function ProductCard({
 
         {/* Content */}
         <View style={styles.content}>
+          {/*
+           * Vendor badge. Only a real vendor shop is badged: the platform's own
+           * catch-all shop owns every unassigned product, and badging all of
+           * them with the store's own name would be noise, not information.
+           * `is_platform` is therefore explicitly false, not merely falsy.
+           */}
+          {product.shop && product.shop.shop_name && product.shop.is_platform === false ? (
+            <View style={styles.shopRow}>
+              <Icon name="storefront-outline" size={10} color={Colors.primary} />
+              <Text style={[styles.shopText, textStart]} numberOfLines={1}>
+                {product.shop.shop_name}
+              </Text>
+            </View>
+          ) : null}
+
           {product.item_group ? (
             <View style={styles.categoryRow}>
               <Icon name="pricetag-outline" size={10} color={Colors.textMuted} />
@@ -360,6 +375,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     marginBottom: 4,
+  },
+  shopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  shopText: {
+    flexShrink: 1,
+    fontSize: Typography.sizes.labelSm,
+    color: Colors.primary,
+    fontFamily: Typography.fontFamilyBold,
   },
   categoryText: {
     fontSize: Typography.sizes.labelSm,

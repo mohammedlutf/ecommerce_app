@@ -464,9 +464,16 @@ export default function ProductDetailScreen({ route, navigation }) {
 
         {/* Info */}
         <View style={styles.infoCard}>
+          {product.shop && product.shop.shop_name && product.shop.is_platform === false ? (
+            <View style={styles.categoryRow}>
+              <Icon name="storefront-outline" size={13} color={Colors.primary} />
+              <Text style={[styles.shopLabel, textStart]}>{product.shop.shop_name}</Text>
+            </View>
+          ) : null}
+
           {product.item_group ? (
             <View style={styles.categoryRow}>
-              <Icon name="pricetag-outline" size={13} color={Colors.primary} />
+              <Icon name="pricetag-outline" size={13} color={Colors.textMuted} />
               <Text style={[styles.categoryLabel, textStart]}>{product.item_group}</Text>
             </View>
           ) : null}
@@ -740,8 +747,13 @@ const styles = StyleSheet.create({
   },
   categoryLabel: {
     fontSize: Typography.sizes.labelSm,
+    color: Colors.textMuted,
+    fontFamily: Typography.fontFamilyMedium,
+  },
+  shopLabel: {
+    fontSize: Typography.sizes.labelSm,
     color: Colors.primary,
-    fontFamily: Typography.fontFamilySemiBold,
+    fontFamily: Typography.fontFamilyBold,
   },
   productTitle: {
     fontSize: Typography.sizes.headlineMd,

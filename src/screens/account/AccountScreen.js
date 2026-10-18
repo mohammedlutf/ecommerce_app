@@ -23,6 +23,7 @@ import EmptyState from '../../components/EmptyState';
 import useConfirm from '../../components/ConfirmDialog';
 import PageFooter from '../../components/layout/PageFooter';
 import { useAuth } from '../../context/AuthContext';
+import { useAdmin } from '../../context/AdminContext';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
 import { useNotifications } from '../../context/NotificationContext';
@@ -79,6 +80,7 @@ export default function AccountScreen({ navigation }) {
   useResetOnTabPress(navigation, 'AccountTab');
 
   const { user, isAuthenticated, logout } = useAuth();
+  const { isAdmin } = useAdmin();
   const { confirm, confirmDialog } = useConfirm();
   const { fetchCart } = useCart();
   const toast = useToast();
@@ -432,6 +434,56 @@ export default function AccountScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
+        {/*
+         * Platform services. The vendor dashboard is offered to every signed-in
+         * customer because the landing screen itself handles the "not a vendor
+         * yet" case by showing the application form. The marketplace desk is
+         * reserved for platform admins, so it is simply not rendered for anyone
+         * else — hiding the row is friendlier than showing a locked door, and
+         * the server still refuses the calls.
+         */}
+        <View style={styles.linkSection}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('VendorHome')}
+            style={styles.linkRow}
+            accessibilityRole="button"
+            accessibilityLabel="متجري"
+          >
+            <View style={styles.linkIcon}>
+              <Icon name="storefront-outline" size={20} color={Colors.primary} />
+            </View>
+            <View style={[styles.linkText, textStart]}>
+              <Text style={[styles.linkTitle, textStart]}>متجري</Text>
+              <Text style={[styles.linkSubtitle, textStart]}>
+                افتح متجرك، وأدِر منتجاتك وطلباتك ومستحقاتك.
+              </Text>
+            </View>
+            <Icon name="chevron-back" size={20} color={Colors.textMuted} />
+          </TouchableOpacity>
+
+          {isAdmin && (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('MarketplaceAdmin')}
+              style={[styles.linkRow, styles.linkRowBordered]}
+              accessibilityRole="button"
+              accessibilityLabel="إدارة السوق"
+            >
+              <View style={styles.linkIcon}>
+                <Icon name="shield-checkmark-outline" size={20} color={Colors.primary} />
+              </View>
+              <View style={[styles.linkText, textStart]}>
+                <Text style={[styles.linkTitle, textStart]}>إدارة السوق</Text>
+                <Text style={[styles.linkSubtitle, textStart]}>
+                  اعتماد المتاجر، وضبط العمولات، وتسوية المستحقات.
+                </Text>
+              </View>
+              <Icon name="chevron-back" size={20} color={Colors.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+
         {/* Segmented Section Switcher */}
         <View style={styles.tabSwitcher}>
           <TouchableOpacity
@@ -689,6 +741,47 @@ scrollContent: {
     color: '#ffffff',
     fontSize: 9,
     fontFamily: Typography.fontFamilyExtraBold,
+  },
+  linkSection: {
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    marginBottom: 20,
+    overflow: 'hidden',
+    ...Shadows.sm,
+  },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  linkRowBordered: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderSubtle,
+  },
+  linkIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  linkText: {
+    flex: 1,
+  },
+  linkTitle: {
+    fontSize: Typography.sizes.labelLg,
+    fontWeight: '800',
+    color: Colors.onSurface,
+  },
+  linkSubtitle: {
+    marginTop: 2,
+    fontSize: Typography.sizes.bodySm,
+    color: Colors.textMuted,
   },
   tabSwitcher: {
     flexDirection: 'row',

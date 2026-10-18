@@ -22,8 +22,19 @@ const CartContext = createContext(null);
 
 function buildLine(product, itemCode, uom, qty) {
   const rate = rateForUom(product, uom);
+  // The shop a line belongs to, keyed the same way the server keys it: the
+  // doctype name of the Marketplace Shop. `product.shop` is the public dict
+  // from the catalogue (`{name, shop_name, ...}`); older payloads may carry
+  // the bare name as a string. An unknown shop buckets as "" (the platform
+  // catch-all) until the next server read fills the real value in.
+  const productShop = product && product.shop;
+  const shop =
+    typeof productShop === 'string'
+      ? productShop
+      : (productShop && productShop.name) || '';
   return {
     item_code: itemCode,
+    shop,
     item_name: (product && (product.item_name || product.web_item_name)) || itemCode,
     uom: uom || (product && product.stock_uom) || 'حبة',
     uoms: (product && product.uoms) || [],
@@ -122,6 +133,11 @@ export function CartProvider({ children }) {
   const userKey = user?.email || null;
 
   const [items, setItems] = useState([]);
+  // `{[shopName]: {shop_name, logo, is_platform}}` for every shop that has lines
+  // in the cart. The lines themselves only carry the shop's name; the display
+  // name and logo come from the server's `groups` (or, optimistically, from the
+  // product the shopper just added).
+  const [shopMeta, setShopMeta] = useState({});
   const [currency, setCurrency] = useState('ر.ي');
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -219,6 +235,23 @@ export function CartProvider({ children }) {
         if (data && Array.isArray(data.items)) {
           setItems(data.items);
           if (data.currency) setCurrency(data.currency);
+          // The server's per-shop grouping carries the display names and logos
+          // that the cart lines themselves do not. Keeping them here is what
+          // lets the cart render per-vendor sections (and the checkout quote
+          // per-vendor delivery) without a second request per line.
+          if (Array.isArray(data.groups)) {
+            const meta = {};
+            data.groups.forEach((row) => {
+              if (row && row.shop) {
+                meta[row.shop] = {
+                  shop_name: row.shop_name || '',
+                  logo: row.logo || '',
+                  is_platform: !!row.is_platform,
+                };
+              }
+            });
+            setShopMeta(meta);
+          }
         }
       } catch (err) {
         console.warn('Could not fetch cart:', err.message);
@@ -249,6 +282,7 @@ export function CartProvider({ children }) {
     fetchUserRef.current = userKey;
     ++mutationVersion.current;
     setItems([]);
+    setShopMeta({});
     setCurrency('ر.ي');
     setActionLoading(false);
     if (userKey) fetchCart();
@@ -287,12 +321,32 @@ export function CartProvider({ children }) {
   }, []);
 
   const addToCart = useCallback(
-    (itemCode, qty = 1, uom = null, product = null) =>
-      runMutation(
+    (itemCode, qty = 1, uom = null, product = null) => {
+      // Optimistically record the shop's display details straight from the
+      // product the shopper tapped, so a multi-shop cart already has names and
+      // logos on its very first render — the authoritative copy lands on the
+      // next server fetch.
+      const productShop = product && product.shop;
+      if (productShop && typeof productShop === 'object' && productShop.name) {
+        setShopMeta((cur) =>
+          cur[productShop.name]
+            ? cur
+            : {
+                ...cur,
+                [productShop.name]: {
+                  shop_name: productShop.shop_name || '',
+                  logo: productShop.logo || '',
+                  is_platform: !!productShop.is_platform,
+                },
+              }
+        );
+      }
+      return runMutation(
         optimisticAdd,
         { itemCode, qty, uom, product },
         () => CartAPI.addToCart(itemCode, qty, uom)
-      ),
+      );
+    },
     [runMutation]
   );
 
@@ -342,11 +396,52 @@ export function CartProvider({ children }) {
   );
   const total = useMemo(() => computeTotal(items), [items]);
 
+  // The cart bucketed by shop, shaped exactly like the server's `groups` rows
+  // (`{shop, shop_name, logo, is_platform, items, count, subtotal}`) so the
+  // cart screen renders one shape whether the grouping is optimistic (just
+  // after adding) or authoritative (after a fetch). Ordering mirrors the
+  // server too: named shops first, alphabetically; the unnamed catch-all
+  // bucket last.
+  const groups = useMemo(() => {
+    const buckets = new Map();
+    items.forEach((line) => {
+      const key = typeof line.shop === 'string' ? line.shop : '';
+      const bucket = buckets.get(key);
+      if (bucket) bucket.push(line);
+      else buckets.set(key, [line]);
+    });
+
+    const rows = Array.from(buckets.entries()).map(([shop, lines]) => {
+      const meta = shopMeta[shop] || {};
+      return {
+        shop,
+        shop_name: meta.shop_name || '',
+        logo: meta.logo || '',
+        is_platform: !!meta.is_platform,
+        items: lines,
+        count: lines.reduce((sum, line) => sum + (parseFloat(line.qty) || 0), 0),
+        subtotal: lines.reduce(
+          (sum, line) => sum + (parseFloat(line.rate) || 0) * (parseFloat(line.qty) || 0),
+          0
+        ),
+      };
+    });
+
+    rows.sort((a, b) => {
+      if (!a.shop && !b.shop) return 0;
+      if (!a.shop) return 1; // catch-all bucket last
+      if (!b.shop) return -1;
+      return (a.shop_name || a.shop).localeCompare(b.shop_name || b.shop);
+    });
+    return rows;
+  }, [items, shopMeta]);
+
   // Memoised so consumers re-render only when something they can read actually
   // changed, not on every state update anywhere in the provider.
   const value = useMemo(
     () => ({
       items,
+      groups,
       total,
       count,
       currency,
@@ -361,6 +456,7 @@ export function CartProvider({ children }) {
     }),
     [
       items,
+      groups,
       total,
       count,
       currency,

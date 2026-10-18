@@ -32,7 +32,7 @@ import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
 import { MAX_CONTENT_WIDTH } from '../../theme/responsive';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency, formatCount } from '../../utils/format';
 
 export default function CartScreen({ navigation }) {
   useResetOnTabPress(navigation, 'CartTab');
@@ -43,7 +43,8 @@ export default function CartScreen({ navigation }) {
   // describe to a crawler. Mirrors the `/cart` disallow in robots.txt.
   useDocumentHead({ path: '/cart', noindex: true });
 
-  const { items, total, currency, loading, updateQuantity, updateUOM, removeItem, clearCart } = useCart();
+  const { items, groups, total, currency, loading, updateQuantity, updateUOM, removeItem, clearCart } =
+    useCart();
   const { isAuthenticated, user } = useAuth();
   const toast = useToast();
   const userKey = (user && user.email) || null;
@@ -66,7 +67,10 @@ export default function CartScreen({ navigation }) {
   // Delivery charge for the selected address, resolved by the server (see
   // CartAPI.getDeliveryEstimate). Kept as its own slice rather than folded into
   // `total`, which is the items subtotal and must keep meaning exactly that.
-  const [delivery, setDelivery] = useState({ charges: 0, shippingAccount: '', source: '', loading: false, error: false });
+  // `groups` is the server's per-vendor breakdown — each row carries that
+  // vendor's share of the delivery charge, computed by the same plan checkout
+  // charges, so the two can never disagree.
+  const [delivery, setDelivery] = useState({ charges: 0, shippingAccount: '', source: '', groups: [], loading: false, error: false });
   // Items subtotal plus delivery. Declared after `delivery` because it reads it.
   // Computed here rather than in the cart context because `total` is the
   // server's items subtotal and is also used for the "basket" badge and reorder
@@ -92,15 +96,21 @@ export default function CartScreen({ navigation }) {
 
     // Reset first so a stale amount is never shown next to the new address for
     // the moment the request is in flight.
-    setDelivery({ charges: 0, shippingAccount: '', source: '', loading: true, error: false });
+    setDelivery({ charges: 0, shippingAccount: '', source: '', groups: [], loading: true, error: false });
 
     CartAPI.getDeliveryEstimate(addressName)
       .then((data) => {
         if (cancelled) return;
         setDelivery({
-          charges: Number((data && data.charges) || 0),
+          // The server's response carries `delivery_charges` (the total across
+          // every vendor group); `charges` is tolerated as a legacy alias so an
+          // older backend still prices the summary correctly.
+          charges: Number(
+            (data && data.delivery_charges !== undefined ? data.delivery_charges : data && data.charges) || 0
+          ),
           shippingAccount: (data && data.shipping_account) || '',
           source: (data && data.source) || '',
+          groups: (data && Array.isArray(data.groups) && data.groups) || [],
           loading: false,
           error: false,
         });
@@ -113,7 +123,7 @@ export default function CartScreen({ navigation }) {
         // free delivery. The amount still defaults to 0, which cannot
         // undercharge: submit_order resolves the real charge server-side.
         console.warn('Could not load the delivery charge:', err);
-        setDelivery({ charges: 0, shippingAccount: '', source: '', loading: false, error: true });
+        setDelivery({ charges: 0, shippingAccount: '', source: '', groups: [], loading: false, error: true });
       });
 
     return () => {
@@ -223,7 +233,9 @@ export default function CartScreen({ navigation }) {
 
       clearCart();
       navigation.navigate('OrderConfirmation', {
-        orderId: order.name,
+        // The checkout creates one Sales Order per vendor sharing a group id;
+        // `group` is the shopper-facing reference (there is no single `name`).
+        orderId: order.group,
         orderData: order,
       });
     } catch (err) {
@@ -273,69 +285,122 @@ export default function CartScreen({ navigation }) {
     </View>
   );
 
-  const itemsBlock = (
-    <View style={styles.itemsList}>
-      {items.map((line, idx) => {
-        return (
-          <View key={`${line.item_code}-${line.uom || idx}`} style={styles.cartItemCard}>
-            <View style={styles.itemImageWrapper}>
-              <ProductImage
-                source={line.image}
-                style={styles.itemImage}
-                resizeMode="contain"
-                fallbackIconSize={26}
-              />
-            </View>
+  /**
+   * One cart line. Extracted from the list so the single-shop (flat) and
+   * multi-shop (per-vendor sections) layouts render the exact same card — a
+   * fix to the stepper or the price row must reach both, not just one.
+   */
+  const renderLine = (line, idx) => (
+    <View key={`${line.item_code}-${line.uom || idx}`} style={styles.cartItemCard}>
+      <View style={styles.itemImageWrapper}>
+        <ProductImage
+          source={line.image}
+          style={styles.itemImage}
+          resizeMode="contain"
+          fallbackIconSize={26}
+        />
+      </View>
 
-            <View style={styles.itemInfo}>
-              <View style={styles.itemTopRow}>
-                <Text style={[styles.itemName, textStart]} numberOfLines={2}>
-                  {line.item_name || line.item_code}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => handleRemoveItem(line.item_code, line.uom)}
-                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                  style={styles.deleteBtn}
-                >
-                  <Icon name="trash-outline" size={18} color={Colors.textMuted} />
-                </TouchableOpacity>
-              </View>
+      <View style={styles.itemInfo}>
+        <View style={styles.itemTopRow}>
+          <Text style={[styles.itemName, textStart]} numberOfLines={2}>
+            {line.item_name || line.item_code}
+          </Text>
+          <TouchableOpacity
+            onPress={() => handleRemoveItem(line.item_code, line.uom)}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            style={styles.deleteBtn}
+          >
+            <Icon name="trash-outline" size={18} color={Colors.textMuted} />
+          </TouchableOpacity>
+        </View>
 
-              {line.uoms && line.uoms.length > 1 && (
-                <UOMSelector
-                  uoms={line.uoms}
-                  selectedUom={line.uom}
-                  onSelectUom={(newUom) => updateUOM(line.item_code, newUom, line.uom)}
-                  size="sm"
-                />
-              )}
+        {line.uoms && line.uoms.length > 1 && (
+          <UOMSelector
+            uoms={line.uoms}
+            selectedUom={line.uom}
+            onSelectUom={(newUom) => updateUOM(line.item_code, newUom, line.uom)}
+            size="sm"
+          />
+        )}
 
-              <View style={styles.itemBottomRow}>
-                <View>
-                  <Text style={[styles.itemUnitPrice, textStart]}>
-                    {formatCurrency(line.rate)} / {line.uom}
-                  </Text>
-                  <Text style={[styles.itemTotal, textStart]}>
-                    المجموع: {formatCurrency(line.amount)}
-                  </Text>
-                </View>
-
-                <QuantityStepper
-                  quantity={line.qty}
-                  onIncrement={() => updateQuantity(line.item_code, line.qty + 1, line.uom)}
-                  onDecrement={() => {
-                    if (line.qty <= 1) handleRemoveItem(line.item_code, line.uom);
-                    else updateQuantity(line.item_code, line.qty - 1, line.uom);
-                  }}
-                  size="sm"
-                />
-              </View>
-            </View>
+        <View style={styles.itemBottomRow}>
+          <View>
+            <Text style={[styles.itemUnitPrice, textStart]}>
+              {formatCurrency(line.rate)} / {line.uom}
+            </Text>
+            <Text style={[styles.itemTotal, textStart]}>
+              المجموع: {formatCurrency(line.amount)}
+            </Text>
           </View>
-        );
-      })}
+
+          <QuantityStepper
+            quantity={line.qty}
+            onIncrement={() => updateQuantity(line.item_code, line.qty + 1, line.uom)}
+            onDecrement={() => {
+              if (line.qty <= 1) handleRemoveItem(line.item_code, line.uom);
+              else updateQuantity(line.item_code, line.qty - 1, line.uom);
+            }}
+            size="sm"
+          />
+        </View>
+      </View>
     </View>
   );
+
+  // A one-shop basket is not "grouped" — it is just a basket. The per-vendor
+  // headers (and with them the promise of separate deliveries) only appear once
+  // the cart actually spans more than one shop, so the common case keeps the
+  // layout it always had.
+  const multiShop = groups.length > 1;
+
+  const itemsBlock = (
+    <View style={styles.itemsList}>
+      {groups.map((group) => (
+        <View key={group.shop || 'platform'} style={styles.vendorGroup}>
+          {multiShop && (
+            <View style={styles.vendorGroupHeader}>
+              <ProductImage
+                source={group.logo}
+                style={styles.vendorGroupLogo}
+                resizeMode="contain"
+                fallbackIconSize={16}
+              />
+              <Text style={[styles.vendorGroupName, textStart]} numberOfLines={1}>
+                {group.shop_name || (group.is_platform ? 'متجر زاد ماركت' : 'متجر')}
+              </Text>
+              <Text style={styles.vendorGroupCount}>{formatCount(group.count)}</Text>
+            </View>
+          )}
+          <View style={styles.vendorGroupItems}>{group.items.map(renderLine)}</View>
+        </View>
+      ))}
+    </View>
+  );
+
+  /**
+   * The amount cell of a delivery row. `charges` is that row's own total — the
+   * whole-cart charge for a single-shop basket, or one vendor's share in the
+   * multi-shop breakdown.
+   */
+  const renderDeliveryValue = (charges) =>
+    delivery.loading ? (
+      <ActivityIndicator size="small" color={Colors.textMuted} />
+    ) : delivery.error ? (
+      // Never "مجاني" here: that would claim delivery is free when the
+      // truth is only that the price could not be read.
+      <Text style={[styles.summaryValue, textStart, { color: Colors.textMuted, fontFamily: Typography.fontFamilyBold }]}>
+        تعذّر تحديد الرسوم
+      </Text>
+    ) : Number(charges || 0) > 0 ? (
+      <Text style={[styles.summaryValue, textStart, { color: Colors.error, fontFamily: Typography.fontFamilyBold }]}>
+        {formatCurrency(charges, currency)}
+      </Text>
+    ) : (
+      <Text style={[styles.summaryValue, textStart, { color: Colors.success, fontFamily: Typography.fontFamilyBold }]}>
+        مجاني
+      </Text>
+    );
 
   const summaryBlock = (
     <View style={styles.sectionCard}>
@@ -349,26 +414,24 @@ export default function CartScreen({ navigation }) {
         <Text style={[styles.summaryValue, textStart]}>{formatCurrency(total, currency)}</Text>
       </View>
 
-      <View style={styles.summaryRow}>
-        <Text style={[styles.summaryLabel, textStart]}>رسوم التوصيل</Text>
-        {delivery.loading ? (
-          <ActivityIndicator size="small" color={Colors.textMuted} />
-        ) : delivery.error ? (
-          // Never "مجاني" here: that would claim delivery is free when the
-          // truth is only that the price could not be read.
-          <Text style={[styles.summaryValue, textStart, { color: Colors.textMuted, fontFamily: Typography.fontFamilyBold }]}>
-            تعذّر تحديد الرسوم
-          </Text>
-        ) : delivery.charges > 0 ? (
-          <Text style={[styles.summaryValue, textStart, { color: Colors.error, fontFamily: Typography.fontFamilyBold }]}>
-            {formatCurrency(delivery.charges, currency)}
-          </Text>
-        ) : (
-          <Text style={[styles.summaryValue, textStart, { color: Colors.success, fontFamily: Typography.fontFamilyBold }]}>
-            مجاني
-          </Text>
-        )}
-      </View>
+      {multiShop && delivery.groups.length > 1 ? (
+        // A multi-vendor basket ships in separate parcels, so delivery is
+        // quoted per vendor — the same per-shop plan submit_order charges, so
+        // this breakdown and the final order can never disagree.
+        delivery.groups.map((group) => (
+          <View style={styles.summaryRow} key={group.shop || 'platform'}>
+            <Text style={[styles.summaryLabel, textStart]} numberOfLines={1}>
+              رسوم التوصيل — {group.shop_name || (group.is_platform ? 'متجر زاد ماركت' : 'متجر')}
+            </Text>
+            {renderDeliveryValue(group.delivery_charges)}
+          </View>
+        ))
+      ) : (
+        <View style={styles.summaryRow}>
+          <Text style={[styles.summaryLabel, textStart]}>رسوم التوصيل</Text>
+          {renderDeliveryValue(delivery.charges)}
+        </View>
+      )}
 
       <View style={styles.summaryRow}>
         <Text style={[styles.summaryLabel, textStart]}>طريقة الدفع</Text>
@@ -601,6 +664,43 @@ const styles = StyleSheet.create({
   itemsList: {
     gap: 12,
     marginBottom: 20,
+  },
+  vendorGroup: {
+    // One card per vendor once the basket spans shops. The gap between groups
+    // matches the gap between loose cart lines, so a multi-shop cart reads as
+    // one list rather than as clustered blocks.
+    gap: 10,
+  },
+  vendorGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: Radius.lg,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+  },
+  vendorGroupLogo: {
+    width: 22,
+    height: 22,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceContainerLowest,
+  },
+  vendorGroupName: {
+    flex: 1,
+    fontSize: Typography.sizes.labelMd,
+    fontFamily: Typography.fontFamilyBold,
+    color: Colors.onSurface,
+  },
+  vendorGroupCount: {
+    fontSize: Typography.sizes.labelSm,
+    fontFamily: Typography.fontFamilyMedium,
+    color: Colors.textMuted,
+  },
+  vendorGroupItems: {
+    gap: 12,
   },
   cartItemCard: {
     flexDirection: 'row',

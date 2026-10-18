@@ -16,7 +16,9 @@ import SearchBar from '../../components/SearchBar';
 import CategoryCard from '../../components/CategoryCard';
 import ProductCard from '../../components/ProductCard';
 import TrustBadge from '../../components/TrustBadge';
+import ProductImage from '../../components/ProductImage';
 import CatalogAPI from '../../api/catalog';
+import MarketplaceAPI from '../../api/marketplace';
 import { useCart } from '../../context/CartContext';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import { useResetOnTabPress } from '../../hooks/useResetOnTabPress';
@@ -36,6 +38,7 @@ import { useSiteChrome } from '../../hooks/useResponsive';
 import useDirectional from '../../hooks/useDirectional';
 import PageFooter from '../../components/layout/PageFooter';
 import { normalizeGroupName } from '../../utils/catalog';
+import { formatCount } from '../../utils/format';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
@@ -44,6 +47,8 @@ const OFFERS_PARENT = 'العروض';
 const OFFERS_ITEMS_PER_CHILD = 15;
 const OFFER_CARD_WIDTH = 170;
 const OFFER_CARD_GAP = 10;
+// How many shops the home rail previews before handing over to the directory.
+const SHOPS_RAIL_COUNT = 10;
 
 /**
  * The pseudo-category tile that stands for "everything".
@@ -83,6 +88,10 @@ export default function HomeScreen({ navigation }) {
   const { count: cartCount } = useCart();
 
   const [categories, setCategories] = useState([]);
+  // The first page of the shop directory rail. A marketplace with no approved
+  // vendors yet renders no rail at all (see the render guard), so this starts
+  // empty and a failed fetch simply keeps it that way.
+  const [shops, setShops] = useState([]);
   const [offerGroups, setOfferGroups] = useState([]); // [{ name, image }]
   const [offerProducts, setOfferProducts] = useState({}); // child name -> items
   const [offersLoading, setOffersLoading] = useState(true);
@@ -153,9 +162,18 @@ export default function HomeScreen({ navigation }) {
     }
   }, []);
 
+  // The shop-directory rail is independent of the catalogue fetches above: a
+  // slow or failing shops endpoint must not hold up the offers, and a failed
+  // call already degrades to an empty list inside the API layer.
+  const fetchShops = useCallback(async () => {
+    const rows = await MarketplaceAPI.getShops({ limit: SHOPS_RAIL_COUNT });
+    setShops(rows);
+  }, []);
+
   useEffect(() => {
     fetchHome();
-  }, [fetchHome]);
+    fetchShops();
+  }, [fetchHome, fetchShops]);
 
   // Live: re-fetch the home strip whenever the app returns to the foreground
   // (no aggressive in-app polling that visually refreshes the list).
@@ -163,7 +181,7 @@ export default function HomeScreen({ navigation }) {
 
   async function onRefresh() {
     setRefreshing(true);
-    await fetchHome();
+    await Promise.all([fetchHome(), fetchShops()]);
     setRefreshing(false);
   }
 
@@ -342,6 +360,57 @@ function handleSelectCategory(catName) {
             );
           })}
         </ScrollView>
+
+        {/* Shops — the entry point into the marketplace directory. Rendered only
+            when at least one approved vendor exists: an empty rail (and a link
+            to an empty directory) is dead space on a single-shop deployment. */}
+        {shops.length > 0 ? (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, textStart]}>متاجر المنصة</Text>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('ShopDirectory')}
+                style={styles.seeAllBtn}
+              >
+                <Text style={[styles.seeAllText, textStart]}>عرض الكل</Text>
+                <Icon
+                  name={isRTL ? 'chevron-forward' : 'chevron-back'}
+                  size={14}
+                  color={Colors.primary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoriesRow}
+            >
+              {shops.map((shop) => (
+                <TouchableOpacity
+                  key={shop.name}
+                  activeOpacity={0.85}
+                  onPress={() => navigation.navigate('Shop', { shop: shop.name })}
+                  style={styles.shopTile}
+                >
+                  <ProductImage
+                    source={shop.logo}
+                    style={styles.shopTileLogo}
+                    resizeMode="contain"
+                    fallbackIcon="storefront-outline"
+                    fallbackIconSize={26}
+                  />
+                  <Text style={[styles.shopTileName, textStart]} numberOfLines={1}>
+                    {shop.shop_name || shop.name}
+                  </Text>
+                  <Text style={[styles.shopTileCount, textStart]} numberOfLines={1}>
+                    {formatCount(shop.product_count)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </>
+        ) : null}
 
         {/* عروضي — one scrollable rail per child of the العروض group */}
         <View style={styles.sectionHeader}>
@@ -584,6 +653,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 4,
     gap: 14,
+  },
+  shopTile: {
+    width: OFFER_CARD_WIDTH,
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: Radius.xl,
+    padding: 14,
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    ...Shadows.xs,
+  },
+  shopTileLogo: {
+    width: 56,
+    height: 56,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceContainerLow,
+  },
+  shopTileName: {
+    fontSize: Typography.sizes.titleSm,
+    fontFamily: Typography.fontFamilyBold,
+    color: Colors.onSurface,
+    textAlign: 'center',
+    maxWidth: '100%',
+  },
+  shopTileCount: {
+    fontSize: Typography.sizes.labelSm,
+    fontFamily: Typography.fontFamilyMedium,
+    color: Colors.textMuted,
   },
   offerBlock: {
     marginBottom: 18,

@@ -23,10 +23,11 @@ export const CatalogAPI = {
    * @param {number} [params.limit]
    * @param {number} [params.offset]
    */
-  async getCatalog({ itemGroup = null, limit = 20, offset = 0 } = {}) {
+  async getCatalog({ itemGroup = null, shop = null, limit = 20, offset = 0 } = {}) {
     const args = { limit };
     if (offset > 0) args.offset = offset;
     if (itemGroup && itemGroup !== 'all') args.item_group = itemGroup;
+    if (shop) args.shop = shop;
     return frappeCall('webshop.my_api.api.catalog', args, 'GET');
   },
 
@@ -40,12 +41,13 @@ export const CatalogAPI = {
    * An empty term short-circuits instead of hitting the server, so a cleared
    * search field never fires a "match everything" query.
    */
-  async searchItems({ search, limit = 20, offset = 0 } = {}) {
+  async searchItems({ search, shop = null, limit = 20, offset = 0 } = {}) {
     const term = String(search || '').trim();
     if (!term) return { items: [], groups: [] };
 
     const args = { search: term, limit };
     if (offset > 0) args.offset = offset;
+    if (shop) args.shop = shop;
     return frappeCall('webshop.my_api.api.catalog', args, 'GET');
   },
 

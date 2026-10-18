@@ -2,6 +2,8 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import ProductsScreen from '../../screens/products/ProductsScreen';
 import ProductDetailScreen from '../../screens/products/ProductDetailScreen';
+import ShopDirectoryScreen from '../../screens/products/ShopDirectoryScreen';
+import ShopScreen from '../../screens/products/ShopScreen';
 import AdminNewItemScreen from '../../screens/admin/AdminNewItemScreen';
 import { Colors } from '../../theme/colors';
 
@@ -26,6 +28,18 @@ export default function ProductsStack() {
         name="ProductDetail"
         component={ProductDetailScreen}
         options={{ title: 'تفاصيل المنتج' }}
+      />
+      {/* Registered in both tab stacks: each tab owns its own navigator, and a
+          route only resolves inside the navigator that declared it. */}
+      <Stack.Screen
+        name="ShopDirectory"
+        component={ShopDirectoryScreen}
+        options={{ title: 'متاجر المنصة' }}
+      />
+      <Stack.Screen
+        name="Shop"
+        component={ShopScreen}
+        options={{ title: 'المتجر' }}
       />
       {/* Admin-only, but not admin-gated here on purpose: the screen itself
           redirects a non-admin straight back, so the route existing for a

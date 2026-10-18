@@ -23,6 +23,12 @@ export default function OrderConfirmationScreen({ route, navigation }) {
   const grandTotal = Number((orderData && orderData.grand_total) || 0);
   const hasTotals = grandTotal > 0;
 
+  // One Sales Order per vendor, all created by this checkout. Rendered only
+  // when the basket actually spanned shops: a single-vendor order would show a
+  // "breakdown" of one row, which says nothing the totals above do not.
+  const vendorOrders = (orderData && Array.isArray(orderData.orders) && orderData.orders) || [];
+  const multiShop = vendorOrders.length > 1;
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       {/*
@@ -73,6 +79,33 @@ export default function OrderConfirmationScreen({ route, navigation }) {
                 </Text>
               </View>
             </View>
+
+            {/* Multi-vendor checkout: one Sales Order per shop, each with its
+                own items and delivery. Showing them here is what explains to
+                the customer why parcels may arrive separately. */}
+            {multiShop ? (
+              <View style={styles.breakdown}>
+                <Text style={[styles.breakdownTitle, textStart]}>تفاصيل الطلب حسب المتجر</Text>
+                {vendorOrders.map((row, idx) => (
+                  <View key={row.name || row.shop || idx} style={styles.breakdownRow}>
+                    <View style={styles.breakdownInfo}>
+                      <Text style={[styles.breakdownShopName, textStart]} numberOfLines={1}>
+                        {row.shop_name || (row.is_platform ? 'متجر زاد ماركت' : 'متجر')}
+                      </Text>
+                      <Text style={[styles.breakdownMeta, textStart]} numberOfLines={2}>
+                        #{row.name} · منتجات {formatCurrency(row.items_total)}
+                        {Number(row.delivery_charges || 0) > 0
+                          ? ` · توصيل ${formatCurrency(row.delivery_charges)}`
+                          : ' · توصيل مجاني'}
+                      </Text>
+                    </View>
+                    <Text style={[styles.breakdownAmount, textStart]}>
+                      {formatCurrency(row.grand_total)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
 
             {/* Amounts come from the saved order. Rendered only when the server
                 actually returned a total, so a missing figure reads as absent
@@ -221,6 +254,43 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.bodyMd,
     color: Colors.onSurface,
     fontFamily: Typography.fontFamilyMedium,
+  },
+  breakdown: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderSubtle,
+    paddingTop: 12,
+    gap: 10,
+  },
+  breakdownTitle: {
+    fontSize: Typography.sizes.bodySm,
+    fontFamily: Typography.fontFamilyBold,
+    color: Colors.onSurfaceVariant,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  breakdownInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  breakdownShopName: {
+    fontSize: Typography.sizes.bodyMd,
+    fontFamily: Typography.fontFamilyBold,
+    color: Colors.onSurface,
+  },
+  breakdownMeta: {
+    fontSize: Typography.sizes.labelSm,
+    fontFamily: Typography.fontFamilyRegular,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  breakdownAmount: {
+    fontSize: Typography.sizes.titleSm,
+    fontFamily: Typography.fontFamilyExtraBold,
+    color: Colors.primary,
   },
   // Separated from the rows above so the amount due reads as the summary of the
   // order rather than just another field in the list.
