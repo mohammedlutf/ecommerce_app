@@ -1317,7 +1317,7 @@ export default function ProductsScreen({ route, navigation }) {
               a shop is not an item group, and mixing the two taxonomies into one
               row made both harder to scan. Hidden on desktop, where `SiteHeader`
               already carries the browse controls. */}
-          <TouchableOpacity
+          {/* <TouchableOpacity
             activeOpacity={0.85}
             onPress={() => navigation.navigate('ShopDirectory')}
             style={styles.shopsBanner}
@@ -1329,7 +1329,7 @@ export default function ProductsScreen({ route, navigation }) {
               size={14}
               color={Colors.primary}
             />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
       )}
 
