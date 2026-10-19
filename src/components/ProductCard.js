@@ -14,8 +14,9 @@ import QuantityStepper from './QuantityStepper';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
 import { Radius, Shadows } from '../theme/spacing';
-import { formatCurrency, calculateDiscount } from '../utils/format';
+import { formatCurrency } from '../utils/format';
 import { rateForUom } from '../utils/catalog';
+import { offerView } from '../utils/offers';
 import ProductImage from './ProductImage';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -60,9 +61,10 @@ function ProductCard({
   const wishlistScale = useRef(new Animated.Value(1)).current;
 
   const currentRate = rateForUom(product, selectedUom);
-  // product.price  || 
-  const originalPrice = product.original_rate || product.old_rate ||  null;
-  const discountPercent = calculateDiscount(currentRate, originalPrice);
+  // The offer table drives the discount badge, the struck-through original
+  // price, the offer title and the wholesale label. It replaces the old
+  // `original_rate` / `old_rate` fields, which the API never sent.
+  const offer = offerView(product, selectedUom, currentRate);
 
   const cartLine = cartItems.find(
     (item) =>
@@ -167,9 +169,21 @@ function ProductCard({
             style={styles.image}
           />
 
-          {discountPercent ? (
-            <View style={[styles.discountBadge, insetStart(8)]}>
-              <Text style={[styles.discountText, textStart]}>{discountPercent}%-</Text>
+          {offer && (offer.showDiscount || offer.isWholesale) ? (
+            <View style={[styles.badgeStack, insetStart(8)]}>
+              {offer.showDiscount ? (
+                <View style={styles.discountBadge}>
+                  <Text style={[styles.discountText, textStart]}>{offer.percent}%-</Text>
+                </View>
+              ) : null}
+
+              {offer.isWholesale ? (
+                <View style={styles.wholesaleBadge}>
+                  <Text style={[styles.wholesaleBadgeText, textStart]} numberOfLines={1}>
+                    {offer.wholesaleLabel}
+                  </Text>
+                </View>
+              ) : null}
             </View>
           ) : null}
 
@@ -243,6 +257,15 @@ function ProductCard({
             {product.item_name || product.web_item_name || product.item_code}
           </Text>
 
+          {offer && offer.showTitle ? (
+            <View style={styles.offerRow}>
+              <Icon name="pricetag" size={10} color={Colors.secondary} />
+              <Text style={[styles.offerText, textStart]} numberOfLines={1}>
+                {offer.title}
+              </Text>
+            </View>
+          ) : null}
+
           <UOMSelector
             uoms={availableUoms}
             stockUom={product.stock_uom}
@@ -256,9 +279,11 @@ function ProductCard({
           {/* Pricing */}
           <View style={styles.priceRow}>
             <Text style={[styles.currentPrice, textStart]}>{formatCurrency(currentRate)}</Text>
-            {originalPrice && originalPrice > currentRate ? (
+            {offer && offer.originalPrice ? (
               <View style={styles.oldPriceWrap}>
-                <Text style={[styles.originalPrice, textStart]}>{formatCurrency(originalPrice)}</Text>
+                <Text style={[styles.originalPrice, textStart]}>
+                  {formatCurrency(offer.originalPrice)}
+                </Text>
               </View>
             ) : null}
           </View>
@@ -324,9 +349,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   image: { width: '90%', height: '90%' },
-  discountBadge: {
+  /**
+   * Badge column on the image. The discount percentage and the wholesale label
+   * are stacked rather than both anchored to `top: 8`, so the two together
+   * cannot overlap.
+   */
+  badgeStack: {
     position: 'absolute',
     top: 8,
+    alignItems: 'flex-start',
+    gap: 4,
+  },
+  discountBadge: {
     backgroundColor: Colors.secondary,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -335,6 +369,19 @@ const styles = StyleSheet.create({
   },
   discountText: {
     color: '#ffffff',
+    fontSize: Typography.sizes.labelSm,
+    fontFamily: Typography.fontFamilyBold,
+  },
+  wholesaleBadge: {
+    maxWidth: 140,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.sm,
+    ...Shadows.xs,
+  },
+  wholesaleBadgeText: {
+    color: Colors.onPrimary,
     fontSize: Typography.sizes.labelSm,
     fontFamily: Typography.fontFamilyBold,
   },
@@ -399,6 +446,18 @@ const styles = StyleSheet.create({
     lineHeight: Typography.lineHeights.titleSm,
     marginBottom: 6,
     fontFamily: Typography.fontFamilySemiBold,
+  },
+  offerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  offerText: {
+    flexShrink: 1,
+    fontSize: Typography.sizes.labelSm,
+    color: Colors.secondary,
+    fontFamily: Typography.fontFamilyBold,
   },
   priceRow: {
     flexDirection: 'row',

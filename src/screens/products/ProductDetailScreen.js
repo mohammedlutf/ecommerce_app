@@ -25,11 +25,12 @@ import useDirectional from '../../hooks/useDirectional';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
-import { formatCurrency, calculateDiscount, formatCount, formatDate } from '../../utils/format';
+import { formatCurrency, formatCount, formatDate } from '../../utils/format';
 import { rateForUom } from '../../utils/catalog';
+import { offerView } from '../../utils/offers';
 import useDocumentHead from '../../seo/useDocumentHead';
 import { organizationNode, productNode, breadcrumbNode } from '../../seo/jsonld';
-import { openProduct } from '../../seo/linking';
+import { openProduct, openProducts } from '../../seo/linking';
 import { useI18n } from '../../i18n/I18nContext';
 
 /**
@@ -375,14 +376,26 @@ export default function ProductDetailScreen({ route, navigation }) {
       : [{ uom: product.stock_uom || 'حبة', rate: product.rate || product.price || 0 }];
 
   const currentRate = rateForUom(product, selectedUom);
-  // product.price  ||
-  const originalPrice =  product.original_rate || null;
-  const discountPercent = calculateDiscount(currentRate, originalPrice);
-  
-  // console.log("originalPrice",originalPrice)
-  // console.log("discountPercent",discountPercent)
-  // console.log(product.uoms)
-  
+  // Everything the item's offer table configures for the selected UOM: the
+  // offer title, the discount percentage, the struck-through original price and
+  // the wholesale label. Null when the item has no offer for this UOM.
+  const offer = offerView(product, selectedUom, currentRate);
+
+  // Groups this product is cross-listed into beyond its own one. Each chip opens
+  // that group's listing — the same catalogue call the Products screen makes, so
+  // a product published into several groups is reachable from every one of them.
+  const extraGroups = Array.from(
+    new Set(
+      (Array.isArray(product.website_item_groups) ? product.website_item_groups : [])
+        .map((group) => String(group || '').trim())
+        .filter((group) => group && group !== (product.item_group || '').trim())
+    )
+  );
+
+  // The offer's long text is a rich-text field, so tags are stripped before it
+  // is shown, and a field that is only markup renders nothing at all rather than
+  // leaving an empty line in the strip.
+  const offerDetails = offer ? offer.details.replace(/<[^>]*>?/gm, '').trim() : '';
   
   const cartLine = cartItems.find(
     (item) =>
@@ -414,6 +427,7 @@ export default function ProductDetailScreen({ route, navigation }) {
     // console.log(uom)
     // console.log(product.uoms.find((u) => u.uom === uom).package)
     // console.log(product)
+    // console.log(product.uoms.find((u) => u.uom === uom))
     if (product.stock_uom != uom){
       setPackage(product.uoms.find((u) => u.uom === uom).package);
       
@@ -484,9 +498,9 @@ export default function ProductDetailScreen({ route, navigation }) {
             fallbackIconSize={64}
           />
 
-          {discountPercent ? (
+          {offer && offer.showDiscount ? (
             <View style={styles.discountTag}>
-              <Text style={[styles.discountTagText, textStart]}>{discountPercent}% خصم</Text>
+              <Text style={[styles.discountTagText, textStart]}>{offer.percent}% خصم</Text>
             </View>
           ) : null}
 
@@ -524,6 +538,30 @@ export default function ProductDetailScreen({ route, navigation }) {
             </View>
           ) : null}
 
+          {/* The other groups this product is listed in. Tapping one filters the
+              Products screen by it, exactly like the group chips there. */}
+          {extraGroups.length ? (
+            <View style={styles.groupChipsRow}>
+              <Icon name="albums-outline" size={13} color={Colors.textMuted} />
+              <View style={styles.groupChips}>
+                {extraGroups.map((group) => (
+                  <TouchableOpacity
+                    key={group}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel={`عرض ${group}`}
+                    onPress={() => openProducts(navigation, { itemGroup: group })}
+                    style={styles.groupChip}
+                  >
+                    <Text style={[styles.groupChipText, textStart]} numberOfLines={1}>
+                      {group}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
           <Text style={[styles.productTitle, textStart]}>
             {product.item_name || product.web_item_name || product.item_code}
           </Text>
@@ -538,11 +576,56 @@ export default function ProductDetailScreen({ route, navigation }) {
           {/* Price */}
           <View style={styles.priceRow}>
             <Text style={[styles.priceText, textStart]}>{formatCurrency(currentRate)}</Text>
-            {originalPrice && originalPrice > currentRate ? (
-              <Text style={[styles.originalPriceText, textStart]}>{formatCurrency(originalPrice)}</Text>
+            {offer && offer.originalPrice ? (
+              <Text style={[styles.originalPriceText, textStart]}>
+                {formatCurrency(offer.originalPrice)}
+              </Text>
             ) : null}
             <Text style={[styles.uomIndicator, textStart]}>/ لكل {selectedUom}</Text>
           </View>
+
+          {/* Offer — title / discount, in the order the merchant chose, plus the
+              wholesale label when this UOM is a wholesale (bulk) price. */}
+          {offer && (offer.showTitle || offer.showDiscount || offer.subtitle || offerDetails) ? (
+            <View style={styles.offerStrip}>
+              {offer.showTitle || offer.showDiscount ? (
+                <View style={styles.offerHeaderRow}>
+                  {offer.titleBeforeDiscount && offer.showTitle ? (
+                    <Text style={[styles.offerTitle, textStart]} numberOfLines={2}>
+                      {offer.title}
+                    </Text>
+                  ) : null}
+
+                  {offer.showDiscount ? (
+                    <View style={styles.offerDiscountBadge}>
+                      <Text style={styles.offerDiscountText}>{offer.percent}%-</Text>
+                    </View>
+                  ) : null}
+
+                  {!offer.titleBeforeDiscount && offer.showTitle ? (
+                    <Text style={[styles.offerTitle, textStart]} numberOfLines={2}>
+                      {offer.title}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {offer.subtitle ? (
+                <Text style={[styles.offerSubtitle, textStart]}>{offer.subtitle}</Text>
+              ) : null}
+
+              {offerDetails ? (
+                <Text style={[styles.offerDetails, textStart]}>{offerDetails}</Text>
+              ) : null}
+            </View>
+          ) : null}
+
+          {offer && offer.isWholesale ? (
+            <View style={styles.wholesalePill}>
+              <Icon name="pricetags-outline" size={14} color={Colors.onPrimaryContainer} />
+              <Text style={[styles.wholesalePillText, textStart]}>{offer.wholesaleLabel}</Text>
+            </View>
+          ) : null}
 
           {/* UOM */}
           {availableUoms.length > 1 && (
@@ -765,6 +848,61 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.labelMd,
     fontFamily: Typography.fontFamilyBold,
   },
+  offerStrip: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.secondaryContainer,
+    gap: 6,
+  },
+  offerHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  offerTitle: {
+    flexShrink: 1,
+    fontSize: Typography.sizes.bodyMd,
+    color: Colors.onSecondaryContainer,
+    fontFamily: Typography.fontFamilyBold,
+  },
+  offerDiscountBadge: {
+    backgroundColor: Colors.secondary,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radius.sm,
+  },
+  offerDiscountText: {
+    color: '#ffffff',
+    fontSize: Typography.sizes.labelMd,
+    fontFamily: Typography.fontFamilyBold,
+  },
+  offerSubtitle: {
+    fontSize: Typography.sizes.bodySm,
+    color: Colors.onSecondaryContainer,
+    fontFamily: Typography.fontFamilyMedium,
+  },
+  offerDetails: {
+    fontSize: Typography.sizes.bodySm,
+    color: Colors.textSecondary,
+    lineHeight: Typography.lineHeights.bodySm,
+  },
+  wholesalePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 5,
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primaryContainer,
+  },
+  wholesalePillText: {
+    fontSize: Typography.sizes.bodySm,
+    color: Colors.onPrimaryContainer,
+    fontFamily: Typography.fontFamilyBold,
+  },
   wishlistCircle: {
     position: 'absolute',
     top: 16,
@@ -800,6 +938,32 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.labelSm,
     color: Colors.primary,
     fontFamily: Typography.fontFamilyBold,
+  },
+  groupChipsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 10,
+  },
+  groupChips: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  groupChip: {
+    maxWidth: 190,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primaryLight,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+  },
+  groupChipText: {
+    fontSize: Typography.sizes.labelSm,
+    color: Colors.onSurfaceVariant,
+    fontFamily: Typography.fontFamilySemiBold,
   },
   productTitle: {
     fontSize: Typography.sizes.headlineMd,
