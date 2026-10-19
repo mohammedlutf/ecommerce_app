@@ -455,6 +455,7 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
                       value={ranking}
                       onChangeText={(text) => setRanking(text.replace(/[^0-9-]/g, ''))}
                       keyboardType="numeric"
+                      selectTextOnFocus
                       placeholderTextColor={Colors.textMuted}
                     />
                   </View>
