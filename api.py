@@ -150,7 +150,9 @@ def _build_uom_list(stock_uom, conversion_factors, raw_prices):
 		seen.add(uom_name)
 		if uom_name in price_map:
 			entry = dict(price_map[uom_name])
-			entry["conversion_factor"] = flt(conversion_factors.get(uom_name) or 1.0) or 1.0
+			conv_factor = flt(conversion_factors.get(uom_name) or 1.0) or 1.0
+			entry["conversion_factor"] = conv_factor
+			entry["package"] = f"في {uom_name} {conv_factor} {stock_uom}"
 			uoms_list.append(entry)
 		elif base_price_doc:
 			conv_factor = flt(conversion_factors.get(uom_name) or 1.0) or 1.0
@@ -168,7 +170,7 @@ def _build_uom_list(stock_uom, conversion_factors, raw_prices):
 				"price_list_rate": 0,
 				"currency": "",
 				"conversion_factor": flt(conversion_factors.get(uom_name) or 1.0) or 1.0,
-				"package": f"في {uom_name} {conv_factor} {stock_uom}",
+				
 			})
 
 	# Final safeguard: if uoms_list is completely empty, force stock_uom
