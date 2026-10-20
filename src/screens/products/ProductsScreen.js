@@ -463,6 +463,22 @@ export default function ProductsScreen({ route, navigation }) {
   const [activeParent, setActiveParent] = useState(ALL_KEY); // 'all' | parent name
   const [activeChildIndex, setActiveChildIndex] = useState(0);
 
+  /*
+   * The "الكل" check is what makes a plain TAB PRESS land on the first
+   * department rather than on the whole catalogue, and it is deliberately not
+   * applied unconditionally: this screen stays mounted while the shopper is in a
+   * deep link, so an unconditional reset would yank someone out of the group
+   * they arrived on the moment a plain visit replaces that param.
+   *
+   * A department with no children is still a valid landing: its `childPages`
+   * fall back to the department itself, so the pane shows its own products.
+   */
+  const startParent = useCallback(
+    (current) =>
+      current === ALL_KEY && tree && tree.length > 0 ? tree[0].name : current,
+    [tree]
+  );
+
   const [searchQuery, setSearchQuery] = useState(deepLinkSearch);
 
   // Search lives in its own slice, separate from `productsByKey`. Sharing one
@@ -982,11 +998,13 @@ export default function ProductsScreen({ route, navigation }) {
     if (hierarchyLoading) return;
 
     if (!deepLinkTarget) {
-      // Plain visit (tab press) -> always reset to the "الكل" page so the screen
-      // does not open on whatever group was last deep-linked.
+      // Plain visit (tab press) -> start from the beginning rather than opening
+      // on whatever group was last deep-linked: the first department, and its
+      // first child. An already-chosen department is left alone (see
+      // `startParent`) so a param change cannot evict someone who is browsing.
       if (handledDeepLinkRef.current !== null) {
         handledDeepLinkRef.current = null;
-        setActiveParent(ALL_KEY);
+        setActiveParent(startParent);
         setActiveChildIndex(0);
         setSearchQuery('');
       }
@@ -996,7 +1014,8 @@ export default function ProductsScreen({ route, navigation }) {
     if (handledDeepLinkRef.current === deepLinkTarget) return;
 
     // Nothing to match against yet: stay pending (the default view is already
-    // "الكل") and retry as soon as the hierarchy or the flat groups arrive.
+    // the first department) and retry as soon as the hierarchy or the flat
+    // groups arrive.
     if (tree === null && categories.length === 0) return;
 
     if (applyDeepLink(deepLinkTarget)) {
@@ -1011,7 +1030,14 @@ export default function ProductsScreen({ route, navigation }) {
       setActiveParent(ALL_KEY);
       setActiveChildIndex(0);
     }
-  }, [deepLinkTarget, hierarchyLoading, tree, categories, applyDeepLink]);
+  }, [deepLinkTarget, hierarchyLoading, tree, categories, applyDeepLink, startParent]);
+
+  // First answer from the hierarchy: open on the first department (see
+  // `startParent`). Kept separate from the deep-link effect above so that the
+  // wait for the tree does not sit behind `hierarchyLoading` as well.
+  useEffect(() => {
+    setActiveParent(startParent);
+  }, [startParent]);
 
   // A search arriving from Home while this screen is already mounted.
   // `setSearchQuery` is enough: the debounced search effect above owns the
