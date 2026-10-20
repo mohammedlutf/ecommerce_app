@@ -7,7 +7,6 @@ import {
   Modal,
   StyleSheet,
   ScrollView,
-  KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   Switch,
@@ -17,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from './Icon';
 import LocationPicker from './LocationPicker';
 import { useSiteChrome } from '../hooks/useResponsive';
+import { useModalKeyboardLift } from '../hooks/useKeyboardHeight';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
 import { Radius, Shadows, Spacing } from '../theme/spacing';
@@ -50,6 +50,9 @@ function AddressFormModal({
   const { textStart } = useDirectional();
   const isEdit = !!initial;
   const { showDesktopChrome } = useSiteChrome();
+  // The footer below is sticky, so the keyboard has to be accounted for outside
+  // the scroll view: see the hook for why the modal cannot rely on the platform.
+  const { lift, onLayout } = useModalKeyboardLift();
 
   const [addressTitle, setAddressTitle] = useState('المنزل');
   const [addressLine1, setAddressLine1] = useState('');
@@ -146,10 +149,17 @@ function AddressFormModal({
       <SafeAreaView
         style={[styles.root, showDesktopChrome && styles.rootWeb]}
         edges={['top', 'bottom']}
+        onLayout={onLayout}
       >
-        <KeyboardAvoidingView
-          style={[styles.flex, showDesktopChrome && styles.sheetWeb]}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        <View
+          style={[
+            styles.flex,
+            showDesktopChrome && styles.sheetWeb,
+            // Lifting the whole column, not the scroll view: the header stays
+            // put and the footer's bottom edge lands on the keyboard's top edge,
+            // with the sheet colour filling the strip the keyboard covers.
+            lift > 0 && { paddingBottom: lift },
+          ]}
         >
           {/* Header */}
           <View style={styles.header}>
@@ -273,14 +283,13 @@ function AddressFormModal({
             </Pressable>
           </ScrollView>
 
-          {/* Sticky footer. It needs no keyboard handling of its own: on Android
-              the app is configured with `softwareKeyboardLayoutMode: "resize"`,
-              so this window shrinks when the keyboard opens and a plain flex
-              layout puts the buttons directly on top of it. The earlier version
-              padded this by the measured keyboard height as well, which stacked
-              on top of the platform's own adjustment and threw the whole form
-              to the top of the screen. On iOS the KeyboardAvoidingView above
-              does the lifting. */}
+          {/* Sticky footer. Its keyboard handling lives one level up: the column
+              is padded by `useModalKeyboardLift`, which measures how much of the
+              keyboard the modal's own window took care of and covers only the
+              rest. The earlier plain-flex version assumed
+              `softwareKeyboardLayoutMode: "resize"` shrank this window, which is
+              true of the activity but not of a modal's own dialog — so the
+              buttons stayed under the keyboard in a release build. */}
           <View style={styles.footer}>
             <Pressable
               onPress={onClose}
@@ -312,7 +321,7 @@ function AddressFormModal({
               )}
             </Pressable>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </SafeAreaView>
     </Modal>
   );

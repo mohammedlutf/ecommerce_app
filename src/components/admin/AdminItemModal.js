@@ -6,8 +6,6 @@ import {
   Pressable,
   Modal,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
   Switch,
   Image,
@@ -28,6 +26,7 @@ import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Spacing } from '../../theme/spacing';
 import useDirectional from '../../hooks/useDirectional';
+import { useModalKeyboardLift } from '../../hooks/useKeyboardHeight';
 
 /**
  * AdminItemModal — edit one product across Item and Website Item.
@@ -46,6 +45,9 @@ import useDirectional from '../../hooks/useDirectional';
 export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) {
   const { textStart } = useDirectional();
   const toast = useToast();
+  // The save bar is sticky, so the keyboard has to be handled outside the scroll
+  // view; see the hook for why a modal cannot rely on the platform's own resize.
+  const { lift, onLayout } = useModalKeyboardLift();
 
   // All hooks first, derived values after. A derived `const` sitting above the
   // `useState` it reads crashes at runtime while passing every syntax check.
@@ -350,7 +352,7 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.root} edges={['top', 'bottom']} onLayout={onLayout}>
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={[styles.headerTitle, textStart]}>تعديل المنتج</Text>
@@ -366,10 +368,7 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
           </Pressable>
         </View>
 
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
+        <View style={[styles.flex, lift > 0 && { paddingBottom: lift }]}>
           <ScrollView
             style={styles.flex}
             contentContainerStyle={styles.scrollContent}
@@ -581,7 +580,7 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
               </Pressable>
             </View>
           ) : null}
-        </KeyboardAvoidingView>
+        </View>
 
         <UomPicker
           visible={showUomPicker}
