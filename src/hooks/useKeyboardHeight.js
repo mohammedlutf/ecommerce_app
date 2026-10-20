@@ -6,6 +6,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const MIN_SHEET_VISIBLE = 200;
 
 /**
+ * Android's share of the reported keyboard height that is never trusted to be
+ * the whole distance — see `useModalKeyboardLift`.
+ */
+const ANDROID_CLEARANCE_RATIO = 0.1;
+
+/**
  * useKeyboardHeight — returns the on-screen keyboard height (0 when hidden).
  *
  * The plain number on its own is rarely what a caller wants inside a `<Modal>`:
@@ -50,11 +56,13 @@ export function useKeyboardHeight() {
  * So this measures the modal instead of trusting either behaviour: the part of
  * the keyboard the window has already given up does not need lifting twice.
  *
- *   lift = keyboardHeight - (heightWithoutKeyboard - heightNow)
+ *   lift = keyboardHeight - (tallestSeen - heightNow) - safeAreaStrip + clearance
  *
- * A window that shrank by the full keyboard height yields 0; a window that did
- * not move yields the full height. `useKeyboardHeight` supplies the first term,
- * the modal's own `onLayout` supplies the second.
+ * A window that shrank by the full keyboard height needs no lift at all; a
+ * window that did not move needs the whole of it, plus Android's margin. That
+ * remainder — the keyboard as yet uncovered — is what the terms below trade in.
+ * `useKeyboardHeight` supplies the first term, the modal's own `onLayout` the
+ * second.
  *
  * Returns `{ lift, onLayout }`: put `onLayout` on the modal's outermost view and
  * `lift` in that view's `paddingBottom`.
@@ -63,37 +71,66 @@ export function useModalKeyboardLift() {
   const keyboardHeight = useKeyboardHeight();
   const insets = useSafeAreaInsets();
   const [sheetHeight, setSheetHeight] = useState(0);
-  // The height the sheet has while no keyboard is up. A ref because it is only
-  // ever a comparison target, never rendered.
-  const baseHeightRef = useRef(0);
+  // The tallest the sheet has ever been measured — its height with nothing over
+  // it. A ref because it is only ever a comparison target, never rendered.
+  const tallestRef = useRef(0);
 
   const onLayout = useCallback((event) => {
     const height = event?.nativeEvent?.layout?.height || 0;
-    if (height) setSheetHeight(height);
+    if (!height) return;
+    /*
+     * Raise-only, and recorded here rather than from an effect keyed on
+     * `keyboardHeight === 0`. That condition looks safe and is the exact fault:
+     * where the runtime resizes for the keyboard, the dialog's own layout pass
+     * lands a frame or two before the keyboard event reaches JS, so "the
+     * keyboard is down" is momentarily true while the sheet is already at its
+     * shrunken height. Recording that as the baseline makes the platform's own
+     * shrink look like nothing, adds the whole keyboard on top of a window that
+     * already gave it up, and leaves the footer floating in a gap the height of
+     * the keyboard — the empty space this is being asked to fix. A baseline that
+     * can only rise cannot make that mistake, and a sheet that grows back (the
+     * keyboard closing, or opening during the first layout) repairs it alone.
+     *
+     * Portrait is locked app-wide, so nothing but the keyboard ever makes these
+     * sheets shorter; a rotation with a modal open would need the baseline
+     * re-established from a settled keyboard-down layout instead.
+     */
+    if (height > tallestRef.current) tallestRef.current = height;
+    setSheetHeight(height);
   }, []);
 
-  useEffect(() => {
-    if (keyboardHeight === 0 && sheetHeight > 0) baseHeightRef.current = sheetHeight;
-  }, [keyboardHeight, sheetHeight]);
-
-  const alreadyLifted = Math.max(0, baseHeightRef.current - sheetHeight);
+  const alreadyLifted = Math.max(0, tallestRef.current - sheetHeight);
 
   /*
-   * iOS reports the keyboard frame including the home-indicator strip that the
-   * safe area is already holding the footer clear of, so counting both would
-   * leave a visible gap; subtracting it there puts the footer's bottom edge
-   * exactly on the keyboard's top edge.
+   * iOS: the keyboard's frame covers the home-indicator strip that the safe
+   * area is already holding the footer clear of, so counting both would leave a
+   * visible gap; subtracting it puts the footer's bottom edge exactly on the
+   * keyboard's top edge. iOS reports the keyboard's settled frame, so the
+   * number is the whole story there.
    *
-   * Android is left with the full reported height on purpose. What it reports is
-   * the window's loss, which includes the navigation-bar strip in some
-   * configurations and not in others, and there is no reliable way to tell which
-   * from inside a modal. Taking the full height is the safe half of that bet: at
-   * worst the footer floats a navigation bar above the keyboard, where
-   * subtracting a strip that was never lost would tuck the buttons underneath
-   * it — which is the bug this replaces.
+   * Android clears instead of exacting. Two things keep it from landing flush:
+   * the height is read from the activity's window while this dialog keeps its
+   * own bottom edge, and it can be sampled while the keyboard is still rising,
+   * which reads short by roughly a tenth of the keyboard. Either way the failure
+   * is asymmetric — a strip of sheet colour under the buttons reads as padding,
+   * whereas half a button behind the keyboard is broken, which is what is being
+   * fixed. So Android adds the bottom system bar (what the keyboard overlays
+   * that this window does not give up) or a tenth of the distance it is being
+   * asked to cover, whichever is larger — but only over that uncovered distance,
+   * and only while a keyboard is up: where the window already shrank by the full
+   * keyboard there is nothing left to cover and the margin must be zero, and
+   * with no keyboard up `wanted` must stay at zero or the safe-area strip would
+   * be counted for as long as the modal is open.
    */
-  const inset = Platform.OS === 'ios' ? insets.bottom : 0;
-  const wanted = keyboardHeight - alreadyLifted - inset;
+  const safeAreaStrip = Platform.OS === 'ios' ? insets.bottom : 0;
+  // The keyboard the window has not already given up: the only part this lift is
+  // responsible for, and the only place Android's margin belongs.
+  const uncovered = Math.max(0, keyboardHeight - alreadyLifted);
+  const clearance =
+    Platform.OS === 'android' && uncovered > 0
+      ? Math.max(insets.bottom, uncovered * ANDROID_CLEARANCE_RATIO)
+      : 0;
+  const wanted = uncovered - safeAreaStrip + clearance;
 
   /*
    * Never lift the footer past the top of the sheet. This is a guard rather than
