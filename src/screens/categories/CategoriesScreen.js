@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
   split: {
     flex: 1,
     flexDirection: 'row',
-    direction: 'ltr',
+    direction: 'rtl',
     gap: 10,
     paddingHorizontal: 12,
     paddingTop: 12,
@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
 
   // ---- Rail ---------------------------------------------------------------
   rail: {
-    width: '30%',
+    width: '26%',
     // 30% of a desktop window is a corridor of empty space around each tab.
     maxWidth: 260,
     backgroundColor: Colors.surfaceContainerLow,
@@ -424,6 +424,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     borderRadius: Radius.lg,
     borderWidth: 1,
+    
     borderColor: 'transparent',
   },
   tabActive: {
@@ -438,8 +439,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceContainer,
   },
   tabThumb: {
-    width: 46,
-    height: 46,
+    width: 36,
+    height: 36,
     borderRadius: Radius.md,
     overflow: 'hidden',
     alignItems: 'center',

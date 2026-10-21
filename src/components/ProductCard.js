@@ -173,7 +173,7 @@ function ProductCard({
             <View style={[styles.badgeStack, insetStart(8)]}>
               {offer.showDiscount ? (
                 <View style={styles.discountBadge}>
-                  <Text style={[styles.discountText, textStart]}>{offer.percent}%-</Text>
+                  <Text style={[styles.discountText, textStart]}>خصم -{offer.percent}%</Text>
                 </View>
               ) : null}
 
@@ -348,7 +348,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  image: { width: '90%', height: '90%' },
+  image: { width: '100%', height: '100%' },
   /**
    * Badge column on the image. The discount percentage and the wholesale label
    * are stacked rather than both anchored to `top: 8`, so the two together
@@ -374,7 +374,7 @@ const styles = StyleSheet.create({
   },
   wholesaleBadge: {
     maxWidth: 140,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.secondary,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: Radius.sm,
