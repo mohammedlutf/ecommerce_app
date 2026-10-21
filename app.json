@@ -51,7 +51,7 @@
       ]
     },
     "extra": {
-      "apiUrl": "http://84.247.175.69/:8000",
+      "apiUrl": "http://84.247.175.69/",
       "eas": {
         "projectId": "1ea621da-1e71-4e8a-90e4-cd60b706ffcf"
       }
