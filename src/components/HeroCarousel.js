@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
+  Platform,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -113,6 +114,22 @@ export default function HeroCarousel({ ads, onPressAd }) {
       indexRef.current = next;
       setIndex(next);
       if (scrollRef.current) {
+        if (Platform.OS === 'web') {
+          try {
+            const node = scrollRef.current.getScrollableNode && scrollRef.current.getScrollableNode();
+            if (node && typeof document !== 'undefined') {
+              const dir = document.documentElement.dir || document.body.dir || 'rtl';
+              const isRtlWeb = dir === 'rtl';
+              const target = isRtlWeb ? -(next * width) : next * width;
+              if (typeof node.scrollTo === 'function') {
+                node.scrollTo({ left: target, top: 0, behavior: 'smooth' });
+              } else {
+                node.scrollLeft = target;
+              }
+              return;
+            }
+          } catch {}
+        }
         scrollRef.current.scrollTo({ x: next * width, y: 0, animated: true });
       }
     },
@@ -134,14 +151,31 @@ export default function HeroCarousel({ ads, onPressAd }) {
   useEffect(() => {
     indexRef.current = 0;
     setIndex(0);
-    if (scrollRef.current) scrollRef.current.scrollTo({ x: 0, y: 0, animated: false });
+    if (scrollRef.current) {
+      if (Platform.OS === 'web') {
+        try {
+          const node = scrollRef.current.getScrollableNode && scrollRef.current.getScrollableNode();
+          if (node && typeof document !== 'undefined') {
+            const dir = document.documentElement.dir || document.body.dir || 'rtl';
+            const isRtlWeb = dir === 'rtl';
+            node.scrollLeft = isRtlWeb ? 0 : 0;
+          }
+        } catch {}
+      }
+      scrollRef.current.scrollTo({ x: 0, y: 0, animated: false });
+    }
   }, [ads.length, width]);
 
   const handleMomentumEnd = useCallback(
     (event) => {
       setDragging(false);
       if (width <= 0) return;
-      const raw = event.nativeEvent.contentOffset.x / width;
+      let raw = event.nativeEvent.contentOffset.x / width;
+      if (Platform.OS === 'web') {
+        try {
+          raw = Math.abs(raw);
+        } catch {}
+      }
       const last = Math.max(ads.length - 1, 0);
       const next = Math.min(Math.max(Math.round(raw), 0), last);
       indexRef.current = next;
@@ -209,7 +243,8 @@ export default function HeroCarousel({ ads, onPressAd }) {
             onScrollBeginDrag={() => setDragging(true)}
             onScrollEndDrag={() => setDragging(false)}
             onMomentumScrollEnd={handleMomentumEnd}
-            style={{ height }}
+            style={[{ height }, Platform.OS === 'web' ? { direction: 'ltr' } : null]}
+            contentContainerStyle={Platform.OS === 'web' ? { direction: 'ltr' } : null}
           >
             {ads.map(renderSlide)}
           </ScrollView>

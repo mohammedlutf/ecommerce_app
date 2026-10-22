@@ -8,6 +8,7 @@ import {
   RefreshControl,
   Image,
   Linking,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -585,7 +586,15 @@ function handleSelectCategory(catName) {
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, textStart]}>العروض الحصرية</Text>
           <TouchableOpacity
-            onPress={() => handleSelectCategory(OFFERS_PARENT)}
+            onPress={() => {
+              if (offersParent) {
+                try {
+                  openProducts(navigation, { itemGroup: offersParent.name });
+                  return;
+                } catch {}
+              }
+              handleSelectCategory(OFFERS_PARENT);
+            }}
             style={styles.seeAllBtn}
           >
             <Text style={[styles.seeAllText, textStart]}>عرض الكل</Text>

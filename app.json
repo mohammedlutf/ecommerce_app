@@ -24,8 +24,10 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "نحتاج موقعك لتحديد عنوان التسليم بدقة على الخريطة.",
         "NSCameraUsageDescription": "نحتاج الكاميرا لالتقاط صور المنتجات التي تضيفها إلى المتجر.",
-        "NSPhotoLibraryUsageDescription": "نحتاج الوصول إلى معرض الصور لاختيار صور المنتجات."
-      }
+        "NSPhotoLibraryUsageDescription": "نحتاج الوصول إلى معرض الصور لاختيار صور المنتجات.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.mohammedlutfdalal.hadramoutecommerce"
     },
     "android": {
       "allowRTL": true,
@@ -44,14 +46,17 @@
         }
       },
       "permissions": [
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.CAMERA",
-        "android.permission.READ_MEDIA_IMAGES"
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "extra": {
-      "apiUrl": "http://84.247.175.69/",
+      "apiUrl": "http://192.168.1.33:8000",
       "eas": {
         "projectId": "1ea621da-1e71-4e8a-90e4-cd60b706ffcf"
       }

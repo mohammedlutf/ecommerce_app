@@ -155,8 +155,8 @@ export default function PageFooter() {
               title={t('footer.shopTitle')}
               links={[
                 { label: t('nav.products'), onPress: () => go('ProductsTab', 'Products') },
-                { label: t('nav.categories'), onPress: () => go('ProductsTab', 'Products') },
-                { label: t('nav.offers'), onPress: () => go('ProductsTab', 'Products') },
+                { label: t('nav.categories'), onPress: () => { try { navigationRef.current?.navigate('HomeTab', { screen: 'Categories' }); } catch { go('ProductsTab', 'Products'); } } },
+                { label: t('nav.offers'), onPress: () => { try { const arr = Array.isArray(groups) ? groups : []; const findGroup = (a) => { for (let i = 0; i < a.length; i += 1) { const p = a[i]; const n = String(p.name || '').toLowerCase(); if (n === 'العروض' || n === 'offers' || n.includes('عرض')) return p.name; if (Array.isArray(p.children)) { for (let j = 0; j < p.children.length; j += 1) { const c = p.children[j]; const cn = String(c.name || '').toLowerCase(); if (cn === 'العروض' || cn === 'offers' || cn.includes('عرض')) return c.name; } } } return null; }; const g = findGroup(arr); if (g) { openProducts(navigationRef.current, { itemGroup: g }); return; } } catch {} openProducts(navigationRef.current, {}); } },
                 // `WishlistTab` is its own tab, not a screen inside `AccountTab`; the
         // nested form made React Navigation throw "action was not handled".
         { label: t('nav.wishlist'), onPress: () => go('WishlistTab') },
@@ -167,8 +167,8 @@ export default function PageFooter() {
             <FooterColumn
               title={t('footer.helpTitle')}
               links={[
-                { label: t('account.orders'), onPress: () => go('AccountTab', 'Account') },
-                { label: t('nav.trackOrder'), onPress: () => go('AccountTab', 'Account') },
+                { label: t('account.orders'), onPress: () => { try { navigationRef.current?.navigate('AccountTab', { screen: 'MyOrders' }); } catch { go('AccountTab', 'Account'); } } },
+                { label: t('nav.trackOrder'), onPress: () => { try { navigationRef.current?.navigate('AccountTab', { screen: 'MyOrders' }); } catch { go('AccountTab', 'Account'); } } },
                 { label: t('footer.shipping'), onPress: () => go('AccountTab', 'Account') },
                 { label: t('footer.returns'), onPress: () => go('AccountTab', 'Account') },
                 { label: t('footer.faq'), onPress: () => go('AccountTab', 'Account') },

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Platform } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import CartScreen from '../../screens/cart/CartScreen';
 import OrderConfirmationScreen from '../../screens/cart/OrderConfirmationScreen';
@@ -10,6 +11,7 @@ export default function CartStack() {
   return (
     <Stack.Navigator
       screenOptions={{
+        headerShown: Platform.OS !== 'web',
         headerTintColor: Colors.onSurface,
         headerStyle: { backgroundColor: Colors.surfaceContainerLowest },
         headerTitleAlign: 'center',

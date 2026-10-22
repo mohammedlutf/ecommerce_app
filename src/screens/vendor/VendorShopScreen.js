@@ -124,11 +124,11 @@ export default function VendorShopScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={vendorStyles.scrollContent}
+          contentContainerStyle={[vendorStyles.scrollContent, { maxWidth: 1080, alignSelf: 'center', width: '100%' }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={vendorStyles.column}>
+          <View style={[vendorStyles.column, { width: '100%' }]}>
             {/* Identity */}
             <View style={vendorStyles.card}>
               <View style={vendorStyles.sectionHeader}>

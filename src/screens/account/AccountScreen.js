@@ -60,7 +60,7 @@ export default function AccountScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, showDesktopChrome && styles.scrollContentWide]} showsVerticalScrollIndicator={false}>
         {/*
          * Capped, centred content column. Without it the profile card and every
          * link row stretch the full window width on a desktop monitor, which
@@ -222,6 +222,11 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
+  },
+  scrollContentWide: {
+    maxWidth: 1080,
+    alignSelf: 'center',
+    width: '100%',
   },
   column: {
     width: '100%',

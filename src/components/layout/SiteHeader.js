@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, Image, Pressable, StyleSheet, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, Image, Pressable, StyleSheet, TextInput, ActivityIndicator, Platform } from 'react-native';
 import Icon from '../Icon';
 import Container from './Container';
 import CatalogAPI from '../../api/catalog';
@@ -243,8 +243,8 @@ export default function SiteHeader({ onSearchSubmit }) {
                 ) : null}
               </View>
 
-<NavLink label={t('nav.categories')} onPress={() => go('ProductsTab', 'Products')} />
-          <NavLink label={t('nav.offers')} onPress={() => go('ProductsTab', 'Products')} />
+              <NavLink label={t('nav.categories')} onPress={() => { if (Platform.OS === 'web') { try { navigate('HomeTab', { screen: 'Categories' }); return; } catch {} } go('ProductsTab', 'Products'); }} />
+                        <NavLink label={t('nav.offers')} onPress={() => { try { const groups = Array.isArray(hierarchy) ? hierarchy : []; const findGroup = (arr) => { for (let i = 0; i < arr.length; i += 1) { const p = arr[i]; const n = String(p.name || '').toLowerCase(); if (n === 'العروض' || n === 'offers' || n.includes('عرض') || n.includes('offer')) return p.name; if (Array.isArray(p.children)) { for (let j = 0; j < p.children.length; j += 1) { const c = p.children[j]; const cn = String(c.name || '').toLowerCase(); if (cn === 'العروض' || cn === 'offers' || cn.includes('عرض') || cn.includes('offer')) return c.name; } } } return null; }; const offerGroup = findGroup(groups); if (offerGroup) { openProducts(navigationRef.current, { itemGroup: offerGroup }); setOpenGroup(null); return; } } catch {} if (Platform.OS === 'web') { openProducts(navigationRef.current, {}); setOpenGroup(null); return; } go('ProductsTab', 'Products'); }} />
               <NavLink label={t('nav.help')} onPress={() => go('AccountTab', 'Account')} />
               <NavLink label={t('nav.contact')} onPress={() => go('AccountTab', 'Account')} />
             </View>
@@ -335,27 +335,31 @@ function MegaPanel({ groups, onStayOpen, onLeave, onPick }) {
 
   return (
     <View style={[styles.mega, anchor]} onMouseEnter={onStayOpen} onMouseLeave={onLeave}>
-      <View style={styles.megaGrid}>
-        {groups.slice(0, 8).map((group) => (
-          <View key={group.name} style={styles.megaColumn}>
-            <Pressable onPress={() => onPick(group.name)} style={styles.megaParent}>
-              <Text style={[styles.megaParentText, textStart]}>{group.name}</Text>
-              <Icon name="chevron-forward" size={13} color={Colors.primary} style={styles.megaChevron} />
-            </Pressable>
-            {(group.children || []).slice(0, 8).map((child) => (
-              <Pressable
-                key={child.name}
-                onPress={() => onPick(child.name)}
-                className="hover-tint"
-                style={styles.megaChild}
-              >
-                <Text style={[styles.megaChildText, textStart]} numberOfLines={1}>
-                  {child.name}
-                </Text>
-              </Pressable>
+      <View style={{ maxHeight: '70vh' }}>
+        <View style={{ overflow: 'auto' }}>
+          <View style={styles.megaGrid}>
+            {groups.slice(0, 16).map((group) => (
+              <View key={group.name} style={styles.megaColumn}>
+                <Pressable onPress={() => onPick(group.name)} style={styles.megaParent}>
+                  <Text style={[styles.megaParentText, textStart]}>{group.name}</Text>
+                  <Icon name="chevron-forward" size={13} color={Colors.primary} style={styles.megaChevron} />
+                </Pressable>
+                {(group.children || []).slice(0, 12).map((child) => (
+                  <Pressable
+                    key={child.name}
+                    onPress={() => onPick(child.name)}
+                    className="hover-tint"
+                    style={styles.megaChild}
+                  >
+                    <Text style={[styles.megaChildText, textStart]} numberOfLines={1}>
+                      {child.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
             ))}
           </View>
-        ))}
+        </View>
       </View>
 
       <Pressable onPress={() => onPick(null)} style={styles.megaAll}>
@@ -407,7 +411,8 @@ const styles = StyleSheet.create({
     // scrolling content passing underneath.
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderSubtle,
-    zIndex: 20,
+    zIndex: 30,
+    ...(Platform.OS === 'web' ? { position: 'sticky', top: 0 } : {}),
   },
   pressed: { opacity: 0.6 },
 
@@ -624,6 +629,7 @@ const styles = StyleSheet.create({
     top: '100%',
     width: 760,
     maxWidth: '86vw',
+    maxHeight: '70vh',
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
@@ -649,6 +655,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 18,
+    overflow: 'auto',
   },
   megaColumn: {
     width: 168,

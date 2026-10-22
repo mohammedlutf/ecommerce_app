@@ -237,7 +237,7 @@ export default function MyOrdersScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, showDesktopChrome && styles.scrollContentWide]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -248,11 +248,13 @@ export default function MyOrdersScreen({ navigation }) {
         }
       >
         <View style={[styles.column, showDesktopChrome && styles.columnWide]}>
-          <View style={styles.headerRow}>
-            <Text style={[styles.title, textStart]}>
-              طلباتي ({totalKnown ? ordersTotal : orders.length})
-            </Text>
-          </View>
+          {showDesktopChrome ? null : (
+            <View style={styles.headerRow}>
+              <Text style={[styles.title, textStart]}>
+                طلباتي ({totalKnown ? ordersTotal : orders.length})
+              </Text>
+            </View>
+          )}
 
           {loading && !refreshing ? (
             <View style={styles.loadingWrapper}>
@@ -331,6 +333,11 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
+  },
+  scrollContentWide: {
+    maxWidth: 1080,
+    alignSelf: 'center',
+    width: '100%',
   },
   column: {
     width: '100%',

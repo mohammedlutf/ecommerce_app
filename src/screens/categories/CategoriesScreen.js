@@ -274,18 +274,20 @@ export default function CategoriesScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
-      <View style={styles.hero}>
-        <View style={styles.heroText}>
-          <Text style={[styles.heroTitle, textStart]}>تصفح المتجر</Text>
-          <Text style={[styles.heroSub, textStart]}>
-            اختر القسم من القائمة ثم استكشف تصنيفاته الفرعية
-          </Text>
+      {showDesktopChrome ? null : (
+        <View style={styles.hero}>
+          <View style={styles.heroText}>
+            <Text style={[styles.heroTitle, textStart]}>تصفح المتجر</Text>
+            <Text style={[styles.heroSub, textStart]}>
+              اختر القسم من القائمة ثم استكشف تصنيفاته الفرعية
+            </Text>
+          </View>
+          <View style={styles.heroBadge}>
+            <Icon name="pricetags-outline" size={16} color={Colors.primary} />
+            <Text style={styles.heroBadgeText}>{hierarchy.length}</Text>
+          </View>
         </View>
-        <View style={styles.heroBadge}>
-          <Icon name="pricetags-outline" size={16} color={Colors.primary} />
-          <Text style={styles.heroBadgeText}>{hierarchy.length}</Text>
-        </View>
-      </View>
+      )}
 
       <View style={styles.split}>
         <View style={styles.rail}>

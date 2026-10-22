@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   I18nManager,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from '../../components/Icon';
@@ -1316,7 +1317,7 @@ export default function ProductsScreen({ route, navigation }) {
   });
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={Platform.OS === 'web' ? ['left', 'right'] : ['top', 'left', 'right']}>
       {/*
         Search bar.
 
@@ -1378,7 +1379,7 @@ export default function ProductsScreen({ route, navigation }) {
       ) : (
         <>
           {/* Parent groups — main departments */}
-          <View style={styles.chipsGroup}>
+          <View style={[styles.chipsGroup, Platform.OS === 'web' && showDesktopChrome ? styles.chipsSticky : null]}>
             {/* <View style={styles.chipsLabelRow}>
           <Icon name="albums-outline" size={14} color={Colors.primary} />
           <Text style={[styles.chipsLabel, textStart]}>الأقسام الرئيسية</Text>
@@ -1405,7 +1406,7 @@ export default function ProductsScreen({ route, navigation }) {
           </View>
 
           {/* Child groups — filtered by active parent, first one activated */}
-          <View style={[styles.chipsGroup, styles.chipsGroupSub]}>
+          <View style={[styles.chipsGroup, styles.chipsGroupSub, Platform.OS === 'web' && showDesktopChrome ? styles.chipsStickySub : null]}>
             <Animated.View
               style={{
                 opacity: childChipsAnim,
@@ -1534,15 +1535,17 @@ export default function ProductsScreen({ route, navigation }) {
                                 />
                               }
                               ListFooterComponent={
-                                <View style={styles.footer}>
-                                  {loadingMore ? (
-                                    <>
-                                      <ActivityIndicator size="small" color={Colors.primary} />
-                                      <Text style={[styles.footerText, textStart]}>جاري تحميل المزيد...</Text>
-                                    </>
-                                  ) : !hasMoreByKey[key] && pageProducts.length > 0 ? (
-                                    <Text style={[styles.footerText, textStart]}>— لقد وصلت إلى نهاية القائمة —</Text>
-                                  ) : null}
+                                <View style={styles.footerWrap}>
+                                  <View style={styles.footer}>
+                                    {loadingMore ? (
+                                      <>
+                                        <ActivityIndicator size="small" color={Colors.primary} />
+                                        <Text style={[styles.footerText, textStart]}>جاري تحميل المزيد...</Text>
+                                      </>
+                                    ) : !hasMoreByKey[key] && pageProducts.length > 0 ? (
+                                      <Text style={[styles.footerText, textStart]}>— لقد وصلت إلى نهاية القائمة —</Text>
+                                    ) : null}
+                                  </View>
 
                                   {/*
                                     Products has no page-level ScrollView, only per-category
@@ -1677,6 +1680,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderSubtle,
   },
+  chipsSticky: {
+    ...(Platform.OS === 'web' ? { position: 'sticky', top: 0, zIndex: 20, backgroundColor: Colors.surfaceContainerLowest } : {}),
+  },
+  chipsStickySub: {
+    ...(Platform.OS === 'web' ? { position: 'sticky', top: 48, zIndex: 19, backgroundColor: Colors.surfaceContainerLow || '#F8FAF9' } : {}),
+  },
   chipsLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1741,12 +1750,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingTop: 8,
   },
+  footerWrap: {
+    width: '100%',
+  },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 18,
+    width: '100%',
   },
   footerText: {
     fontSize: Typography.sizes.labelSm,

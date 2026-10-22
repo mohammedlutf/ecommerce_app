@@ -1,4 +1,5 @@
 import React from 'react';
+import { Platform } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import ProductsScreen from '../../screens/products/ProductsScreen';
 import ProductDetailScreen from '../../screens/products/ProductDetailScreen';
@@ -13,6 +14,7 @@ export default function ProductsStack() {
   return (
     <Stack.Navigator
       screenOptions={{
+        headerShown: Platform.OS !== 'web',
         headerTintColor: Colors.onSurface,
         headerStyle: { backgroundColor: Colors.surfaceContainerLowest },
         headerTitleAlign: 'center',

@@ -311,13 +311,13 @@ export default function VendorHomeScreen({ navigation }) {
   return (
     <SafeAreaView style={vendorStyles.safeArea} edges={['left', 'right']}>
       <ScrollView
-        contentContainerStyle={vendorStyles.scrollContent}
+        contentContainerStyle={[vendorStyles.scrollContent, { maxWidth: 1080, alignSelf: 'center', width: '100%' }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[Colors.primary]} />
         }
       >
-        <View style={vendorStyles.column}>
+        <View style={[vendorStyles.column, { width: '100%' }]}>
           {/* Shop header */}
           <View style={styles.shopHeader}>
             <View style={styles.shopLogo}>

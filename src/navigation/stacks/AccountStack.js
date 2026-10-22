@@ -1,4 +1,5 @@
 import React from 'react';
+import { Platform } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AccountScreen from '../../screens/account/AccountScreen';
 import MyOrdersScreen from '../../screens/account/MyOrdersScreen';
@@ -25,6 +26,7 @@ export default function AccountStack() {
   return (
     <Stack.Navigator
       screenOptions={{
+        headerShown: Platform.OS !== 'web',
         headerTintColor: Colors.onSurface,
         headerStyle: { backgroundColor: Colors.surfaceContainerLowest },
         headerTitleAlign: 'center',
