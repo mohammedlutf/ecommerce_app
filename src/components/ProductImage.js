@@ -39,14 +39,29 @@ export default function ProductImage({
   const opacity = useRef(new Animated.Value(0)).current;
   const [failed, setFailed] = useState(false);
 
+  /*
+   * The URI whose photo is already on screen.
+   *
+   * The reset effect below runs *after* the commit, and a cached image can
+   * finish decoding before that effect lands. Resetting the opacity then would
+   * hide a picture that had already arrived, and with no second `onLoad` to
+   * bring it back the card would stay blank — the "loading forever" symptom on
+   * a fast connection. Remembering the URI that has been shown makes the reset
+   * idempotent: the fade only ever runs for a photo that has not been shown.
+   */
+  const shownUriRef = useRef(null);
+
   // A new URI is a new image: reset the fade and the error state so a recycled
   // card does not show the previous product's photo through the new one.
   useEffect(() => {
+    if (shownUriRef.current === uri) return;
+    shownUriRef.current = null;
     opacity.setValue(0);
     setFailed(false);
   }, [uri, opacity]);
 
   function handleLoad(event) {
+    shownUriRef.current = uri;
     Animated.timing(opacity, {
       toValue: 1,
       duration: fadeDuration,
@@ -56,6 +71,10 @@ export default function ProductImage({
   }
 
   function handleError(event) {
+    // The photo will never arrive, so it must not keep the slot reserved for a
+    // picture: the fallback takes over immediately instead of leaving an empty
+    // frame behind.
+    shownUriRef.current = uri;
     setFailed(true);
     if (onError) onError(event);
   }

@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import OrderCard from '../../components/OrderCard';
+import OrdersTable from '../../components/OrdersTable';
 import EmptyState from '../../components/EmptyState';
 import PageFooter from '../../components/layout/PageFooter';
 import useConfirm from '../../components/ConfirmDialog';
@@ -32,6 +33,17 @@ import { Radius } from '../../theme/spacing';
 // `creation`/`modified` as a tiebreaker guarantees the newest order is always
 // the first card, which is what "recent order on top" needs.
 const ORDER_DATE_FIELDS = ['transaction_date', 'creation', 'modified', 'posting_date'];
+
+/**
+ * Orders per page on the desktop table.
+ *
+ * The mobile list keeps the phone-sized page and a "load more" button, because
+ * a phone shows three orders at a time and asking for the next ten of them
+ * before the shopper has read the first three is not what they want. A table
+ * on a 1440px screen shows ten rows comfortably, and paging through them is
+ * what a table is for.
+ */
+const DESKTOP_PAGE_SIZE = 10;
 
 function orderTimestamp(order) {
   for (let i = 0; i < ORDER_DATE_FIELDS.length; i += 1) {
@@ -93,6 +105,9 @@ export default function MyOrdersScreen({ navigation }) {
   // Until we have loaded a page successfully, fall back to what we hold.
   const [totalKnown, setTotalKnown] = useState(false);
   const [hasMoreOrders, setHasMoreOrders] = useState(false);
+  // Desktop paging. The mobile list appends instead, so it has no page: this
+  // is only read by the web build.
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -107,6 +122,21 @@ export default function MyOrdersScreen({ navigation }) {
   const ordersRef = useRef(orders);
   ordersRef.current = orders;
   const hasLoadedRef = useRef(false);
+  // The page the desktop table is showing. Kept in a ref as well as in state
+  // so the refresh handlers can read it without taking it as a dependency.
+  const pageRef = useRef(0);
+
+  /**
+   * The offset a request should start from.
+   *
+   * The desktop table pages, so a refresh has to re-read the page the reader
+   * is looking at instead of snapping back to the first one. The mobile list
+   * has no page and always starts at zero.
+   */
+  const startFor = useCallback(
+    (pageIndex) => (showDesktopChrome ? pageIndex * DESKTOP_PAGE_SIZE : 0),
+    [showDesktopChrome]
+  );
 
   const loadOrders = useCallback(
     async ({ start = 0, append = false, showSpinner = true } = {}) => {
@@ -172,20 +202,37 @@ export default function MyOrdersScreen({ navigation }) {
       // never blanks out a list the user is already reading.
       const showSpinner = !hasLoadedRef.current || ordersRef.current.length === 0;
       hasLoadedRef.current = true;
-      loadOrders({ showSpinner });
+      loadOrders({ start: startFor(pageRef.current), showSpinner });
       return undefined;
-    }, [loadOrders])
+    }, [loadOrders, startFor])
   );
 
   // …and again when the app comes back to the foreground.
   useLiveRefresh(
-    useCallback(() => loadOrders({ showSpinner: false }), [loadOrders]),
+    useCallback(
+      () => loadOrders({ start: startFor(pageRef.current), showSpinner: false }),
+      [loadOrders, startFor]
+    ),
     { intervalMs: 0, isEnabled: !!userKey }
   );
 
   function handleLoadMore() {
     if (loadingMore) return;
     loadOrders({ start: ordersRef.current.length, append: true, showSpinner: false });
+  }
+
+  /**
+   * Move the desktop table to another page.
+   *
+   * The page is remembered before the request goes out, so a refresh that
+   * lands while the request is in flight still reads the page the reader
+   * asked for.
+   */
+  function handlePageChange(nextPage) {
+    if (nextPage < 0 || loading) return;
+    pageRef.current = nextPage;
+    setPage(nextPage);
+    loadOrders({ start: startFor(nextPage), showSpinner: true });
   }
 
   function handleRefresh() {
@@ -205,9 +252,9 @@ export default function MyOrdersScreen({ navigation }) {
         try {
           await OrdersAPI.cancelOrder(orderName);
           toast.success('تم إلغاء الطلب بنجاح');
-          // Reload the first page so a cancelled order drops out of the list
+          // Reload the current page so a cancelled order drops out of the list
           // (and the total updates) without blanking the screen.
-          await loadOrders({ showSpinner: false });
+          await loadOrders({ start: startFor(pageRef.current), showSpinner: false });
         } catch (err) {
           toast.error(err.message || 'تعذر إلغاء الطلب');
         } finally {
@@ -248,7 +295,22 @@ export default function MyOrdersScreen({ navigation }) {
         }
       >
         <View style={[styles.column, showDesktopChrome && styles.columnWide]}>
-          {showDesktopChrome ? null : (
+          {showDesktopChrome ? (
+            /*
+             * The web build hides the stack header, so the page needs its own
+             * title or the table arrives with no explanation of what it is.
+             */
+            <View style={styles.desktopHeader}>
+              <View style={styles.desktopHeaderText}>
+                <Text style={[styles.title, textStart]}>طلباتي</Text>
+                <Text style={[styles.subtitle, textStart]}>
+                  {totalKnown
+                    ? `${ordersTotal} طلب مسجّل في حسابك`
+                    : 'سجل طلباتك الكامل'}
+                </Text>
+              </View>
+            </View>
+          ) : (
             <View style={styles.headerRow}>
               <Text style={[styles.title, textStart]}>
                 طلباتي ({totalKnown ? ordersTotal : orders.length})
@@ -256,7 +318,12 @@ export default function MyOrdersScreen({ navigation }) {
             </View>
           )}
 
-          {loading && !refreshing ? (
+          {/*
+           * The spinner only replaces the list when there is nothing to show
+           * yet. Paging to the next page keeps the current rows on screen with
+           * a busy line inside the table, so the page does not flash.
+           */}
+          {loading && !refreshing && orders.length === 0 ? (
             <View style={styles.loadingWrapper}>
               <ActivityIndicator size="large" color={Colors.primaryContainer} />
             </View>
@@ -273,43 +340,62 @@ export default function MyOrdersScreen({ navigation }) {
               {/*
                * On a desktop window a single full-width column of order cards
                * turns each order into a sparse band with a name at one end and
-               * buttons at the other. Wrapping to two columns keeps the card
-               * internals untouched and only changes how many sit per row.
+               * buttons at the other. The web build draws the history as a
+               * table instead, with real paging; the phone keeps the cards and
+               * the "load more" button, which is the right shape for a column
+               * of cards on a narrow screen.
                */}
-              <View style={[styles.cardGrid, showDesktopChrome && styles.cardGridWide]}>
-                {orders.map((order) => (
-                  <View
-                    key={order.name}
-                    style={showDesktopChrome ? styles.cardGridCell : styles.cardGridCellFull}
-                  >
-                    <OrderCard
-                      order={order}
-                      actionLoading={actionLoading}
-                      onCancelOrder={handleCancelOrder}
-                      onReorder={handleReorder}
-                    />
-                  </View>
-                ))}
-              </View>
-
-              {hasMoreOrders && (
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={handleLoadMore}
-                  disabled={loadingMore}
-                  style={[styles.loadMoreBtn, loadingMore && styles.loadMoreBtnDisabled]}
-                >
-                  {loadingMore ? (
-                    <ActivityIndicator size="small" color={Colors.primary} />
-                  ) : (
-                    <>
-                      <Text style={[styles.loadMoreText, textStart]}>عرض المزيد من الطلبات</Text>
-                      <Text style={[styles.loadMoreCount, textStart]}>
-                        {`تم عرض ${orders.length} من ${ordersTotal}`}
-                      </Text>
-                    </>
+              {showDesktopChrome ? (
+                <OrdersTable
+                  orders={orders}
+                  total={totalKnown ? ordersTotal : orders.length}
+                  page={page}
+                  pageSize={DESKTOP_PAGE_SIZE}
+                  pageCount={Math.max(
+                    1,
+                    Math.ceil((totalKnown ? ordersTotal : orders.length) / DESKTOP_PAGE_SIZE)
                   )}
-                </TouchableOpacity>
+                  onPageChange={handlePageChange}
+                  onCancelOrder={handleCancelOrder}
+                  onReorder={handleReorder}
+                  actionLoading={actionLoading}
+                  loading={loading && !refreshing}
+                />
+              ) : (
+                <>
+                  <View style={styles.cardGrid}>
+                    {orders.map((order) => (
+                      <View key={order.name} style={styles.cardGridCellFull}>
+                        <OrderCard
+                          order={order}
+                          actionLoading={actionLoading}
+                          onCancelOrder={handleCancelOrder}
+                          onReorder={handleReorder}
+                        />
+                      </View>
+                    ))}
+                  </View>
+
+                  {hasMoreOrders && (
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={handleLoadMore}
+                      disabled={loadingMore}
+                      style={[styles.loadMoreBtn, loadingMore && styles.loadMoreBtnDisabled]}
+                    >
+                      {loadingMore ? (
+                        <ActivityIndicator size="small" color={Colors.primary} />
+                      ) : (
+                        <>
+                          <Text style={[styles.loadMoreText, textStart]}>عرض المزيد من الطلبات</Text>
+                          <Text style={[styles.loadMoreCount, textStart]}>
+                            {`تم عرض ${orders.length} من ${ordersTotal}`}
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </>
               )}
             </>
           )}
@@ -349,31 +435,34 @@ const styles = StyleSheet.create({
   headerRow: {
     marginBottom: 14,
   },
+  desktopHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 16,
+    marginBottom: 18,
+  },
+  desktopHeaderText: {
+    flex: 1,
+  },
+  subtitle: {
+    fontSize: Typography.sizes.bodySm,
+    fontFamily: Typography.fontFamilyRegular,
+    color: Colors.textMuted,
+    marginTop: 3,
+  },
   title: {
     fontSize: Typography.sizes.headlineSm,
     fontFamily: Typography.fontFamilyExtraBold,
     color: Colors.onSurface,
   },
-  // `cardGridCellFull` is the plain mobile case: a plain block so the vertical
-  // `gap` on each card still applies. `cardGridCell` is only used on wide
-  // screens, where the row gap takes over.
+  // The phone list: one card per row. The desktop build uses `OrdersTable`
+  // instead, so there is no wide variant of this grid any more.
   cardGrid: {
     width: '100%',
   },
-  cardGridWide: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 14,
-  },
   cardGridCellFull: {
     width: '100%',
-  },
-  cardGridCell: {
-    // Just under 50% so two cells plus the row gap always fit without wrapping
-    // a third, at any width in the capped column.
-    flexBasis: '48.5%',
-    flexGrow: 1,
-    maxWidth: '100%',
   },
   loadingWrapper: {
     paddingVertical: 40,

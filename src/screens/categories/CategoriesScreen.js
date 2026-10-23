@@ -36,6 +36,98 @@ function childrenLabel(count) {
 }
 
 /**
+ * One department, as a card in the desktop grid.
+ *
+ * The web build gets a catalogue of departments rather than a master/detail
+ * split: on a 1440px screen a 30% rail leaves a narrow column of thumbnails
+ * with nothing else on the page, which reads as a mobile layout stretched.
+ * A grid of department cards — picture, name, count, and a preview of the
+ * sub-groups — is what a shopper expects from a "browse the catalogue" page.
+ *
+ * The card is a plain `View`, not a `Pressable`: the image, the title and the
+ * call to action are separate targets, and nesting presses inside a press
+ * makes the inner one fire the outer handler too.
+ */
+function DepartmentCard({ parent, onOpenGroup, onOpenParent }) {
+  const { textStart, isRTL } = useDirectional();
+  const children = parent.children || [];
+  const preview = children.slice(0, 5);
+
+  return (
+    <View style={styles.deptCard} className="hover-lift">
+      <Pressable
+        onPress={onOpenParent}
+        accessibilityRole="link"
+        accessibilityLabel={`تصفح ${parent.name}`}
+        style={styles.deptMedia}
+      >
+        <ProductImage
+          source={parent.image}
+          style={styles.deptImage}
+          fallbackIcon="pricetags-outline"
+          fallbackIconSize={28}
+        />
+        <View style={styles.deptBadge}>
+          <Text style={styles.deptBadgeText}>{children.length} تصنيف فرعي</Text>
+        </View>
+      </Pressable>
+
+      <View style={styles.deptBody}>
+        <Text style={[styles.deptName, textStart]} numberOfLines={1}>
+          {parent.name}
+        </Text>
+
+        {preview.length ? (
+          <View style={styles.deptList}>
+            {preview.map((child) => (
+              <Pressable
+                key={child.name}
+                onPress={() => onOpenGroup(child.name)}
+                className="hover-tint"
+                style={styles.deptItem}
+                accessibilityRole="link"
+              >
+                <Text style={[styles.deptItemText, textStart]} numberOfLines={1}>
+                  {child.name}
+                </Text>
+                <Icon
+                  name={isRTL ? 'chevron-back' : 'chevron-forward'}
+                  size={12}
+                  color={Colors.primary}
+                />
+              </Pressable>
+            ))}
+            {children.length > preview.length ? (
+              <Text style={[styles.deptMore, textStart]}>
+                + {children.length - preview.length} تصنيفاً آخر
+              </Text>
+            ) : null}
+          </View>
+        ) : (
+          <Text style={[styles.deptEmpty, textStart]}>
+            لا توجد تصنيفات فرعية — تصفح منتجات القسم مباشرة.
+          </Text>
+        )}
+
+        <Pressable
+          onPress={onOpenParent}
+          className="hover-tint"
+          style={styles.deptCta}
+          accessibilityRole="link"
+        >
+          <Text style={[styles.deptCtaText, textStart]}>تصفح القسم</Text>
+          <Icon
+            name={isRTL ? 'chevron-back' : 'chevron-forward'}
+            size={14}
+            color={Colors.primary}
+          />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+/**
  * One department in the rail.
  *
  * The rail is narrow (30% of the screen), so the tab stacks thumbnail, name and
@@ -272,6 +364,63 @@ export default function CategoriesScreen({ navigation }) {
 
   const active = hierarchy.find((group) => group.name === selected) || hierarchy[0];
 
+  /*
+   * Desktop web: a catalogue grid of departments.
+   *
+   * The column count follows the window, capped at four. Five columns of a
+   * 260px card already leave the names one line long; six makes every title
+   * truncate, which is worse than a shorter grid that reads at a glance.
+   */
+  const gridColumns = windowWidth >= 1500 ? 4 : windowWidth >= 1100 ? 3 : windowWidth >= 780 ? 2 : 1;
+
+  if (showDesktopChrome) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
+        <ScrollView
+          contentContainerStyle={styles.desktopScroll}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.desktopInner}>
+            <View style={styles.desktopHead}>
+              <View style={styles.desktopHeadText}>
+                <Text style={[styles.desktopTitle, textStart]}>تصفح المتجر</Text>
+                <Text style={[styles.desktopSub, textStart]}>
+                  {hierarchy.length} قسم رئيسي — اختر القسم ثم استكشف تصنيفاته الفرعية
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => openProducts(navigation, {})}
+                className="hover-tint"
+                style={styles.desktopAllBtn}
+                accessibilityRole="link"
+              >
+                <Icon name="grid-outline" size={15} color={Colors.primary} />
+                <Text style={styles.desktopAllText}>كل المنتجات</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.deptGrid}>
+              {hierarchy.map((parent) => (
+                <View
+                  key={parent.name}
+                  style={[styles.deptGridCell, { width: `${100 / gridColumns}%` }]}
+                >
+                  <DepartmentCard
+                    parent={parent}
+                    onOpenGroup={openGroup}
+                    onOpenParent={() => openGroup(parent.name)}
+                  />
+                </View>
+              ))}
+            </View>
+
+            <PageFooter />
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
       {showDesktopChrome ? null : (
@@ -375,6 +524,148 @@ const styles = StyleSheet.create({
   heroSkeleton: {
     marginHorizontal: 12,
     marginTop: 12,
+  },
+
+  // ---- Desktop catalogue grid ---------------------------------------------
+  desktopScroll: {
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 0,
+  },
+  desktopInner: {
+    width: '100%',
+    maxWidth: 1280,
+    alignSelf: 'center',
+  },
+  desktopHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    marginBottom: 18,
+  },
+  desktopHeadText: {
+    flex: 1,
+  },
+  desktopTitle: {
+    fontSize: Typography.sizes.headlineMd,
+    fontFamily: Typography.fontFamilyExtraBold,
+    color: Colors.onSurface,
+  },
+  desktopSub: {
+    fontSize: Typography.sizes.bodySm,
+    fontFamily: Typography.fontFamilyMedium,
+    color: Colors.textMuted,
+    marginTop: 3,
+  },
+  desktopAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primaryLight,
+  },
+  desktopAllText: {
+    fontSize: Typography.sizes.labelLg,
+    fontFamily: Typography.fontFamilyBold,
+    color: Colors.primary,
+  },
+  deptGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -8,
+  },
+  deptGridCell: {
+    padding: 8,
+  },
+  deptCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    overflow: 'hidden',
+    ...Shadows.sm,
+  },
+  deptMedia: {
+    width: '100%',
+    aspectRatio: 1.85,
+    backgroundColor: Colors.surfaceContainerLow,
+    overflow: 'hidden',
+  },
+  deptImage: {
+    width: '100%',
+    height: '100%',
+  },
+  deptBadge: {
+    position: 'absolute',
+    left: 10,
+    bottom: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radius.full,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+  },
+  deptBadgeText: {
+    fontSize: Typography.sizes.labelSm,
+    fontFamily: Typography.fontFamilyBold,
+    color: Colors.primaryDark,
+  },
+  deptBody: {
+    padding: 14,
+    gap: 8,
+  },
+  deptName: {
+    fontSize: Typography.sizes.titleMd,
+    fontFamily: Typography.fontFamilyBold,
+    color: Colors.onSurface,
+  },
+  deptList: {
+    gap: 1,
+    minHeight: 108,
+  },
+  deptItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.surfaceContainerLow,
+  },
+  deptItemText: {
+    flex: 1,
+    fontSize: Typography.sizes.bodySm,
+    fontFamily: Typography.fontFamilyRegular,
+    color: Colors.onSurfaceVariant,
+  },
+  deptMore: {
+    fontSize: Typography.sizes.labelSm,
+    fontFamily: Typography.fontFamilyMedium,
+    color: Colors.textMuted,
+    paddingTop: 4,
+  },
+  deptEmpty: {
+    fontSize: Typography.sizes.bodySm,
+    fontFamily: Typography.fontFamilyRegular,
+    color: Colors.textMuted,
+    minHeight: 108,
+  },
+  deptCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderSubtle,
+  },
+  deptCtaText: {
+    fontSize: Typography.sizes.labelLg,
+    fontFamily: Typography.fontFamilyBold,
+    color: Colors.primary,
   },
 
   // ---- Split --------------------------------------------------------------

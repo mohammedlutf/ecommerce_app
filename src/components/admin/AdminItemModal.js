@@ -5,6 +5,7 @@ import {
   TextInput,
   Pressable,
   Modal,
+  Platform,
   ScrollView,
   ActivityIndicator,
   Switch,
@@ -13,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import Icon from '../Icon';
+import DialogSheet from '../layout/DialogSheet';
 import UomEditor from './UomEditor';
 import UomPicker from './SearchPickerModal';
 import PickerField from './PickerField';
@@ -330,43 +332,63 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
 
   if (loadError) {
     return (
-      <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-        <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
-          <View style={styles.header}>
-            <Text style={[styles.headerTitle, textStart]}>تعديل المنتج</Text>
-            <Pressable onPress={onClose} accessibilityRole="button" style={styles.closeBtn}>
-              <Icon name="close" size={20} color={Colors.onSurface} />
-            </Pressable>
-          </View>
-          <View style={styles.centre}>
-            <Icon name="alert-circle-outline" size={40} color={Colors.error} />
-            <Text style={styles.centreText}>{loadError}</Text>
-            <Pressable onPress={onClose} style={styles.cancelBtn}>
-              <Text style={[styles.cancelText, textStart]}>إغلاق</Text>
-            </Pressable>
-          </View>
-        </SafeAreaView>
+      <Modal
+        visible={visible}
+        animationType={Platform.OS === 'web' ? 'fade' : 'slide'}
+        transparent={Platform.OS === 'web'}
+        onRequestClose={onClose}
+      >
+        <DialogSheet maxWidth={520} onPressBackdrop={onClose}>
+          <SafeAreaView style={[styles.root, styles.dialogFill]} edges={['top', 'bottom']}>
+            <View style={styles.header}>
+              <Text style={[styles.headerTitle, textStart]}>تعديل المنتج</Text>
+              <Pressable onPress={onClose} accessibilityRole="button" style={styles.closeBtn}>
+                <Icon name="close" size={20} color={Colors.onSurface} />
+              </Pressable>
+            </View>
+            <View style={styles.centre}>
+              <Icon name="alert-circle-outline" size={40} color={Colors.error} />
+              <Text style={styles.centreText}>{loadError}</Text>
+              <Pressable onPress={onClose} style={styles.cancelBtn}>
+                <Text style={[styles.cancelText, textStart]}>إغلاق</Text>
+              </Pressable>
+            </View>
+          </SafeAreaView>
+        </DialogSheet>
       </Modal>
     );
   }
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={styles.root} edges={['top', 'bottom']} onLayout={onLayout}>
-        <View style={styles.header}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.headerTitle, textStart]}>تعديل المنتج</Text>
-            <Text style={[styles.headerSubtitle, textStart]}>{itemCode}</Text>
+    <Modal
+      visible={visible}
+      // On the web the editor is a centred dialog with a blurred backdrop;
+      // on a phone it stays a full-height sheet that slides up, which is the
+      // shape the keyboard-lift logic was built for.
+      animationType={Platform.OS === 'web' ? 'fade' : 'slide'}
+      transparent={Platform.OS === 'web'}
+      onRequestClose={onClose}
+    >
+      <DialogSheet maxWidth={720} onPressBackdrop={saving ? undefined : onClose}>
+        <SafeAreaView
+          style={[styles.root, styles.dialogFill]}
+          edges={['top', 'bottom']}
+          onLayout={onLayout}
+        >
+          <View style={styles.header}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.headerTitle, textStart]}>تعديل المنتج</Text>
+              <Text style={[styles.headerSubtitle, textStart]}>{itemCode}</Text>
+            </View>
+            <Pressable
+              onPress={onClose}
+              disabled={saving}
+              accessibilityRole="button"
+              style={styles.closeBtn}
+            >
+              <Icon name="close" size={20} color={Colors.onSurface} />
+            </Pressable>
           </View>
-          <Pressable
-            onPress={onClose}
-            disabled={saving}
-            accessibilityRole="button"
-            style={styles.closeBtn}
-          >
-            <Icon name="close" size={20} color={Colors.onSurface} />
-          </Pressable>
-        </View>
 
         <View style={[styles.flex, lift > 0 && { paddingBottom: lift }]}>
           <ScrollView
@@ -602,7 +624,8 @@ export default function AdminItemModal({ visible, itemCode, onClose, onSaved }) 
           }}
           onClose={() => setShowGroupPicker(false)}
         />
-      </SafeAreaView>
+        </SafeAreaView>
+      </DialogSheet>
     </Modal>
   );
 }

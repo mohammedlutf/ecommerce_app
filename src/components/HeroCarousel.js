@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -43,24 +44,41 @@ const AD_LABEL = 'إعلان';
  * may open a product, an item group or an external link; one with no target is
  * still shown, just not pressable.
  *
- * Four details are load-bearing:
+ * ## The web/RTL trap, and why the track is forced LTR
  *
- *   1. The current page is read back from the scroll offset
- *      (`onMomentumScrollEnd`) rather than trusting what the timer asked for.
- *      Under RTL the content is laid out right-to-left; the offset is the one
- *      value that means the same thing on every platform, so autoplay keeps
- *      advancing from wherever the shopper actually left it and the dots can
- *      never disagree with the banner on screen.
+ * In an RTL document a browser's `scrollLeft` counts *backwards*: the start of
+ * the track is `0` and going forward means going **negative**. React Native
+ * Web's `scrollTo` writes a positive offset, which an RTL container clamps to
+ * `0` — so the carousel silently refused to move. Dragging still worked,
+ * because the browser handles a pointer drag itself, and switching the site to
+ * English worked, because the container became LTR. That was the whole bug.
+ *
+ * The fix is to make the *track* LTR on the web build. The banner is a picture
+ * in a fixed-width frame, so the slide order inside it does not affect the
+ * page layout, and the dots are moved into the same LTR frame so the active
+ * dot keeps pointing at the visible banner.
+ *
+ * ## The rest of the load-bearing details
+ *
+ *   1. The current page is read back from the scroll offset (`onScroll`), not
+ *      from what the timer asked for, so the dots can never disagree with the
+ *      banner on screen — on any platform, and whether the move came from the
+ *      timer or from a finger.
  *   2. A drag pauses the timer and the end of the gesture restarts it, so a
  *      banner is never yanked out from under a finger.
  *   3. Nothing runs while the screen is blurred or the app is in the
  *      background, so an off-screen carousel is not a five-second timer burning
  *      battery behind a product page.
  *   4. Reduced motion turns autoplay off entirely. Swiping still works.
+ *   5. The next two banners are fetched in the background while the current
+ *      one is on screen, so a rotation never reveals an empty frame, and a
+ *      banner that cannot be fetched falls back to a neutral placeholder
+ *      instead of a spinner that never resolves.
  */
 export default function HeroCarousel({ ads, onPressAd }) {
   const { width: windowWidth } = useWindowDimensions();
   const isFocused = useIsFocused();
+  const isWeb = Platform.OS === 'web';
 
   const scrollRef = useRef(null);
   // Held in a ref as well as in state: the autoplay timer reads the current
@@ -109,31 +127,47 @@ export default function HeroCarousel({ ads, onPressAd }) {
     };
   }, []);
 
+  /**
+   * Move to a page.
+   *
+   * `animated` is false for the corrective moves (a new banner list, a width
+   * change), where an animated scroll would show the shopper sliding through
+   * banners nobody asked for.
+   */
   const goTo = useCallback(
-    (next) => {
-      indexRef.current = next;
-      setIndex(next);
+    (next, animated = true) => {
+      const count = ads.length;
+      if (!count || width <= 0) return;
+
+      const target = ((Math.round(next) % count) + count) % count;
+      indexRef.current = target;
+      setIndex(target);
+
       if (scrollRef.current) {
-        if (Platform.OS === 'web') {
-          try {
-            const node = scrollRef.current.getScrollableNode && scrollRef.current.getScrollableNode();
-            if (node && typeof document !== 'undefined') {
-              const dir = document.documentElement.dir || document.body.dir || 'rtl';
-              const isRtlWeb = dir === 'rtl';
-              const target = isRtlWeb ? -(next * width) : next * width;
-              if (typeof node.scrollTo === 'function') {
-                node.scrollTo({ left: target, top: 0, behavior: 'smooth' });
-              } else {
-                node.scrollLeft = target;
-              }
-              return;
-            }
-          } catch {}
-        }
-        scrollRef.current.scrollTo({ x: next * width, y: 0, animated: true });
+        scrollRef.current.scrollTo({ x: target * width, y: 0, animated });
       }
     },
-    [width]
+    [ads.length, width]
+  );
+
+  /**
+   * The page the track is actually showing, read from the offset.
+   *
+   * The absolute value normalises the two conventions in play: an LTR web
+   * container reports a positive offset, an RTL native one may report it
+   * mirrored. Either way the magnitude is the distance from the first page.
+   */
+  const syncIndexFromOffset = useCallback(
+    (offsetX) => {
+      if (width <= 0 || !ads.length) return;
+      const raw = Math.abs(offsetX) / width;
+      const next = Math.min(Math.max(Math.round(raw), 0), ads.length - 1);
+      if (next !== indexRef.current) {
+        indexRef.current = next;
+        setIndex(next);
+      }
+    },
+    [ads.length, width]
   );
 
   // Autoplay. Skipped for a single banner, which needs no rotation, and for a
@@ -141,7 +175,7 @@ export default function HeroCarousel({ ads, onPressAd }) {
   useEffect(() => {
     if (!isFocused || dragging || reduceMotion || ads.length < 2) return undefined;
     const timer = setInterval(() => {
-      goTo((indexRef.current + 1) % ads.length);
+      goTo(indexRef.current + 1);
     }, AUTOPLAY_MS);
     return () => clearInterval(timer);
   }, [ads.length, dragging, goTo, isFocused, reduceMotion]);
@@ -151,38 +185,43 @@ export default function HeroCarousel({ ads, onPressAd }) {
   useEffect(() => {
     indexRef.current = 0;
     setIndex(0);
-    if (scrollRef.current) {
-      if (Platform.OS === 'web') {
-        try {
-          const node = scrollRef.current.getScrollableNode && scrollRef.current.getScrollableNode();
-          if (node && typeof document !== 'undefined') {
-            const dir = document.documentElement.dir || document.body.dir || 'rtl';
-            const isRtlWeb = dir === 'rtl';
-            node.scrollLeft = isRtlWeb ? 0 : 0;
-          }
-        } catch {}
-      }
-      scrollRef.current.scrollTo({ x: 0, y: 0, animated: false });
-    }
+    if (scrollRef.current) scrollRef.current.scrollTo({ x: 0, y: 0, animated: false });
   }, [ads.length, width]);
+
+  const handleScroll = useCallback(
+    (event) => {
+      const offset = event && event.nativeEvent && event.nativeEvent.contentOffset;
+      if (offset && typeof offset.x === 'number') syncIndexFromOffset(offset.x);
+    },
+    [syncIndexFromOffset]
+  );
 
   const handleMomentumEnd = useCallback(
     (event) => {
       setDragging(false);
-      if (width <= 0) return;
-      let raw = event.nativeEvent.contentOffset.x / width;
-      if (Platform.OS === 'web') {
-        try {
-          raw = Math.abs(raw);
-        } catch {}
-      }
-      const last = Math.max(ads.length - 1, 0);
-      const next = Math.min(Math.max(Math.round(raw), 0), last);
-      indexRef.current = next;
-      setIndex(next);
+      const offset = event && event.nativeEvent && event.nativeEvent.contentOffset;
+      if (offset && typeof offset.x === 'number') syncIndexFromOffset(offset.x);
     },
-    [ads.length, width]
+    [syncIndexFromOffset]
   );
+
+  /**
+   * The banners to fetch ahead of time.
+   *
+   * The next two are enough: one is the slide the shopper is about to see, the
+   * one after it is what the rotation will reach while this one is still on
+   * screen. Fetching them as ordinary images puts them in the browser's cache,
+   * so the swap is instant instead of a frame of empty box.
+   */
+  const preload = useMemo(() => {
+    if (!ads.length) return [];
+    const out = [];
+    for (let step = 1; step <= 2; step += 1) {
+      const ad = ads[(index + step) % ads.length];
+      if (ad && ad.image) out.push(ad.image);
+    }
+    return out;
+  }, [ads, index]);
 
   function renderSlide(ad, i) {
     const key = `${ad.image}-${i}`;
@@ -233,7 +272,11 @@ export default function HeroCarousel({ ads, onPressAd }) {
           the shadow: on iOS a single view with `overflow: hidden` loses its
           shadow entirely. */}
       <View style={[styles.shadow, { width }]}>
-        <View style={styles.frame}>
+        {/* `direction: 'ltr'` on the web build only. See the note at the top of
+            this file: an RTL scroll container refuses a positive `scrollTo`,
+            which is what stopped the carousel from ever moving. The frame holds
+            the track *and* the dots, so both agree on which direction "next" is. */}
+        <View style={[styles.frame, isWeb && styles.frameLTR]}>
           <ScrollView
             ref={scrollRef}
             horizontal
@@ -242,9 +285,10 @@ export default function HeroCarousel({ ads, onPressAd }) {
             scrollEventThrottle={16}
             onScrollBeginDrag={() => setDragging(true)}
             onScrollEndDrag={() => setDragging(false)}
+            onScroll={handleScroll}
             onMomentumScrollEnd={handleMomentumEnd}
-            style={[{ height }, Platform.OS === 'web' ? { direction: 'ltr' } : null]}
-            contentContainerStyle={Platform.OS === 'web' ? { direction: 'ltr' } : null}
+            style={{ height }}
+            contentContainerStyle={isWeb ? styles.trackLTR : undefined}
           >
             {ads.map(renderSlide)}
           </ScrollView>
@@ -261,6 +305,15 @@ export default function HeroCarousel({ ads, onPressAd }) {
               </View>
             </View>
           ) : null}
+
+          {/*
+            Warm the cache for the next banners. These are real images at 1x1,
+            absolutely positioned and invisible: the browser fetches and decodes
+            them, so the rotation never uncovers an empty frame.
+          */}
+          {preload.map((uri) => (
+            <Image key={`preload-${uri}`} source={{ uri }} style={styles.preload} />
+          ))}
         </View>
       </View>
     </View>
@@ -280,6 +333,14 @@ const styles = StyleSheet.create({
     borderRadius: Radius.xxl,
     overflow: 'hidden',
     backgroundColor: Colors.surfaceContainerLow,
+  },
+  // The web track counts forwards. Applied to the frame so the slides and the
+  // dots share one direction and cannot disagree about which banner is active.
+  frameLTR: {
+    direction: 'ltr',
+  },
+  trackLTR: {
+    direction: 'ltr',
   },
   slide: {
     alignItems: 'center',
@@ -316,5 +377,13 @@ const styles = StyleSheet.create({
   dotActive: {
     width: 16,
     backgroundColor: '#ffffff',
+  },
+  preload: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 1,
+    height: 1,
+    opacity: 0,
   },
 });

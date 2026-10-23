@@ -3,10 +3,11 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -38,6 +39,7 @@ import { Radius } from '../../theme/spacing';
 export default function MyAddressesScreen({ navigation }) {
   const { textStart } = useDirectional();
   const { showDesktopChrome } = useSiteChrome();
+  const { width: windowWidth } = useWindowDimensions();
   useDocumentHead({ title: 'عناويني', path: '/account/addresses', noindex: true });
 
   const { user, isAuthenticated } = useAuth();
@@ -60,6 +62,16 @@ export default function MyAddressesScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
   const [addressBusy, setAddressBusy] = useState(false);
+
+  /*
+   * How many address cards sit in a row.
+   *
+   * The phone gets one. The web gets two, and three once the window is wide
+   * enough to carry them — an address card is tall (recipient, phone, map
+   * preview, actions), so a third column is only comfortable when there is
+   * room for it rather than when the arithmetic says so.
+   */
+  const addressColumns = showDesktopChrome ? (windowWidth >= 1300 ? 3 : 2) : 1;
 
   // Bumped on every request; a response whose id is stale (user switched, a
   // newer request started) is dropped instead of overwriting state.
@@ -208,6 +220,32 @@ export default function MyAddressesScreen({ navigation }) {
     return <LoginScreen navigation={navigation} />;
   }
 
+  /*
+   * The add button.
+   *
+   * It is reachable from every state — including an empty list — because an
+   * empty state that only points at the cart is a dead end for someone who
+   * came here to manage their addresses. On the phone it is a full-width
+   * block under the title; on the web it moves into the page header beside
+   * it, where a button that spans the whole column looks like a form field.
+   */
+  const addButton = (
+    <Pressable
+      activeOpacity={0.85}
+      onPress={handleAddAddressPress}
+      style={({ pressed }) => [
+        styles.addAddressBtn,
+        showDesktopChrome && styles.addAddressBtnCompact,
+        pressed && styles.addAddressBtnPressed,
+      ]}
+      accessibilityRole="button"
+      accessibilityLabel="إضافة عنوان جديد"
+    >
+      <Icon name="add" size={20} color={Colors.onPrimary} />
+      <Text style={[styles.addAddressBtnText, textStart]}>إضافة عنوان جديد</Text>
+    </Pressable>
+  );
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
       <ScrollView
@@ -222,25 +260,29 @@ export default function MyAddressesScreen({ navigation }) {
         }
       >
         <View style={[styles.column, showDesktopChrome && styles.columnWide]}>
-          {showDesktopChrome ? null : (
-            <View style={styles.headerRow}>
-              <Text style={[styles.title, textStart]}>عناويني ({addresses.length})</Text>
+          {showDesktopChrome ? (
+            /*
+             * The web build hides the stack header, so the page carries its own
+             * title — otherwise the grid of addresses arrives with no heading
+             * and the add button floats on its own.
+             */
+            <View style={styles.desktopHeader}>
+              <View style={styles.desktopHeaderText}>
+                <Text style={[styles.title, textStart]}>عناويني</Text>
+                <Text style={[styles.subtitle, textStart]}>
+                  {addresses.length} عنوان محفوظ في حسابك
+                </Text>
+              </View>
+              {addButton}
             </View>
+          ) : (
+            <>
+              <View style={styles.headerRow}>
+                <Text style={[styles.title, textStart]}>عناويني ({addresses.length})</Text>
+              </View>
+              {addButton}
+            </>
           )}
-
-          {/* The add button is always reachable, including when the list is
-              empty — an empty state that only points at the cart is a dead end
-              for someone who came here to manage their addresses. */}
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={handleAddAddressPress}
-            style={({ pressed }) => [styles.addAddressBtn, pressed && styles.addAddressBtnPressed]}
-            accessibilityRole="button"
-            accessibilityLabel="إضافة عنوان جديد"
-          >
-            <Icon name="add" size={20} color={Colors.onPrimary} />
-            <Text style={[styles.addAddressBtnText, textStart]}>إضافة عنوان جديد</Text>
-          </TouchableOpacity>
 
           {loading && !refreshing ? (
             <View style={styles.loadingWrapper}>
@@ -257,11 +299,15 @@ export default function MyAddressesScreen({ navigation }) {
               />
             </View>
           ) : (
-            <View style={[styles.cardGrid, showDesktopChrome && styles.cardGridWide]}>
+            <View style={styles.cardGrid}>
               {addresses.map((addr) => (
                 <View
                   key={addr.name}
-                  style={showDesktopChrome ? styles.cardGridCell : styles.cardGridCellFull}
+                  style={[
+                    styles.cardGridCell,
+                    showDesktopChrome && styles.cardGridCellWide,
+                    { width: `${100 / addressColumns}%` },
+                  ]}
                 >
                   <AddressCard
                     address={addr}
@@ -325,26 +371,38 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyExtraBold,
     color: Colors.onSurface,
   },
-  // `cardGridCellFull` is the plain mobile case: a plain block so the vertical
-  // `gap` on each card still applies. `cardGridCell` is only used on wide
-  // screens, where the row gap takes over.
+  desktopHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    marginBottom: 18,
+  },
+  desktopHeaderText: {
+    flex: 1,
+  },
+  subtitle: {
+    fontSize: Typography.sizes.bodySm,
+    fontFamily: Typography.fontFamilyRegular,
+    color: Colors.textMuted,
+    marginTop: 3,
+  },
+  // The address grid. The phone lays the cards out one per row; the web
+  // divides the row into two or three equal shares, and the gutter comes from
+  // the padding inside each cell so the outer edges stay flush.
   cardGrid: {
     width: '100%',
-  },
-  cardGridWide: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 14,
-  },
-  cardGridCellFull: {
-    width: '100%',
   },
   cardGridCell: {
-    // Just under 50% so two cells plus the row gap always fit without wrapping
-    // a third, at any width in the capped column.
-    flexBasis: '48.5%',
-    flexGrow: 1,
-    maxWidth: '100%',
+    width: '100%',
+  },
+  // The gutter between cards. Only the web grid needs it: the phone shows one
+  // card per row, and insetting it would shrink it for no reason.
+  cardGridCellWide: {
+    paddingHorizontal: 7,
+    paddingBottom: 14,
   },
   addAddressBtn: {
     flexDirection: 'row',
@@ -355,6 +413,13 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     paddingVertical: 14,
     marginBottom: 14,
+  },
+  // Beside the page title on the web: a full-height block button in a header
+  // row reads as a form field, not as an action.
+  addAddressBtnCompact: {
+    paddingVertical: 11,
+    paddingHorizontal: 18,
+    marginBottom: 0,
   },
   addAddressBtnPressed: {
     backgroundColor: Colors.primaryPress,

@@ -19,6 +19,7 @@ import { Radius } from '../../theme/spacing';
 import { formatCurrency, formatDate } from '../../utils/format';
 import useDirectional from '../../hooks/useDirectional';
 import vendorStyles from '../../components/vendor/vendorStyles';
+import PageFooter from '../../components/layout/PageFooter';
 import { vendorOrderStatus, VENDOR_SETTABLE_STATUSES } from '../../components/vendor/vendorStatus';
 
 /**
@@ -288,6 +289,11 @@ export default function VendorOrderDetailScreen({ route, navigation }) {
             )}
           </View>
         </View>
+
+        {/* Desktop-only site footer; it rides inside the scroll content because
+            the app shell has no document-level flow for it to sit at the end
+            of. */}
+        <PageFooter />
       </ScrollView>
       {confirmDialog}
     </SafeAreaView>

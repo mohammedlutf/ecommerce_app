@@ -13,6 +13,21 @@ import { Radius, Shadows, Spacing } from '../../theme/spacing';
 export default StyleSheet.create({
   flex: { flex: 1 },
   root: { flex: 1, backgroundColor: Colors.background },
+  /*
+   * The picker's frame inside a web dialog.
+   *
+   * `minHeight: 0` is load-bearing: inside a `maxHeight`-capped card, a flex
+   * child defaults to `min-height: auto`, which refuses to shrink below its
+   * content and pushes the list out of the card instead of scrolling it. Zero
+   * lets the ScrollView take the remaining space and scroll.
+   */
+  pickerSheet: { flex: 1, minHeight: 0, backgroundColor: Colors.surface },
+  /*
+   * The editor's frame inside a web dialog: fills the card and, crucially,
+   * may shrink below its content so the form scrolls inside the card rather
+   * than overflowing it.
+   */
+  dialogFill: { flex: 1, minHeight: 0 },
 
   header: {
     flexDirection: 'row',

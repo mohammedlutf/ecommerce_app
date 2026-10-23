@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
+  Platform,
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
@@ -13,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from '../../components/Icon';
+import DialogSheet from '../../components/layout/DialogSheet';
 import EmptyState from '../../components/EmptyState';
 import useConfirm from '../../components/ConfirmDialog';
 import { useToast } from '../../context/ToastContext';
@@ -25,6 +27,7 @@ import { normaliseDecimalInput, parseDecimal } from '../../utils/numbers';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
 import useDirectional from '../../hooks/useDirectional';
 import vendorStyles from '../../components/vendor/vendorStyles';
+import PageFooter from '../../components/layout/PageFooter';
 
 const PAGE_SIZE = 20;
 
@@ -395,6 +398,11 @@ export default function MarketplaceShopsScreen() {
             </>
           )}
         </View>
+
+        {/* Desktop-only site footer; it rides inside the scroll content because
+            the app shell has no document-level flow for it to sit at the end
+            of. */}
+        <PageFooter />
       </ScrollView>
 
       <ShopDetailModal
@@ -502,9 +510,18 @@ function ShopDetailModal({ visible, shopName, onClose, onSaved }) {
   }
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={vendorStyles.safeArea} edges={['top', 'bottom']}>
-        <View style={styles.detailHeader}>
+    <Modal
+      visible={visible}
+      animationType={Platform.OS === 'web' ? 'fade' : 'slide'}
+      transparent={Platform.OS === 'web'}
+      onRequestClose={onClose}
+    >
+      <DialogSheet maxWidth={720} onPressBackdrop={onClose}>
+        <SafeAreaView
+          style={[vendorStyles.safeArea, vendorStyles.dialogFill]}
+          edges={['top', 'bottom']}
+        >
+          <View style={styles.detailHeader}>
           <View style={vendorStyles.flex1}>
             <Text style={[styles.detailTitle, textStart]}>بيانات المتجر</Text>
             <Text style={[vendorStyles.muted, textStart]} numberOfLines={1}>
@@ -637,7 +654,8 @@ function ShopDetailModal({ visible, shopName, onClose, onSaved }) {
             ) : null}
           </View>
         </ScrollView>
-      </SafeAreaView>
+        </SafeAreaView>
+      </DialogSheet>
     </Modal>
   );
 }

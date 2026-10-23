@@ -21,6 +21,7 @@ import { Radius, Spacing } from '../../theme/spacing';
 import { formatCurrency, formatDate } from '../../utils/format';
 import useDirectional from '../../hooks/useDirectional';
 import vendorStyles from '../../components/vendor/vendorStyles';
+import PageFooter from '../../components/layout/PageFooter';
 import { payoutStatus } from '../../components/vendor/vendorStatus';
 
 const PAGE_SIZE = 12;
@@ -200,6 +201,11 @@ export default function VendorPayoutsScreen() {
             </>
           )}
         </View>
+
+        {/* Desktop-only site footer; it rides inside the scroll content because
+            the app shell has no document-level flow for it to sit at the end
+            of. */}
+        <PageFooter />
       </ScrollView>
 
       <Modal

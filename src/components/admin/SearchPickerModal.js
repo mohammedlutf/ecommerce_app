@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, Pressable, Modal, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from '../Icon';
+import DialogSheet from '../layout/DialogSheet';
 import styles from './editorStyles';
 import { Colors } from '../../theme/colors';
 import useDirectional from '../../hooks/useDirectional';
@@ -52,9 +53,9 @@ export default function SearchPickerModal({
   const total = options.length;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.root}>
-        <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+      <DialogSheet maxWidth={520} onPressBackdrop={onClose}>
+        <SafeAreaView style={styles.pickerSheet} edges={['top', 'bottom']}>
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.headerTitle, textStart]}>{title}</Text>
@@ -139,7 +140,7 @@ export default function SearchPickerModal({
             )}
           </ScrollView>
         </SafeAreaView>
-      </View>
+      </DialogSheet>
     </Modal>
   );
 }

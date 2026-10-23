@@ -22,6 +22,7 @@ import { Radius, Shadows } from '../../theme/spacing';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
 import useDirectional from '../../hooks/useDirectional';
 import vendorStyles from '../../components/vendor/vendorStyles';
+import PageFooter from '../../components/layout/PageFooter';
 
 const PAGE_SIZE = 20;
 
@@ -239,6 +240,11 @@ export default function VendorProductsScreen({ navigation }) {
             </>
           )}
         </View>
+
+        {/* Desktop-only site footer; it rides inside the scroll content because
+            the app shell has no document-level flow for it to sit at the end
+            of. */}
+        <PageFooter />
       </ScrollView>
     </SafeAreaView>
   );

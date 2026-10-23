@@ -335,34 +335,43 @@ function MegaPanel({ groups, onStayOpen, onLeave, onPick }) {
 
   return (
     <View style={[styles.mega, anchor]} onMouseEnter={onStayOpen} onMouseLeave={onLeave}>
-      <View style={{ maxHeight: '70vh' }}>
-        <View style={{ overflow: 'auto' }}>
-          <View style={styles.megaGrid}>
-            {groups.slice(0, 16).map((group) => (
-              <View key={group.name} style={styles.megaColumn}>
-                <Pressable onPress={() => onPick(group.name)} style={styles.megaParent}>
-                  <Text style={[styles.megaParentText, textStart]}>{group.name}</Text>
-                  <Icon name="chevron-forward" size={13} color={Colors.primary} style={styles.megaChevron} />
+      {/*
+        The panel is capped to the viewport and the grid inside it scrolls.
+
+        A supermarket can have hundreds of leaf groups; an uncapped panel simply
+        ran off the bottom of the screen with no way to reach the rest of the
+        catalogue. `maxHeight` is relative to the viewport so the panel always
+        fits, and the "all categories" button stays pinned underneath it — it is
+        the way out of the menu and must never be the thing that scrolls away.
+      */}
+      <View style={styles.megaScroll} className="scrollbar-thin">
+        <View style={styles.megaGrid}>
+          {groups.map((group) => (
+            <View key={group.name} style={styles.megaColumn}>
+              <Pressable onPress={() => onPick(group.name)} className="hover-tint" style={styles.megaParent}>
+                <Text style={[styles.megaParentText, textStart]} numberOfLines={1}>
+                  {group.name}
+                </Text>
+                <Icon name="chevron-forward" size={13} color={Colors.primary} style={styles.megaChevron} />
+              </Pressable>
+              {(group.children || []).map((child) => (
+                <Pressable
+                  key={child.name}
+                  onPress={() => onPick(child.name)}
+                  className="hover-tint"
+                  style={styles.megaChild}
+                >
+                  <Text style={[styles.megaChildText, textStart]} numberOfLines={1}>
+                    {child.name}
+                  </Text>
                 </Pressable>
-                {(group.children || []).slice(0, 12).map((child) => (
-                  <Pressable
-                    key={child.name}
-                    onPress={() => onPick(child.name)}
-                    className="hover-tint"
-                    style={styles.megaChild}
-                  >
-                    <Text style={[styles.megaChildText, textStart]} numberOfLines={1}>
-                      {child.name}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            ))}
-          </View>
+              ))}
+            </View>
+          ))}
         </View>
       </View>
 
-      <Pressable onPress={() => onPick(null)} style={styles.megaAll}>
+      <Pressable onPress={() => onPick(null)} className="hover-tint" style={styles.megaAll}>
         <Text style={[styles.megaAllText, textStart]}>{t('nav.allCategories')}</Text>
         <Icon name="arrow-forward" size={14} color={Colors.onPrimary} />
       </Pressable>
@@ -629,7 +638,6 @@ const styles = StyleSheet.create({
     top: '100%',
     width: 760,
     maxWidth: '86vw',
-    maxHeight: '70vh',
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
@@ -637,6 +645,14 @@ const styles = StyleSheet.create({
     padding: 18,
     zIndex: 40,
     ...Shadows.lg,
+  },
+  // The scrolling body of the panel. Capped against the viewport so the panel
+  // can never be taller than the window, and the grid inside it scrolls when
+  // the catalogue is long enough to overflow.
+  megaScroll: {
+    maxHeight: '70vh',
+    overflowY: 'auto',
+    overflowX: 'hidden',
   },
   // No `marginTop` gap here on purpose. A gap between the trigger and the panel
   // is a dead zone: the pointer crosses it, `onMouseLeave` on the trigger fires
@@ -655,7 +671,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 18,
-    overflow: 'auto',
   },
   megaColumn: {
     width: 168,

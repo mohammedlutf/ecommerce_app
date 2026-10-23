@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
+  Platform,
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
@@ -13,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from '../../components/Icon';
+import DialogSheet from '../../components/layout/DialogSheet';
 import EmptyState from '../../components/EmptyState';
 import useConfirm from '../../components/ConfirmDialog';
 import { useToast } from '../../context/ToastContext';
@@ -24,6 +26,7 @@ import { Radius } from '../../theme/spacing';
 import { formatCurrency, formatDate } from '../../utils/format';
 import useDirectional from '../../hooks/useDirectional';
 import vendorStyles from '../../components/vendor/vendorStyles';
+import PageFooter from '../../components/layout/PageFooter';
 import { payoutStatus } from '../../components/vendor/vendorStatus';
 
 const PAGE_SIZE = 12;
@@ -253,6 +256,11 @@ export default function MarketplacePayoutsScreen() {
             </>
           )}
         </View>
+
+        {/* Desktop-only site footer; it rides inside the scroll content because
+            the app shell has no document-level flow for it to sit at the end
+            of. */}
+        <PageFooter />
       </ScrollView>
 
       <AdminPayoutDetailModal
@@ -365,19 +373,28 @@ function AdminPayoutDetailModal({ visible, payoutName, onClose, onChanged }) {
   const docstatus = payout?.docstatus;
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={vendorStyles.safeArea} edges={['top', 'bottom']}>
-        <View style={styles.detailHeader}>
-          <View style={vendorStyles.flex1}>
-            <Text style={[styles.detailTitle, textStart]}>كشف المستحقات</Text>
-            <Text style={[vendorStyles.muted, textStart]} numberOfLines={1}>
-              {payout?.shop_name || payoutName}
-            </Text>
+    <Modal
+      visible={visible}
+      animationType={Platform.OS === 'web' ? 'fade' : 'slide'}
+      transparent={Platform.OS === 'web'}
+      onRequestClose={onClose}
+    >
+      <DialogSheet maxWidth={720} onPressBackdrop={onClose}>
+        <SafeAreaView
+          style={[vendorStyles.safeArea, vendorStyles.dialogFill]}
+          edges={['top', 'bottom']}
+        >
+          <View style={styles.detailHeader}>
+            <View style={vendorStyles.flex1}>
+              <Text style={[styles.detailTitle, textStart]}>كشف المستحقات</Text>
+              <Text style={[vendorStyles.muted, textStart]} numberOfLines={1}>
+                {payout?.shop_name || payoutName}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
+              <Icon name="close" size={20} color={Colors.onSurface} />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
-            <Icon name="close" size={20} color={Colors.onSurface} />
-          </TouchableOpacity>
-        </View>
 
         <ScrollView contentContainerStyle={vendorStyles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={vendorStyles.column}>
@@ -554,7 +571,9 @@ function AdminPayoutDetailModal({ visible, payoutName, onClose, onChanged }) {
           </View>
         </ScrollView>
       </SafeAreaView>
+      </DialogSheet> 
     </Modal>
+
   );
 }
 
@@ -659,16 +678,25 @@ function AdminCreatePayoutModal({ visible, onClose, onCreated }) {
   }
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={vendorStyles.safeArea} edges={['top', 'bottom']}>
-        <View style={styles.detailHeader}>
-          <View style={vendorStyles.flex1}>
-            <Text style={[styles.detailTitle, textStart]}>إنشاء كشف مستحقات</Text>
+    <Modal
+      visible={visible}
+      animationType={Platform.OS === 'web' ? 'fade' : 'slide'}
+      transparent={Platform.OS === 'web'}
+      onRequestClose={onClose}
+    >
+      <DialogSheet maxWidth={560} onPressBackdrop={onClose}>
+        <SafeAreaView
+          style={[vendorStyles.safeArea, vendorStyles.dialogFill]}
+          edges={['top', 'bottom']}
+        >
+          <View style={styles.detailHeader}>
+            <View style={vendorStyles.flex1}>
+              <Text style={[styles.detailTitle, textStart]}>إنشاء كشف مستحقات</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
+              <Icon name="close" size={20} color={Colors.onSurface} />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.8}>
-            <Icon name="close" size={20} color={Colors.onSurface} />
-          </TouchableOpacity>
-        </View>
 
         <ScrollView contentContainerStyle={vendorStyles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={vendorStyles.column}>
@@ -840,7 +868,8 @@ function AdminCreatePayoutModal({ visible, onClose, onCreated }) {
             ) : null}
           </View>
         </ScrollView>
-      </SafeAreaView>
+        </SafeAreaView>
+      </DialogSheet>
     </Modal>
   );
 }

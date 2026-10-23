@@ -51,6 +51,29 @@ const CSS = `
 *::-webkit-scrollbar-thumb { background: #C3CDD6; border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
 *::-webkit-scrollbar-thumb:hover { background: #9AA6B2; background-clip: content-box; }
 
+/* An explicitly slim scrollbar for the places that own a scroll area of their
+   own — the category mega menu, the marketplace sidebar. Same track as the
+   global rule but narrower and without the hover block, so the control reads as
+   part of the panel rather than as the page's scrollbar. */
+.scrollbar-thin { scrollbar-width: thin; scrollbar-color: #C3CDD6 transparent; }
+.scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #CBD5DE; border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+.scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #AEBAC6; background-clip: content-box; }
+
+/* Modals: a blurred, dimmed backdrop.  is what makes the
+   page behind read as *behind* the dialog instead of merely dark. */
+.modal-backdrop {
+  background-color: rgba(11, 18, 32, 0.55);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+/* Web-native page shell: the column that holds the header, the content and the
+   footer, so the footer can be pushed to the bottom of a short page. */
+.page-shell { min-height: 100%; display: flex; flex-direction: column; }
+.page-shell > .page-body { flex: 1 1 auto; }
+
 /* Touch devices draw the vertical scrollbar on the inline-start edge (the left
    in an RTL app) and it bleeds over content on phones. Native ScrollViews turn
    their indicator off via showsVerticalScrollIndicator, so the web build

@@ -45,7 +45,16 @@ import { useI18n } from '../i18n/I18nContext';
  * }}
  */
 export default function useDirectional() {
-  const { isRTL, dir } = useI18n();
+  let isRTL = false;
+  let dir = 'ltr';
+  try {
+    const i18n = useI18n();
+    isRTL = i18n?.isRTL || false;
+    dir = i18n?.dir || (isRTL ? 'rtl' : 'ltr');
+  } catch {
+    isRTL = false;
+    dir = 'ltr';
+  }
 
   /**
    * The direction text *aligns* to, which on native is deliberately not the

@@ -148,6 +148,7 @@ function AddressFormModal({
     >
       <SafeAreaView
         style={[styles.root, showDesktopChrome && styles.rootWeb]}
+        className={showDesktopChrome ? 'modal-backdrop' : undefined}
         edges={['top', 'bottom']}
         onLayout={onLayout}
       >

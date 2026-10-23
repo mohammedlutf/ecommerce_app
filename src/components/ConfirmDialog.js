@@ -53,7 +53,7 @@ function ConfirmDialog({ options, onClose }) {
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
+      <View style={styles.backdrop} className="modal-backdrop">
         {/*
           Clicking the backdrop cancels, the way a web dialog is expected to.
           The card below swallows presses so that releasing a drag just outside

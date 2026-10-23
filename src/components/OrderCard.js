@@ -20,7 +20,14 @@ const STATUS_MAP = {
   Delivered: { bg: Colors.successContainer, text: Colors.success, label: 'تم التسليم', icon: 'checkmark-circle' },
 };
 
-function statusFor(status) {
+/**
+ * The badge colours and the Arabic label for an order status.
+ *
+ * Exported because the desktop order table draws the same badge in a table
+ * cell, and two copies of this map would drift apart the first time a status
+ * was added.
+ */
+export function statusFor(status) {
   return (
     STATUS_MAP[status] || {
       bg: Colors.primaryContainer,

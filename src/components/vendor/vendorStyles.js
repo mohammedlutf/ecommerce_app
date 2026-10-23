@@ -22,6 +22,18 @@ export const vendorStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  /*
+   * The body of a detail dialog on the web.
+   *
+   * The card it sits in is capped by `maxHeight`, so this frame has to be
+   * allowed to shrink below its content — otherwise the form inside pushes
+   * the card past the cap and the dialog runs off the bottom of the window
+   * instead of scrolling.
+   */
+  dialogFill: {
+    flex: 1,
+    minHeight: 0,
+  },
   scrollContent: {
     padding: Spacing.lg,
     paddingBottom: 40,

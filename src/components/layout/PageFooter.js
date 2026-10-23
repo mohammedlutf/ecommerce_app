@@ -4,7 +4,6 @@ import Icon from '../Icon';
 import Container from './Container';
 import CatalogAPI from '../../api/catalog';
 import { useSiteChrome } from '../../hooks/useResponsive';
-import { useI18n } from '../../i18n/I18nContext';
 import { useToast } from '../../context/ToastContext';
 import { navigationRef } from '../../navigation/navigationRef';
 import { openProducts } from '../../seo/linking';
@@ -40,8 +39,43 @@ const SOCIALS = [
  */
 export default function PageFooter() {
   const { textStart } = useDirectional();
-  const { t } = useI18n();
   const { showDesktopChrome } = useSiteChrome();
+  const t = (k) => {
+    const map = {
+      'footer.aboutTitle': 'عن المتجر',
+      'footer.aboutText': 'متجرك الإلكتروني الموثوق للتسوق السريع والآمن.',
+      'footer.subscribeTitle': 'اشترك في النشرة الإخبارية',
+      'footer.subscribeText': 'احصل على أحدث العروض والمنتجات مباشرة إلى بريدك الإلكتروني',
+      'footer.subscribePlaceholder': 'البريد الإلكتروني',
+      'footer.subscribeCta': 'اشتراك',
+      'footer.shopTitle': 'التسوق',
+      'nav.products': 'المنتجات',
+      'nav.categories': 'الأقسام',
+      'nav.offers': 'العروض',
+      'nav.wishlist': 'المفضلة',
+      'nav.cart': 'السلة',
+      'footer.helpTitle': 'المساعدة',
+      'account.orders': 'طلباتي',
+      'nav.trackOrder': 'تتبع الطلب',
+      'footer.shipping': 'الشحن والتوصيل',
+      'footer.returns': 'الإرجاع والاستبدال',
+      'footer.faq': 'الأسئلة الشائعة',
+      'footer.categoriesTitle': 'الأقسام',
+      'footer.contactTitle': 'تواصل معنا',
+      'footer.deliveryNote': 'التوصيل داخل الرياض وجميع المدن',
+      'footer.workingHoursValue': 'السبت - الخميس: 9 ص - 6 م',
+      'footer.fridayHours': 'الجمعة: مغلق',
+      'home.securePayment': 'دفع آمن',
+      'home.easyReturns': 'إرجاع سهل',
+      'footer.rightsReserved': 'جميع الحقوق محفوظة',
+      'footer.privacy': 'سياسة الخصوصية',
+      'footer.terms': 'شروط الاستخدام',
+      'app.name': 'متجر',
+      'errors.somethingWrong': 'حدث خطأ ما',
+      'footer.subscribed': 'تم الاشتراك بنجاح',
+    };
+    return map[k] || k;
+  };
   const toast = useToast();
   const [groups, setGroups] = useState(null);
   const [email, setEmail] = useState('');

@@ -22,6 +22,8 @@ import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
 import { formatCurrency, formatDate } from '../../utils/format';
 import useDirectional from '../../hooks/useDirectional';
+import { useSiteChrome } from '../../hooks/useResponsive';
+import DashboardShell from '../../components/layout/DashboardShell';
 import vendorStyles from '../../components/vendor/vendorStyles';
 
 const STATUS_LABEL = {
@@ -47,6 +49,16 @@ const TABS = [
   { route: 'VendorShop', label: 'إعدادات المتجر', icon: 'settings-outline' },
 ];
 
+/*
+ * The navigation rail of the desktop dashboard.
+ *
+ * The same four destinations as the phone's quick links, plus an overview
+ * entry for the page the rail is drawn on. On the web this list becomes a
+ * permanent sidebar, so a vendor moving between orders and products does not
+ * have to come back here first.
+ */
+const RAIL = [{ route: 'VendorHome', label: 'نظرة عامة', icon: 'grid-outline' }, ...TABS];
+
 /**
  * VendorHomeScreen — the vendor's landing page.
  *
@@ -58,6 +70,7 @@ const TABS = [
  */
 export default function VendorHomeScreen({ navigation }) {
   const { textStart } = useDirectional();
+  const { showDesktopChrome } = useSiteChrome();
   const toast = useToast();
   const { confirm, confirmDialog } = useConfirm();
   const { isAuthenticated } = useAuth();
@@ -309,124 +322,127 @@ export default function VendorHomeScreen({ navigation }) {
   ];
 
   return (
-    <SafeAreaView style={vendorStyles.safeArea} edges={['left', 'right']}>
-      <ScrollView
-        contentContainerStyle={[vendorStyles.scrollContent, { maxWidth: 1080, alignSelf: 'center', width: '100%' }]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[Colors.primary]} />
-        }
-      >
-        <View style={[vendorStyles.column, { width: '100%' }]}>
-          {/* Shop header */}
-          <View style={styles.shopHeader}>
-            <View style={styles.shopLogo}>
-              {shop?.logo ? (
-                <Icon name="storefront" size={26} color={Colors.onPrimary} />
-              ) : (
-                <Icon name="storefront-outline" size={26} color={Colors.onPrimary} />
-              )}
-            </View>
-            <View style={vendorStyles.flex1}>
-              <Text style={[vendorStyles.pageTitle, textStart]}>{shop?.shop_name || 'متجرك'}</Text>
-              <View style={[vendorStyles.row, { gap: 6, marginTop: 4 }]}>
-                <Icon name="checkmark-circle" size={14} color={Colors.success} />
-                <Text style={[vendorStyles.muted, textStart]}>متجر معتمد</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Quick links */}
-          <View style={styles.quickGrid}>
-            {TABS.map((tab) => (
-              <TouchableOpacity
-                key={tab.route}
-                activeOpacity={0.85}
-                onPress={() => navigation.navigate(tab.route)}
-                style={styles.quickCell}
-              >
-                <View style={styles.quickIcon}>
-                  <Icon name={tab.icon} size={22} color={Colors.primary} />
-                </View>
-                <Text style={[styles.quickLabel, textStart]}>{tab.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Stats */}
-          <Text style={[vendorStyles.sectionTitle, textStart, { marginBottom: 12 }]}>
-            آخر {dashboard?.period_days || 30} يوماً
-          </Text>
-          {loading && !dashboard ? (
-            <View style={vendorStyles.centre}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-            </View>
+    <DashboardShell
+      navItems={RAIL}
+      activeRoute="VendorHome"
+      onNavigate={(route) => navigation.navigate(route)}
+      brand={shop?.shop_name || 'متجري'}
+      brandSub="لوحة البائع"
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[Colors.primary]} />
+      }
+      contentStyle={vendorStyles.scrollContent}
+    >
+      {/* Shop header */}
+      <View style={styles.shopHeader}>
+        <View style={styles.shopLogo}>
+          {shop?.logo ? (
+            <Icon name="storefront" size={26} color={Colors.onPrimary} />
           ) : (
-            <View style={styles.statGrid}>
-              {stats.map((stat) => (
-                <View key={stat.label} style={styles.statCard}>
-                  <View style={[styles.statIcon, { backgroundColor: stat.tone + '1A' }]}>
-                    <Icon name={stat.icon} size={18} color={stat.tone} />
-                  </View>
-                  <Text style={[styles.statValue, textStart]}>{stat.value}</Text>
-                  <Text style={[styles.statLabel, textStart]}>{stat.label}</Text>
-                </View>
-              ))}
-            </View>
+            <Icon name="storefront-outline" size={26} color={Colors.onPrimary} />
           )}
-
-          {/* Top products */}
-          {dashboard?.top_products?.length ? (
-            <View style={[vendorStyles.card, { marginTop: 16 }]}>
-              <Text style={[vendorStyles.cardTitle, textStart]}>الأكثر مبيعاً</Text>
-              {dashboard.top_products.map((row, idx) => (
-                <View key={`${row.item_name}-${idx}`} style={styles.topRow}>
-                  <Text style={[vendorStyles.value, textStart, vendorStyles.flex1]} numberOfLines={1}>
-                    {row.item_name}
-                  </Text>
-                  <Text style={[vendorStyles.muted, textStart]}>
-                    {row.qty} × {formatCurrency(row.amount)}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
-
-          {/* Recent orders */}
-          <View style={vendorStyles.card}>
-            <View style={vendorStyles.rowBetween}>
-              <Text style={[vendorStyles.cardTitle, textStart, { marginBottom: 0 }]}>أحدث الطلبات</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('VendorOrders')}>
-                <Text style={styles.link}>عرض الكل</Text>
-              </TouchableOpacity>
-            </View>
-
-            {dashboard?.recent_orders?.length ? (
-              dashboard.recent_orders.map((order) => (
-                <TouchableOpacity
-                  key={order.name}
-                  activeOpacity={0.8}
-                  onPress={() => navigation.navigate('VendorOrderDetail', { orderName: order.name })}
-                  style={styles.recentRow}
-                >
-                  <View style={vendorStyles.flex1}>
-                    <Text style={[vendorStyles.value, textStart]}>#{order.name}</Text>
-                    <Text style={[vendorStyles.muted, textStart]}>{formatDate(order.transaction_date)}</Text>
-                  </View>
-                  <Text style={[styles.recentTotal, textStart]}>
-                    {formatCurrency(order.grand_total, order.currency)}
-                  </Text>
-                </TouchableOpacity>
-              ))
-            ) : (
-              <Text style={[vendorStyles.muted, textStart, { marginTop: 8 }]}>
-                لا توجد طلبات بعد. ستظهر طلباتك هنا بمجرد وصولها.
-              </Text>
-            )}
+        </View>
+        <View style={vendorStyles.flex1}>
+          <Text style={[vendorStyles.pageTitle, textStart]}>{shop?.shop_name || 'متجرك'}</Text>
+          <View style={[vendorStyles.row, { gap: 6, marginTop: 4 }]}>
+            <Icon name="checkmark-circle" size={14} color={Colors.success} />
+            <Text style={[vendorStyles.muted, textStart]}>متجر معتمد</Text>
           </View>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+      </View>
+
+      {/* Quick links. On the web the sidebar is the navigation, so the grid
+          would be the same four destinations twice. */}
+      {showDesktopChrome ? null : (
+        <View style={styles.quickGrid}>
+          {TABS.map((tab) => (
+            <TouchableOpacity
+              key={tab.route}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate(tab.route)}
+              style={styles.quickCell}
+            >
+              <View style={styles.quickIcon}>
+                <Icon name={tab.icon} size={22} color={Colors.primary} />
+              </View>
+              <Text style={[styles.quickLabel, textStart]}>{tab.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* Stats */}
+      <Text style={[vendorStyles.sectionTitle, textStart, { marginBottom: 12 }]}>
+        آخر {dashboard?.period_days || 30} يوماً
+      </Text>
+      {loading && !dashboard ? (
+        <View style={vendorStyles.centre}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : (
+        <View style={styles.statGrid}>
+          {stats.map((stat) => (
+            <View key={stat.label} style={styles.statCard}>
+              <View style={[styles.statIcon, { backgroundColor: stat.tone + '1A' }]}>
+                <Icon name={stat.icon} size={18} color={stat.tone} />
+              </View>
+              <Text style={[styles.statValue, textStart]}>{stat.value}</Text>
+              <Text style={[styles.statLabel, textStart]}>{stat.label}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Top products */}
+      {dashboard?.top_products?.length ? (
+        <View style={[vendorStyles.card, { marginTop: 16 }]}>
+          <Text style={[vendorStyles.cardTitle, textStart]}>الأكثر مبيعاً</Text>
+          {dashboard.top_products.map((row, idx) => (
+            <View key={`${row.item_name}-${idx}`} style={styles.topRow}>
+              <Text style={[vendorStyles.value, textStart, vendorStyles.flex1]} numberOfLines={1}>
+                {row.item_name}
+              </Text>
+              <Text style={[vendorStyles.muted, textStart]}>
+                {row.qty} × {formatCurrency(row.amount)}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {/* Recent orders */}
+      <View style={vendorStyles.card}>
+        <View style={vendorStyles.rowBetween}>
+          <Text style={[vendorStyles.cardTitle, textStart, { marginBottom: 0 }]}>أحدث الطلبات</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('VendorOrders')}>
+            <Text style={styles.link}>عرض الكل</Text>
+          </TouchableOpacity>
+        </View>
+
+        {dashboard?.recent_orders?.length ? (
+          dashboard.recent_orders.map((order) => (
+            <TouchableOpacity
+              key={order.name}
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate('VendorOrderDetail', { orderName: order.name })}
+              style={styles.recentRow}
+            >
+              <View style={vendorStyles.flex1}>
+                <Text style={[vendorStyles.value, textStart]}>#{order.name}</Text>
+                <Text style={[vendorStyles.muted, textStart]}>{formatDate(order.transaction_date)}</Text>
+              </View>
+              <Text style={[styles.recentTotal, textStart]}>
+                {formatCurrency(order.grand_total, order.currency)}
+              </Text>
+            </TouchableOpacity>
+          ))
+        ) : (
+          <Text style={[vendorStyles.muted, textStart, { marginTop: 8 }]}>
+            لا توجد طلبات بعد. ستظهر طلباتك هنا بمجرد وصولها.
+          </Text>
+        )}
+      </View>
+    </DashboardShell>
   );
 }
 
