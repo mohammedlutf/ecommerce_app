@@ -92,7 +92,10 @@ export default function CategoryCard({
     );
   }
 
-  // Image tile — square thumbnail with label (used on the Home screen).
+  // Image tile — square thumbnail with label (used on the Home screen), or a
+  // full-width feature card when the desktop homepage lays the same tiles out in
+  // a grid.
+  const isGrid = variant === 'grid';
   const imageSrc =
     typeof category === 'object' && category
       ? category.image || category.website_image || category.icon || null
@@ -103,11 +106,12 @@ export default function CategoryCard({
     <TouchableOpacity
       activeOpacity={0.72}
       onPress={() => onSelect && onSelect(name)}
-      style={styles.tile}
+      className={isGrid ? 'hover-lift' : undefined}
+      style={[styles.tile, isGrid && styles.gridTile]}
     >
       <View
         style={[
-          styles.imageWrap,
+          isGrid ? styles.gridImageWrap : styles.imageWrap,
           isSelected && styles.imageWrapSelected,
           { backgroundColor: style.colors[0] },
         ]}
@@ -118,7 +122,7 @@ export default function CategoryCard({
             style={styles.image}
             resizeMode="cover"
             fallbackIcon="pricetags-outline"
-            fallbackIconSize={26}
+            fallbackIconSize={isGrid ? 36 : 26}
           />
         ) : (
           <LinearGradient
@@ -128,9 +132,17 @@ export default function CategoryCard({
             style={styles.image}
           >
             {style.icon ? (
-              <Icon name={style.icon} size={26} color={Colors.primaryDark} />
+              <Icon
+                name={style.icon}
+                size={isGrid ? 36 : 26}
+                color={Colors.primaryDark}
+              />
             ) : (
-              <Text style={[styles.monogram, textStart]}>{style.monogram}</Text>
+              <Text
+                style={[styles.monogram, isGrid && styles.gridMonogram, textStart]}
+              >
+                {style.monogram}
+              </Text>
             )}
           </LinearGradient>
         )}
@@ -142,12 +154,28 @@ export default function CategoryCard({
         )}
       </View>
 
-      <Text style={[styles.name, isSelected && styles.nameSelected]} numberOfLines={1}>
+      <Text
+        style={[
+          styles.name,
+          isGrid && styles.gridName,
+          isSelected && styles.nameSelected,
+        ]}
+        numberOfLines={1}
+      >
         {name}
       </Text>
-      {count !== null && count !== undefined && (
-        <Text style={[styles.count, textStart]}>{count}</Text>
-      )}
+      {count !== null && count !== undefined ? (
+        <Text
+          style={[styles.count, isGrid && styles.gridCount, textStart]}
+          numberOfLines={1}
+        >
+          {count}
+        </Text>
+      ) : isGrid ? (
+        // Keep every desktop card the same height when a department arrives
+        // without a product count.
+        <View style={styles.gridCountSpacer} />
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -157,6 +185,17 @@ const styles = StyleSheet.create({
   tile: {
     alignItems: 'center',
     gap: 7,
+  },
+  gridTile: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    ...Shadows.xs,
   },
   imageWrap: {
     width: 92,
@@ -168,6 +207,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.borderSubtle,
     ...Shadows.xs,
+  },
+  gridImageWrap: {
+    width: '100%',
+    aspectRatio: 1.3,
+    borderRadius: Radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
   },
   imageWrapSelected: {
     borderWidth: 2.5,
@@ -184,6 +233,9 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.headlineSm,
     fontFamily: Typography.fontFamilyExtraBold,
     color: Colors.primaryDark,
+  },
+  gridMonogram: {
+    fontSize: Typography.sizes.displayLg,
   },
   checkBadge: {
     position: 'absolute',
@@ -204,6 +256,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 92,
   },
+  gridName: {
+    width: '100%',
+    maxWidth: '100%',
+    marginTop: 2,
+    fontSize: Typography.sizes.titleSm,
+    fontFamily: Typography.fontFamilyBold,
+    color: Colors.onSurface,
+  },
   nameSelected: {
     color: Colors.primary,
     fontFamily: Typography.fontFamilyBold,
@@ -213,6 +273,12 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontFamily: Typography.fontFamilyMedium,
     marginTop: -3,
+  },
+  gridCount: {
+    marginTop: 0,
+  },
+  gridCountSpacer: {
+    height: 14,
   },
 
   // Chip variant — child sub-category micro-pills (height ~30dp, compact, non-bulky)

@@ -6,10 +6,10 @@ import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
 import { Radius, Shadows } from '../theme/spacing';
 
-export default function TrustBadge({ icon = 'rocket-outline', title, subtitle }) {
+export default function TrustBadge({ icon = 'rocket-outline', title, subtitle, style }) {
   const { textStart, rowFixed } = useDirectional();
   return (
-    <View style={[styles.container, rowFixed]}>
+    <View style={[styles.container, rowFixed, style]}>
       <View style={styles.iconCircle}>
         <Icon name={icon} size={22} color={Colors.primary} />
       </View>

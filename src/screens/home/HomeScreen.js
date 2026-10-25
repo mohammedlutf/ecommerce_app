@@ -8,7 +8,6 @@ import {
   RefreshControl,
   Image,
   Linking,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -38,7 +37,7 @@ import {
 import useDocumentHead from '../../seo/useDocumentHead';
 import { organizationNode, websiteNode } from '../../seo/jsonld';
 import { useI18n } from '../../i18n/I18nContext';
-import { useSiteChrome } from '../../hooks/useResponsive';
+import useResponsive, { useSiteChrome } from '../../hooks/useResponsive';
 import useDirectional from '../../hooks/useDirectional';
 import PageFooter from '../../components/layout/PageFooter';
 import { normalizeGroupName } from '../../utils/catalog';
@@ -46,6 +45,7 @@ import { formatCount } from '../../utils/format';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
+import { Breakpoints } from '../../theme/responsive';
 
 const OFFERS_PARENT = 'العروض';
 const OFFERS_ITEMS_PER_CHILD = 15;
@@ -53,6 +53,30 @@ const OFFER_CARD_WIDTH = 170;
 const OFFER_CARD_GAP = 10;
 // How many shops the home rail previews before handing over to the directory.
 const SHOPS_RAIL_COUNT = 10;
+
+/**
+ * The static hero's proof points.
+ *
+ * Only shown on a wide web viewport, where the right-hand glass panel has room
+ * to sit beside the copy. Phones keep the original compact hero.
+ */
+const HERO_BENEFITS = [
+  {
+    icon: 'rocket-outline',
+    title: 'توصيل سريع',
+    subtitle: 'نصل إلى باب منزلك في أسرع وقت',
+  },
+  {
+    icon: 'leaf-outline',
+    title: 'منتجات طازجة',
+    subtitle: 'مختارة بعناية وتصل إليك يومياً',
+  },
+  {
+    icon: 'shield-checkmark-outline',
+    title: 'تسوق مطمئن',
+    subtitle: 'منتجات أصلية وخيارات دفع مرنة',
+  },
+];
 
 /**
  * How long the home strip is reused after a successful load.
@@ -97,21 +121,21 @@ function findOffersParent(tree) {
  * about the height the first real rail takes. The rail scrolls like the real one,
  * so whatever overflows a narrow screen is still reachable.
  */
-function OffersSkeleton() {
+function OffersSkeleton({ desktop = false }) {
   return (
-    <View style={styles.offerBlock}>
-      <View style={styles.offerSkeletonHeader}>
+    <View style={[styles.offerBlock, desktop && styles.offerBlockDesktop]}>
+      <View style={[styles.offerSkeletonHeader, desktop && styles.offerSkeletonHeaderDesktop]}>
         <LoadingSkeleton width={7} height={7} circle />
         <LoadingSkeleton width={140} height={18} />
       </View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.offerRail}
+        contentContainerStyle={[styles.offerRail, desktop && styles.offerRailDesktop]}
       >
         {Array.from({ length: SKELETON_CARDS }).map((_, i) => (
-          <View key={i} style={styles.offerCard}>
-            <ProductCardSkeleton />
+          <View key={i} style={[styles.offerCard, desktop && styles.offerCardDesktop]}>
+            <ProductCardSkeleton imageHeight={desktop ? 168 : 140} />
           </View>
         ))}
       </ScrollView>
@@ -119,10 +143,74 @@ function OffersSkeleton() {
   );
 }
 
+/**
+ * Section heading with a small brand accent.
+ *
+ * The accent bar is what separates a section from the flat stack of headings
+ * the page used to be; it also gives the title a reliable optical edge in both
+ * RTL and LTR without hard-coding a left or right position.
+ */
+function SectionTitle({ children, desktop = false }) {
+  const { textStart } = useDirectional();
+  return (
+    <View style={styles.sectionTitleRow}>
+      <View style={[styles.sectionAccent, desktop && styles.sectionAccentDesktop]} />
+      <Text
+        style={[
+          styles.sectionTitle,
+          desktop && styles.sectionTitleDesktop,
+          textStart,
+        ]}
+      >
+        {children}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * A shop in the marketplace rail (phone) or grid (desktop).
+ *
+ * Kept as one component so the logo fallback, count wording and press target
+ * cannot drift between the two layouts.
+ */
+function ShopTile({ shop, desktop = false, onPress }) {
+  const { textStart } = useDirectional();
+  return (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={onPress}
+      className={desktop ? 'hover-lift' : undefined}
+      style={[styles.shopTile, desktop && styles.shopTileGrid]}
+    >
+      <ProductImage
+        source={shop.logo}
+        style={[styles.shopTileLogo, desktop && styles.shopTileLogoGrid]}
+        resizeMode="contain"
+        fallbackIcon="storefront-outline"
+        fallbackIconSize={desktop ? 30 : 26}
+      />
+      <Text style={[styles.shopTileName, textStart]} numberOfLines={1}>
+        {shop.shop_name || shop.name}
+      </Text>
+      <Text style={[styles.shopTileCount, textStart]} numberOfLines={1}>
+        {formatCount(shop.product_count)}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
 export default function HomeScreen({ navigation }) {
   const { t } = useI18n();
+  const { width: windowWidth, maxWidth: contentMaxWidth, gutter } = useResponsive();
   const { showTabBar, showDesktopChrome } = useSiteChrome();
   const { textStart, insetEnd, isRTL } = useDirectional();
+  const desktop = showDesktopChrome;
+  const wideWeb = showDesktopChrome && windowWidth >= Breakpoints.lg;
+  const categoryColumns =
+    windowWidth >= Breakpoints.xl ? 7 : windowWidth >= Breakpoints.lg ? 6 : 4;
+  const shopColumns =
+    windowWidth >= Breakpoints.xl ? 5 : windowWidth >= Breakpoints.lg ? 4 : 3;
   useDocumentHead({
     title: t('seo.homeTitle'),
     description: t('seo.homeDescription'),
@@ -374,7 +462,7 @@ export default function HomeScreen({ navigation }) {
       });
   }
 
-function handleSelectCategory(catName) {
+  function handleSelectCategory(catName) {
     /*
      * "الكل" in the categories rail means "show me the whole tree", which is the
      * categories screen — not "every product". The rail's own "عرض الكل" link
@@ -396,6 +484,14 @@ function handleSelectCategory(catName) {
       extra: { focusSearch: undefined },
     });
   }
+
+  // Two rows of departments read better than a rail of 92dp circles on a
+  // desktop, while the "see all" link still reaches the full catalogue.
+  const desktopCategories = [ALL_CATEGORIES, ...categories].slice(
+    0,
+    categoryColumns * 2
+  );
+  const desktopShops = shops.slice(0, shopColumns * 2);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -446,6 +542,16 @@ function handleSelectCategory(catName) {
         }
       >
         {/*
+          The page column.
+
+          On desktop the outer view supplies the shell gutter and the inner view
+          caps the content at the same width as `SiteHeader`/`PageFooter`. On a
+          phone the wrappers add nothing, so the existing 16dp section gutters
+          remain the single source of spacing.
+        */}
+        <View style={[styles.pageOuter, desktop && { paddingHorizontal: gutter }]}>
+          <View style={[styles.pageInner, desktop && { maxWidth: contentMaxWidth }]}>
+        {/*
           Search entry point.
 
           Phone only. On the desktop shell `SiteHeader` carries a search field in
@@ -476,61 +582,200 @@ function handleSelectCategory(catName) {
             colors={[Colors.primary, Colors.primaryDark || '#00593A']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.heroBanner}
+            style={[
+              styles.heroBanner,
+              desktop && styles.heroBannerDesktop,
+              wideWeb && styles.heroBannerWide,
+            ]}
           >
-            <View style={styles.heroBadge}>
-              <Icon name="flame" size={13} color="#ffffff" />
-              <Text style={[styles.heroBadgeText, textStart]}>عروض هذا الأسبوع</Text>
+            {wideWeb ? (
+              <>
+                <View pointerEvents="none" style={styles.heroOrbLarge} />
+                <View pointerEvents="none" style={styles.heroOrbSmall} />
+              </>
+            ) : null}
+
+            <View style={[styles.heroCopy, wideWeb && styles.heroCopyWide]}>
+              <View style={styles.heroBadge}>
+                <Icon name="flame" size={13} color="#ffffff" />
+                <Text style={[styles.heroBadgeText, textStart]}>عروض هذا الأسبوع</Text>
+              </View>
+              <Text
+                style={[
+                  styles.heroTitle,
+                  desktop && styles.heroTitleDesktop,
+                  wideWeb && styles.heroTitleWide,
+                  textStart,
+                ]}
+              >
+                أفضل الأسعار وأجود المنتجات
+              </Text>
+              <Text
+                style={[
+                  styles.heroSubtitle,
+                  desktop && styles.heroSubtitleDesktop,
+                  textStart,
+                ]}
+              >
+                نوفر لكم كافة متطلبات المنزل مع توصيل سريع ومباشر حتى باب
+                المنزل.
+              </Text>
+
+              <View style={styles.heroActions}>
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  onPress={() => navigateToProducts(navigation)}
+                  style={[styles.heroCta, desktop && styles.heroCtaDesktop]}
+                >
+                  <Text style={[styles.heroCtaText, textStart]}>تسوق الآن</Text>
+                  <Icon name="arrow-forward" size={16} color={Colors.primary} />
+                </TouchableOpacity>
+
+                {desktop ? (
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => navigation.navigate('Categories')}
+                    style={styles.heroSecondary}
+                  >
+                    <Icon name="grid-outline" size={16} color="#ffffff" />
+                    <Text style={[styles.heroSecondaryText, textStart]}>
+                      تصفح الأقسام
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             </View>
-            <Text style={[styles.heroTitle, textStart]}>أفضل الأسعار وأجود المنتجات</Text>
-            <Text style={[styles.heroSubtitle, textStart]}>
-              نوفر لكم كافة متطلبات المنزل مع توصيل سريع ومباشر حتى باب المنزل.
-            </Text>
-            <TouchableOpacity
-              activeOpacity={0.9}
-              onPress={() => navigateToProducts(navigation)}
-              style={styles.heroCta}
-            >
-              <Text style={[styles.heroCtaText, textStart]}>تسوق الآن</Text>
-              <Icon name="arrow-forward" size={16} color={Colors.primary} />
-            </TouchableOpacity>
+
+            {wideWeb ? (
+              <View style={styles.heroPanel}>
+                <View style={styles.heroPanelHead}>
+                  <View style={styles.heroPanelIcon}>
+                    <Icon name="sparkles" size={17} color={Colors.secondary} />
+                  </View>
+                  <View style={styles.heroPanelHeadText}>
+                    <Text style={[styles.heroPanelTitle, textStart]}>
+                      تسوق أسهل كل يوم
+                    </Text>
+                    <Text style={[styles.heroPanelSub, textStart]}>
+                      كل احتياجات البيت في مكان واحد
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.heroBenefits}>
+                  {HERO_BENEFITS.map((benefit) => (
+                    <View key={benefit.title} style={styles.heroBenefit}>
+                      <View style={styles.heroBenefitIcon}>
+                        <Icon name={benefit.icon} size={17} color="#ffffff" />
+                      </View>
+                      <View style={styles.heroBenefitText}>
+                        <Text style={[styles.heroBenefitTitle, textStart]}>
+                          {benefit.title}
+                        </Text>
+                        <Text style={[styles.heroBenefitSub, textStart]}>
+                          {benefit.subtitle}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+
+                <View style={styles.heroPanelNote}>
+                  <Icon name="cash-outline" size={15} color={Colors.secondary} />
+                  <Text style={[styles.heroPanelNoteText, textStart]}>
+                    الدفع عند الاستلام متاح
+                  </Text>
+                </View>
+              </View>
+            ) : null}
           </LinearGradient>
         )}
 
         {/* Categories */}
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, textStart]}>الأقسام</Text>
+        <View style={[styles.sectionHeader, desktop && styles.sectionHeaderDesktop]}>
+          <SectionTitle desktop={desktop}>الأقسام</SectionTitle>
           <TouchableOpacity
             onPress={() => navigation.navigate('Categories')}
-            style={styles.seeAllBtn}
+            style={[styles.seeAllBtn, desktop && styles.seeAllBtnDesktop]}
           >
             <Text style={[styles.seeAllText, textStart]}>عرض الكل</Text>
             <Icon name="chevron-back" size={14} color={Colors.primary} />
           </TouchableOpacity>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoriesRow}
-        >
-          <CategoryCard
-            category={ALL_CATEGORIES}
-            variant="tile"
-            onSelect={handleSelectCategory}
-          />
-          {categories.map((cat, idx) => {
-            const catName = typeof cat === 'string' ? cat : cat.name;
-            return (
-              <CategoryCard
-                key={catName || idx}
-                category={cat}
-                variant="tile"
-                onSelect={handleSelectCategory}
-              />
-            );
-          })}
-        </ScrollView>
+        {desktop ? (
+          <View style={styles.categoryGrid}>
+            {desktopCategories.map((cat, idx) => {
+              const catName = typeof cat === 'string' ? cat : cat.name;
+              return (
+                <View
+                  key={catName || idx}
+                  style={[
+                    styles.categoryGridCell,
+                    { width: `${100 / categoryColumns}%` },
+                  ]}
+                >
+                  <CategoryCard
+                    category={cat}
+                    variant="grid"
+                    onSelect={handleSelectCategory}
+                  />
+                </View>
+              );
+            })}
+            {categories.length === 0 && offersLoading
+              ? Array.from({ length: Math.max(categoryColumns - 1, 0) }).map(
+                  (_, idx) => (
+                    <View
+                      key={`category-skeleton-${idx}`}
+                      style={[
+                        styles.categoryGridCell,
+                        { width: `${100 / categoryColumns}%` },
+                      ]}
+                    >
+                      <View style={styles.categorySkeletonCard}>
+                        <View style={styles.categorySkeletonImage}>
+                          <LoadingSkeleton
+                            width="100%"
+                            height="100%"
+                            borderRadius={Radius.lg}
+                          />
+                        </View>
+                        <LoadingSkeleton
+                          width="66%"
+                          height={12}
+                          borderRadius={Radius.full}
+                        />
+                      </View>
+                    </View>
+                  )
+                )
+              : null}
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoriesRow}
+          >
+            <CategoryCard
+              category={ALL_CATEGORIES}
+              variant="tile"
+              onSelect={handleSelectCategory}
+            />
+            {categories.map((cat, idx) => {
+              const catName = typeof cat === 'string' ? cat : cat.name;
+              return (
+                <CategoryCard
+                  key={catName || idx}
+                  category={cat}
+                  variant="tile"
+                  onSelect={handleSelectCategory}
+                />
+              );
+            })}
+          </ScrollView>
+        )}
 
         {/* Shops — the entry point into the marketplace directory. Rendered only
             when at least one approved vendor exists: an empty rail (and a link
@@ -539,11 +784,11 @@ function handleSelectCategory(catName) {
             here only; the directory is still linked from the Products screen. */}
         {showShopsOnHome && shops.length > 0 ? (
           <>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, textStart]}>متاجر المنصة</Text>
+            <View style={[styles.sectionHeader, desktop && styles.sectionHeaderDesktop]}>
+              <SectionTitle desktop={desktop}>متاجر المنصة</SectionTitle>
               <TouchableOpacity
                 onPress={() => navigation.navigate('ShopDirectory')}
-                style={styles.seeAllBtn}
+                style={[styles.seeAllBtn, desktop && styles.seeAllBtnDesktop]}
               >
                 <Text style={[styles.seeAllText, textStart]}>عرض الكل</Text>
                 <Icon
@@ -554,40 +799,49 @@ function handleSelectCategory(catName) {
               </TouchableOpacity>
             </View>
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.categoriesRow}
-            >
-              {shops.map((shop) => (
-                <TouchableOpacity
-                  key={shop.name}
-                  activeOpacity={0.85}
-                  onPress={() => navigation.navigate('Shop', { shop: shop.name })}
-                  style={styles.shopTile}
-                >
-                  <ProductImage
-                    source={shop.logo}
-                    style={styles.shopTileLogo}
-                    resizeMode="contain"
-                    fallbackIcon="storefront-outline"
-                    fallbackIconSize={26}
+            {desktop ? (
+              <View style={styles.shopGrid}>
+                {desktopShops.map((shop) => (
+                  <View
+                    key={shop.name}
+                    style={[
+                      styles.shopGridCell,
+                      { width: `${100 / shopColumns}%` },
+                    ]}
+                  >
+                    <ShopTile
+                      shop={shop}
+                      desktop
+                      onPress={() =>
+                        navigation.navigate('Shop', { shop: shop.name })
+                      }
+                    />
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoriesRow}
+              >
+                {shops.map((shop) => (
+                  <ShopTile
+                    key={shop.name}
+                    shop={shop}
+                    onPress={() =>
+                      navigation.navigate('Shop', { shop: shop.name })
+                    }
                   />
-                  <Text style={[styles.shopTileName, textStart]} numberOfLines={1}>
-                    {shop.shop_name || shop.name}
-                  </Text>
-                  <Text style={[styles.shopTileCount, textStart]} numberOfLines={1}>
-                    {formatCount(shop.product_count)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+                ))}
+              </ScrollView>
+            )}
           </>
         ) : null}
 
         {/* عروضي — one scrollable rail per child of the العروض group */}
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, textStart]}>العروض الحصرية</Text>
+        <View style={[styles.sectionHeader, desktop && styles.sectionHeaderDesktop]}>
+          <SectionTitle desktop={desktop}>العروض الحصرية</SectionTitle>
           <TouchableOpacity
             onPress={() => {
               if (offersParent) {
@@ -598,7 +852,7 @@ function handleSelectCategory(catName) {
               }
               handleSelectCategory(OFFERS_PARENT);
             }}
-            style={styles.seeAllBtn}
+            style={[styles.seeAllBtn, desktop && styles.seeAllBtnDesktop]}
           >
             <Text style={[styles.seeAllText, textStart]}>عرض الكل</Text>
             {/*
@@ -615,9 +869,9 @@ function handleSelectCategory(catName) {
         </View>
 
         {offersLoading ? (
-          <OffersSkeleton />
+          <OffersSkeleton desktop={desktop} />
         ) : offerGroups.length === 0 ? (
-          <View style={styles.offersEmpty}>
+          <View style={[styles.offersEmpty, desktop && styles.offersEmptyDesktop]}>
             <Icon name="pricetags-outline" size={20} color={Colors.textMuted} />
             <Text style={[styles.offersEmptyText, textStart]}>لا توجد عروض متاحة حالياً</Text>
           </View>
@@ -625,15 +879,25 @@ function handleSelectCategory(catName) {
           offerGroups.map((child) => {
             const items = offerProducts[child.name] || [];
             return (
-              <View key={child.name} style={styles.offerBlock}>
+              <View
+                key={child.name}
+                style={[styles.offerBlock, desktop && styles.offerBlockDesktop]}
+              >
                 <TouchableOpacity
                   activeOpacity={0.75}
                   onPress={() => handleSelectCategory(child.name)}
-                  style={styles.offerHeader}
+                  style={[styles.offerHeader, desktop && styles.offerHeaderDesktop]}
                 >
                   <View style={styles.offerHeaderRight}>
                     <View style={styles.offerDot} />
-                    <Text style={[styles.offerTitle, textStart]} numberOfLines={1}>
+                    <Text
+                      style={[
+                        styles.offerTitle,
+                        desktop && styles.offerTitleDesktop,
+                        textStart,
+                      ]}
+                      numberOfLines={1}
+                    >
                       {child.name}
                     </Text>
                   </View>
@@ -646,19 +910,32 @@ function handleSelectCategory(catName) {
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.offerRail}
+                    contentContainerStyle={[
+                      styles.offerRail,
+                      desktop && styles.offerRailDesktop,
+                    ]}
                   >
                     {items.map((item, idx) => (
                       <View
                         key={item.item_code || idx}
-                        style={styles.offerCard}
+                        style={[styles.offerCard, desktop && styles.offerCardDesktop]}
                       >
-                        <ProductCard product={item} onPress={openProduct} />
+                        <ProductCard
+                          product={item}
+                          onPress={openProduct}
+                          imageHeight={desktop ? 168 : 140}
+                        />
                       </View>
                     ))}
                   </ScrollView>
                 ) : (
-                  <Text style={[styles.offerEmptyText, textStart]}>
+                  <Text
+                    style={[
+                      styles.offerEmptyText,
+                      desktop && styles.offerEmptyTextDesktop,
+                      textStart,
+                    ]}
+                  >
                     لا توجد منتجات في هذا القسم حالياً
                   </Text>
                 )}
@@ -668,22 +945,34 @@ function handleSelectCategory(catName) {
         )}
 
         {/* Trust */}
-        <View style={styles.trustSection}>
-          <TrustBadge
-            icon="rocket-outline"
-            title="توصيل سريع وموثوق"
-            subtitle="نصلك أينما كنت في أسرع وقت"
-          />
-          <TrustBadge
-            icon="cash-outline"
-            title="الدفع عند الاستلام"
-            subtitle="ادفع نقداً عند استلام طلبيتك"
-          />
-          <TrustBadge
-            icon="sparkles-outline"
-            title="ضمان جودة المنتجات"
-            subtitle="منتجات أصلية وطازجة دائماً"
-          />
+        <View style={[styles.trustSection, desktop && styles.trustSectionDesktop]}>
+          <View style={desktop ? styles.trustCellDesktop : null}>
+            <TrustBadge
+              icon="rocket-outline"
+              title="توصيل سريع وموثوق"
+              subtitle="نصلك أينما كنت في أسرع وقت"
+              style={desktop ? styles.trustBadgeDesktop : undefined}
+            />
+          </View>
+          <View style={desktop ? styles.trustCellDesktop : null}>
+            <TrustBadge
+              icon="cash-outline"
+              title="الدفع عند الاستلام"
+              subtitle="ادفع نقداً عند استلام طلبيتك"
+              style={desktop ? styles.trustBadgeDesktop : undefined}
+            />
+          </View>
+          <View style={desktop ? styles.trustCellDesktop : null}>
+            <TrustBadge
+              icon="sparkles-outline"
+              title="ضمان جودة المنتجات"
+              subtitle="منتجات أصلية وطازجة دائماً"
+              style={desktop ? styles.trustBadgeDesktop : undefined}
+            />
+          </View>
+        </View>
+
+          </View>
         </View>
 
         {/*
@@ -755,16 +1044,66 @@ const styles = StyleSheet.create({
   scrollContentMobile: {
     paddingBottom: 32,
   },
+  // Desktop page column. The outer view owns the shell gutter; the inner view
+  // owns the same max width as the header and footer, so the hero, section
+  // headings and footer all share one vertical edge.
+  pageOuter: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  pageInner: {
+    width: '100%',
+  },
   searchSection: {
     paddingHorizontal: 16,
     paddingTop: 12,
   },
   heroBanner: {
+    position: 'relative',
     marginHorizontal: 16,
     marginTop: 16,
     borderRadius: Radius.xxl,
     padding: 22,
     ...Shadows.md,
+  },
+  heroBannerDesktop: {
+    marginHorizontal: 0,
+    marginTop: 24,
+    borderRadius: 30,
+    padding: 32,
+  },
+  heroBannerWide: {
+    minHeight: 372,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 40,
+    padding: 44,
+    overflow: 'hidden',
+  },
+  heroCopy: {
+    flexShrink: 1,
+  },
+  heroCopyWide: {
+    flex: 1,
+    minWidth: 0,
+  },
+  heroOrbLarge: {
+    position: 'absolute',
+    top: -150,
+    right: -100,
+    width: 390,
+    height: 390,
+    borderRadius: 195,
+    backgroundColor: 'rgba(255, 255, 255, 0.055)',
+  },
+  heroOrbSmall: {
+    position: 'absolute',
+    bottom: -150,
+    left: '28%',
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: 'rgba(255, 255, 255, 0.045)',
   },
   heroBadge: {
     flexDirection: 'row',
@@ -788,12 +1127,34 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     marginBottom: 6,
   },
+  heroTitleDesktop: {
+    fontSize: 32,
+    lineHeight: 48,
+    marginBottom: 10,
+  },
+  heroTitleWide: {
+    maxWidth: 610,
+    fontSize: 38,
+    lineHeight: 56,
+  },
   heroSubtitle: {
     fontSize: Typography.sizes.bodySm,
     color: 'rgba(255, 255, 255, 0.85)',
     lineHeight: 22,
     marginBottom: 18,
     fontFamily: Typography.fontFamilyRegular,
+  },
+  heroSubtitleDesktop: {
+    maxWidth: 560,
+    fontSize: Typography.sizes.bodyLg,
+    lineHeight: 28,
+    marginBottom: 26,
+  },
+  heroActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 12,
   },
   heroCta: {
     flexDirection: 'row',
@@ -806,10 +1167,113 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     ...Shadows.sm,
   },
+  heroCtaDesktop: {
+    paddingHorizontal: 24,
+    paddingVertical: 13,
+  },
   heroCtaText: {
     color: Colors.primary,
     fontSize: Typography.sizes.labelLg,
     fontFamily: Typography.fontFamilyBold,
+  },
+  heroSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.45)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  heroSecondaryText: {
+    color: '#ffffff',
+    fontSize: Typography.sizes.labelLg,
+    fontFamily: Typography.fontFamilyBold,
+  },
+  heroPanel: {
+    flexShrink: 0,
+    width: 340,
+    padding: 24,
+    borderRadius: Radius.xxl,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    backgroundColor: 'rgba(255, 255, 255, 0.10)',
+    gap: 18,
+  },
+  heroPanelHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+  },
+  heroPanelIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+  },
+  heroPanelHeadText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  heroPanelTitle: {
+    color: '#ffffff',
+    fontSize: Typography.sizes.titleMd,
+    fontFamily: Typography.fontFamilyBold,
+  },
+  heroPanelSub: {
+    marginTop: 2,
+    color: 'rgba(255, 255, 255, 0.72)',
+    fontSize: Typography.sizes.labelMd,
+    fontFamily: Typography.fontFamilyRegular,
+  },
+  heroBenefits: {
+    gap: 15,
+  },
+  heroBenefit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+  },
+  heroBenefitIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  heroBenefitText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  heroBenefitTitle: {
+    color: '#ffffff',
+    fontSize: Typography.sizes.labelLg,
+    fontFamily: Typography.fontFamilyBold,
+  },
+  heroBenefitSub: {
+    marginTop: 1,
+    color: 'rgba(255, 255, 255, 0.68)',
+    fontSize: Typography.sizes.labelMd,
+    lineHeight: 19,
+    fontFamily: Typography.fontFamilyRegular,
+  },
+  heroPanelNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.16)',
+  },
+  heroPanelNoteText: {
+    color: 'rgba(255, 255, 255, 0.82)',
+    fontSize: Typography.sizes.labelMd,
+    fontFamily: Typography.fontFamilyMedium,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -819,15 +1283,50 @@ const styles = StyleSheet.create({
     marginTop: 22,
     marginBottom: 12,
   },
+  sectionHeaderDesktop: {
+    paddingHorizontal: 0,
+    marginTop: 34,
+    marginBottom: 16,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+    gap: 10,
+    minWidth: 0,
+  },
+  sectionAccent: {
+    width: 4,
+    height: 18,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.secondary,
+  },
+  sectionAccentDesktop: {
+    width: 5,
+    height: 23,
+  },
   sectionTitle: {
     fontSize: Typography.sizes.headlineSm,
     fontFamily: Typography.fontFamilyExtraBold,
     color: Colors.onSurface,
   },
+  sectionTitleDesktop: {
+    fontSize: 24,
+    lineHeight: 32,
+  },
   seeAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
+  },
+  seeAllBtnDesktop: {
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.primaryContainer,
+    backgroundColor: Colors.primaryLight,
   },
   seeAllText: {
     fontSize: Typography.sizes.labelMd,
@@ -838,6 +1337,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 4,
     gap: 14,
+  },
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -7,
+  },
+  categoryGridCell: {
+    padding: 7,
+  },
+  categorySkeletonCard: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 10,
+    padding: 10,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    backgroundColor: Colors.surface,
+    ...Shadows.xs,
+  },
+  categorySkeletonImage: {
+    width: '100%',
+    aspectRatio: 1.3,
+    borderRadius: Radius.lg,
+    overflow: 'hidden',
+  },
+  shopGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -8,
+  },
+  shopGridCell: {
+    padding: 8,
   },
   shopTile: {
     width: OFFER_CARD_WIDTH,
@@ -850,11 +1382,21 @@ const styles = StyleSheet.create({
     borderColor: Colors.borderSubtle,
     ...Shadows.xs,
   },
+  shopTileGrid: {
+    width: '100%',
+    padding: 18,
+    gap: 7,
+    ...Shadows.sm,
+  },
   shopTileLogo: {
     width: 56,
     height: 56,
     borderRadius: Radius.full,
     backgroundColor: Colors.surfaceContainerLow,
+  },
+  shopTileLogoGrid: {
+    width: 64,
+    height: 64,
   },
   shopTileName: {
     fontSize: Typography.sizes.titleSm,
@@ -871,12 +1413,24 @@ const styles = StyleSheet.create({
   offerBlock: {
     marginBottom: 18,
   },
+  offerBlockDesktop: {
+    padding: 20,
+    borderRadius: Radius.xxl,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    backgroundColor: Colors.surface,
+    ...Shadows.xs,
+  },
   offerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     marginBottom: 8,
+  },
+  offerHeaderDesktop: {
+    paddingHorizontal: 0,
+    marginBottom: 12,
   },
   offerHeaderRight: {
     flexDirection: 'row',
@@ -896,6 +1450,9 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyBold,
     color: Colors.onSurface,
   },
+  offerTitleDesktop: {
+    fontSize: Typography.sizes.headlineSm,
+  },
   offerCount: {
     fontSize: Typography.sizes.labelSm,
     color: Colors.textMuted,
@@ -907,9 +1464,16 @@ const styles = StyleSheet.create({
     gap: OFFER_CARD_GAP,
     paddingHorizontal: 16,
   },
+  offerRailDesktop: {
+    gap: 16,
+    paddingHorizontal: 0,
+  },
   offerCard: {
     width: OFFER_CARD_WIDTH,
     marginBottom: 4,
+  },
+  offerCardDesktop: {
+    width: 210,
   },
   offerSkeletonHeader: {
     flexDirection: 'row',
@@ -918,11 +1482,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 8,
   },
+  offerSkeletonHeaderDesktop: {
+    paddingHorizontal: 0,
+    marginBottom: 12,
+  },
   offerEmptyText: {
     paddingHorizontal: 16,
     fontSize: Typography.sizes.bodySm,
     color: Colors.textMuted,
     fontFamily: Typography.fontFamilyMedium,
+  },
+  offerEmptyTextDesktop: {
+    paddingHorizontal: 0,
+    paddingVertical: 6,
   },
   offersEmpty: {
     flexDirection: 'row',
@@ -933,6 +1505,15 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     backgroundColor: Colors.surfaceContainerLow,
   },
+  offersEmptyDesktop: {
+    marginHorizontal: 0,
+    padding: 20,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    backgroundColor: Colors.surface,
+    ...Shadows.xs,
+  },
   offersEmptyText: {
     fontSize: Typography.sizes.bodySm,
     color: Colors.textMuted,
@@ -942,5 +1523,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginTop: 24,
     gap: 10,
+  },
+  trustSectionDesktop: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    paddingHorizontal: 0,
+    marginTop: 36,
+    marginBottom: 8,
+    gap: 14,
+  },
+  trustCellDesktop: {
+    flex: 1,
+    minWidth: 0,
+  },
+  trustBadgeDesktop: {
+    flex: 1,
   },
 });
