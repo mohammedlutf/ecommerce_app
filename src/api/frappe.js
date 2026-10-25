@@ -20,22 +20,41 @@ import { USER_STORAGE_KEY as USER_KEY } from './sessionKeys';
 /**
  * API base URL.
  *
- * Native: the Frappe benchmark directly; the browser enforces the
- * Same-Origin Policy, so on web we use a relative URL and let the Metro dev
- * server proxy `/api` & `/files` to the benchmark (see metro.config.js).
- * This sidesteps CORS completely when testing in a browser.
+ * Native: the Frappe benchmark directly, using `EXPO_PUBLIC_API_URL` when set.
  *
- * Set `EXPO_PUBLIC_API_URL` (e.g. in `.env`) to point at a real deployment.
+ * Web: browsers refuse to store cross-site cookies whose `SameSite` is `Lax`
+ * (Frappe's default for `sid`): "Cookie 'sid' has been rejected because it is in
+ * a cross-site context". Setting `allow_cors` / `cors` on the site only fixes
+ * CORS, not SameSite — and `SameSite=None` requires `Secure`, which plain HTTP
+ * cannot provide. So in development the web build always uses relative URLs and
+ * lets the Metro dev server proxy `/api` & `/files` to the benchmark (see
+ * metro.config.js), keeping every request same-origin. This also works when the
+ * dev server is opened from another machine on the LAN.
+ *
+ * In a production web build there is no Metro proxy, so `EXPO_PUBLIC_API_URL`
+ * is used directly. Serve the site and the benchmark from the same origin, or
+ * use HTTPS and have Frappe issue `SameSite=None; Secure`.
+ *
+ * Set `EXPO_PUBLIC_WEB_PROXY=0` to opt out of the dev proxy and call
+ * `EXPO_PUBLIC_API_URL` directly (only useful over HTTPS + SameSite=None).
+ *
  * The LAN fallback below only exists so `expo start` works on a dev machine
  * without extra setup — it is not a production value.
  */
 const CONFIGURED_API_URL = (process.env.EXPO_PUBLIC_API_URL || '').trim();
-const DEV_LAN_FALLBACK = 'http://192.168.1.33:8000';
 
-export const BASE_URL =
-  Platform.OS === 'web'
+const DEV_LAN_FALLBACK = 'http://192.168.1.36:8000';
+
+const IS_WEB = Platform.OS === 'web';
+const IS_DEV = typeof __DEV__ !== 'undefined' && __DEV__;
+const USE_WEB_DEV_PROXY = IS_WEB && IS_DEV && process.env.EXPO_PUBLIC_WEB_PROXY !== '0';
+
+export const BASE_URL = USE_WEB_DEV_PROXY
+  ? ''
+  : IS_WEB
     ? CONFIGURED_API_URL
     : CONFIGURED_API_URL || DEV_LAN_FALLBACK;
+
 
 // Shipping a non-HTTPS origin puts the session cookie and cart contents on the
 // wire in clear text. Surface it loudly rather than silently downgrading.

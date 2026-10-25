@@ -18,7 +18,8 @@ const SOCIALS = [
   { name: 'logo-facebook', label: 'Facebook' },
   { name: 'logo-instagram', label: 'Instagram' },
   { name: 'logo-whatsapp', label: 'WhatsApp' },
-  { name: 'logo-telegram', label: 'Telegram' },
+  // Ionicons has no Telegram brand glyph; `paper-plane` is the closest match.
+  { name: 'paper-plane', label: 'Telegram' },
 ];
 
 /**
@@ -43,7 +44,7 @@ export default function PageFooter() {
   const t = (k) => {
     const map = {
       'footer.aboutTitle': 'عن المتجر',
-      'footer.aboutText': 'متجرك الإلكتروني الموثوق للتسوق السريع والآمن.',
+      'footer.aboutText': 'زاد ماركت الموثوق للتسوق السريع والآمن.',
       'footer.subscribeTitle': 'اشترك في النشرة الإخبارية',
       'footer.subscribeText': 'احصل على أحدث العروض والمنتجات مباشرة إلى بريدك الإلكتروني',
       'footer.subscribePlaceholder': 'البريد الإلكتروني',
@@ -62,7 +63,7 @@ export default function PageFooter() {
       'footer.faq': 'الأسئلة الشائعة',
       'footer.categoriesTitle': 'الأقسام',
       'footer.contactTitle': 'تواصل معنا',
-      'footer.deliveryNote': 'التوصيل داخل الرياض وجميع المدن',
+      'footer.deliveryNote': 'التوصيل داخل صنعاء ',
       'footer.workingHoursValue': 'السبت - الخميس: 9 ص - 6 م',
       'footer.fridayHours': 'الجمعة: مغلق',
       'home.securePayment': 'دفع آمن',
@@ -129,7 +130,7 @@ export default function PageFooter() {
   return (
     <View style={styles.root}>
       {/* ---- Newsletter band ------------------------------------------- */}
-      <View style={styles.newsletter}>
+      {/* <View style={styles.newsletter}>
         <Container>
           <View style={styles.newsletterRow}>
             <View style={styles.newsletterCopy}>
@@ -161,7 +162,7 @@ export default function PageFooter() {
             </View>
           </View>
         </Container>
-      </View>
+      </View> */}
 
       {/* ---- Link columns ----------------------------------------------- */}
       <View style={styles.columns}>

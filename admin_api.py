@@ -480,7 +480,7 @@ def _save_item_image(item_code, file_base64, file_name=None):
 	website_item = frappe.db.get_value("Website Item", {"item_code": item_code}, "name")
 	previous = frappe.db.get_value("Website Item", website_item, "website_image") if website_item else None
 
-	stem = slugify((file_name or "").rsplit(".", 1)[0]) or _custom_slugify(item_code)
+	stem = slugify((file_name or "").rsplit(".", 1)[0]) or slugify(item_code)
 	filename = f"{stem}-{frappe.generate_hash(length=8)}.{extension}"
 
 	# Call save_file imported from frappe.utils.file_manager
@@ -841,8 +841,8 @@ def admin_is_admin():
 		return {"is_admin": _is_admin(), "user": frappe.session.user}
 	except Exception:
 		# A misconfigured admin table must not break the whole catalogue for every
-		# customer, so this probe degrades to "not an admin" and logs. Real admin
-		# actions still throw via _require_admin, where the cause is visible.
+	# customer, so this probe degrades to "not an admin" and logs. Real admin
+	# actions still throw via _require_admin, where the cause is visible.
 		frappe.log_error(title="admin_users lookup failed")
 		return {"is_admin": False}
 
@@ -1177,7 +1177,7 @@ def _unique_item_code(preferred, name):
 
 	- `preferred` is the ASCII slug of the name, used as-is while it is free.
 	- The slug comes back empty when the name holds no Latin letters or digits —
-	  `slugify` keeps only `[a-z0-9\s-]`, so an Arabic name reduces to nothing.
+	  `slugify` keeps only `[a-z0-9\\s-]`, so an Arabic name reduces to nothing.
 	  The name itself is then used: `item_code` is free text in ERPNext, so a
 	  non-Latin code is valid, and one the admin can recognise beats an opaque
 	  generated identifier.
