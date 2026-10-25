@@ -22,10 +22,11 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import useDirectional from '../../hooks/useDirectional';
-import { useSiteChrome } from '../../hooks/useResponsive';
+import useResponsive, { useSiteChrome } from '../../hooks/useResponsive';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
+import { Breakpoints, MAX_CONTENT_WIDTH } from '../../theme/responsive';
 import { formatCurrency, formatCount, formatDate } from '../../utils/format';
 import { rateForUom } from '../../utils/catalog';
 import { offerView } from '../../utils/offers';
@@ -170,6 +171,11 @@ export default function ProductDetailScreen({ route, navigation }) {
   const toast = useToast();
   const { textStart } = useDirectional();
   const { showDesktopChrome } = useSiteChrome();
+  const { width: viewportWidth } = useResponsive();
+  // The two-column product layout needs real room. Between 768 and 1023 the
+  // site chrome is desktop, but a 300pt image and a buy box side by side would
+  // both be too narrow, so the phone column is kept until 1024.
+  const wideLayout = showDesktopChrome && viewportWidth >= Breakpoints.lg;
 
   const [pkgdetail, setPackage] = useState('');
 
@@ -497,8 +503,9 @@ export default function ProductDetailScreen({ route, navigation }) {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Image */}
-        <View style={styles.imageWrapper}>
+        <View style={[styles.pageBody, wideLayout && styles.pageBodyWeb]}>
+          <View style={[styles.galleryCol, wideLayout && styles.galleryColWeb]}>
+            <View style={[styles.imageWrapper, wideLayout && styles.imageWrapperWeb]}>
           <ProductImage
             source={product.website_image || product.image}
             blurhash={product.blurhash}
@@ -529,10 +536,11 @@ export default function ProductDetailScreen({ route, navigation }) {
               />
             )}
           </TouchableOpacity>
-        </View>
+            </View>
+          </View>
 
-        {/* Info */}
-        <View style={styles.infoCard}>
+          {/* Buy box */}
+          <View style={[styles.infoCard, wideLayout && styles.infoCardWeb]}>
           {product.shop && product.shop.shop_name && product.shop.is_platform === false ? (
             <View style={styles.categoryRow}>
               <Icon name="storefront-outline" size={13} color={Colors.primary} />
@@ -571,7 +579,7 @@ export default function ProductDetailScreen({ route, navigation }) {
             </View>
           ) : null}
 
-          <Text style={[styles.productTitle, textStart]}>
+          <Text style={[styles.productTitle, wideLayout && styles.productTitleWeb, textStart]}>
             {product.item_name || product.web_item_name || product.item_code}
           </Text>
 
@@ -583,8 +591,8 @@ export default function ProductDetailScreen({ route, navigation }) {
           
 
           {/* Price */}
-          <View style={styles.priceRow}>
-            <Text style={[styles.priceText, textStart]}>{formatCurrency(currentRate)}</Text>
+          <View style={[styles.priceRow, wideLayout && styles.priceRowWeb]}>
+            <Text style={[styles.priceText, wideLayout && styles.priceTextWeb, textStart]}>{formatCurrency(currentRate)}</Text>
             {offer && offer.originalPrice ? (
               <Text style={[styles.originalPriceText, textStart]}>
                 {formatCurrency(offer.originalPrice)}
@@ -638,8 +646,8 @@ export default function ProductDetailScreen({ route, navigation }) {
 
           {/* UOM */}
           {availableUoms.length > 1 && (
-            <View style={styles.sectionBlock}>
-              <Text style={[styles.sectionLabel, textStart]}>اختر وحدة التعبئة / الحجم</Text>
+            <View style={[styles.sectionBlock, wideLayout && styles.sectionBlockWeb]}>
+              <Text style={[styles.sectionLabel, wideLayout && styles.sectionLabelWeb, textStart]}>اختر وحدة التعبئة / الحجم</Text>
               <UOMSelector
                 uoms={availableUoms}
                 selectedUom={selectedUom}
@@ -659,8 +667,8 @@ export default function ProductDetailScreen({ route, navigation }) {
 
 
           {/* Qty */}
-          <View style={styles.sectionBlock}>
-            <Text style={[styles.sectionLabel, textStart]}>الكمية المطلوبة</Text>
+          <View style={[styles.sectionBlock, wideLayout && styles.sectionBlockWeb]}>
+            <Text style={[styles.sectionLabel, wideLayout && styles.sectionLabelWeb, textStart]}>الكمية المطلوبة</Text>
             <QuantityStepper
               quantity={inCartQty > 0 ? inCartQty : qty}
               onIncrement={() => {
@@ -681,12 +689,17 @@ export default function ProductDetailScreen({ route, navigation }) {
               size="lg"
             />
           </View>
+        </View>
+        </View>
 
+        {/* Details */}
+        <View style={[styles.detailsWrap, wideLayout && styles.detailsWrapWeb]}>
+        <View style={[styles.detailsSection, wideLayout && styles.detailsSectionWeb]}>
           {/* Description */}
           {product.description ? (
-            <View style={styles.sectionBlock}>
-              <Text style={[styles.sectionLabel, textStart]}>تفاصيل ومواصفات المنتج</Text>
-              <Text style={[styles.descriptionText, textStart]}>
+            <View style={[styles.sectionBlock, wideLayout && styles.sectionBlockWeb]}>
+              <Text style={[styles.sectionLabel, wideLayout && styles.sectionLabelWeb, textStart]}>تفاصيل ومواصفات المنتج</Text>
+              <Text style={[styles.descriptionText, wideLayout && styles.descriptionTextWeb, textStart]}>
                 {product.description.replace(/<[^>]*>?/gm, '').trim()}
               </Text>
             </View>
@@ -694,8 +707,8 @@ export default function ProductDetailScreen({ route, navigation }) {
 
           {/* Recommended items — off unless Webshop Settings enables them */}
           {showRecommended && (recommendedLoading || recommended.length > 0) ? (
-            <View style={styles.sectionBlock}>
-              <Text style={[styles.sectionLabel, textStart]}>منتجات ذات صلة</Text>
+            <View style={[styles.sectionBlock, wideLayout && styles.sectionBlockWeb]}>
+              <Text style={[styles.sectionLabel, wideLayout && styles.sectionLabelWeb, textStart]}>منتجات ذات صلة</Text>
 
               {recommended.length === 0 ? (
                 <View style={styles.recommendedLoader}>
@@ -705,7 +718,10 @@ export default function ProductDetailScreen({ route, navigation }) {
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.recommendedRail}
+                  contentContainerStyle={[
+                    styles.recommendedRail,
+                    wideLayout && styles.recommendedRailWeb,
+                  ]}
                 >
                   {recommended.map((item, idx) => (
                     <View key={item.item_code || idx} style={styles.recommendedCard}>
@@ -719,12 +735,12 @@ export default function ProductDetailScreen({ route, navigation }) {
 
           {/* Reviews — off unless Webshop Settings enables them */}
           {showReviews ? (
-            <View style={styles.reviewSection}>
-              <Text style={[styles.sectionLabel, textStart]}>تقييمات وآراء العملاء</Text>
+            <View style={[styles.reviewSection, wideLayout && styles.reviewSectionWeb]}>
+              <Text style={[styles.sectionLabel, wideLayout && styles.sectionLabelWeb, textStart]}>تقييمات وآراء العملاء</Text>
 
               <ReviewsSummary reviews={reviews} />
 
-              <View style={styles.addReviewCard}>
+              <View style={[styles.addReviewCard, wideLayout && styles.addReviewCardWeb]}>
                 <Text style={[styles.addReviewTitle, textStart]}>أضف تقييمك للمنتج</Text>
                 <View style={styles.starRow}>
                   {[1, 2, 3, 4, 5].map((s) => (
@@ -760,7 +776,7 @@ export default function ProductDetailScreen({ route, navigation }) {
               </View>
 
               {reviews.length > 0 ? (
-                <View style={styles.reviewList}>
+                <View style={[styles.reviewList, wideLayout && styles.reviewListWeb]}>
                   {reviews.map((review, idx) => (
                     <ReviewRow key={`${review.creation || idx}-${idx}`} review={review} />
                   ))}
@@ -774,16 +790,18 @@ export default function ProductDetailScreen({ route, navigation }) {
           ) : null}
 
         </View>
+        </View>
 
         {/*
           Desktop-only site footer. It sits directly in the scroll content,
-          outside the padded info card, so the band spans the window.
+          outside the content cards, so the band spans the window.
         */}
         <PageFooter />
       </ScrollView>
 
       {/* Sticky bottom bar */}
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBarWrap, wideLayout && styles.bottomBarWrapWeb]}>
+        <View style={[styles.bottomBar, wideLayout && styles.bottomBarWeb]}>
         <View style={styles.bottomPriceColumn}>
           <Text style={[styles.bottomPriceLabel, textStart]}>المجموع</Text>
           <Text style={[styles.bottomPriceValue, textStart]}>
@@ -808,6 +826,7 @@ export default function ProductDetailScreen({ route, navigation }) {
             </>
           )}
         </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -841,12 +860,51 @@ const styles = StyleSheet.create({
   scrollContentMobile: {
     paddingBottom: 24,
   },
+  /*
+   * Desktop product page.
+   *
+   * Phones keep the single column: image, then one continuous info card. On the
+   * web the image and the buy box sit side by side, the gallery sticks while
+   * the buy box scrolls, and the long description/reviews move into their own
+   * card below.
+   */
+  pageBody: {
+    width: '100%',
+  },
+  pageBodyWeb: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 32,
+    width: '100%',
+    maxWidth: MAX_CONTENT_WIDTH,
+    alignSelf: 'center',
+    paddingHorizontal: 32,
+    paddingTop: 28,
+  },
+  galleryCol: {
+    width: '100%',
+  },
+  galleryColWeb: {
+    width: '46%',
+    maxWidth: 560,
+    alignSelf: 'flex-start',
+    position: 'sticky',
+    top: 24,
+  },
   imageWrapper: {
     position: 'relative',
     height: 300,
     backgroundColor: Colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  imageWrapperWeb: {
+    height: 520,
+    borderRadius: Radius.xxl,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    overflow: 'hidden',
+    ...Shadows.sm,
   },
   heroImage: {
     width: '85%',
@@ -944,6 +1002,41 @@ const styles = StyleSheet.create({
     borderTopRightRadius: Radius.xxl,
     marginTop: -4,
   },
+  infoCardWeb: {
+    flex: 1,
+    minWidth: 0,
+    padding: 32,
+    borderRadius: Radius.xxl,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    marginTop: 0,
+    ...Shadows.sm,
+  },
+  detailsWrap: {},
+  detailsWrapWeb: {
+    width: '100%',
+    maxWidth: MAX_CONTENT_WIDTH,
+    alignSelf: 'center',
+    paddingHorizontal: 32,
+    marginTop: 32,
+  },
+  detailsSection: {
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    // Absorb the buy box's bottom padding so the two surfaces look like one
+    // continuous card on a phone.
+    marginTop: -20,
+  },
+  detailsSectionWeb: {
+    width: '100%',
+    marginTop: 0,
+    padding: 32,
+    borderRadius: Radius.xxl,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    ...Shadows.sm,
+  },
   categoryRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -993,6 +1086,12 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     marginBottom: 8,
   },
+  productTitleWeb: {
+    fontSize: 30,
+    lineHeight: 40,
+    letterSpacing: Typography.letterSpacing.tight,
+    marginBottom: 10,
+  },
   stockRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1020,10 +1119,17 @@ const styles = StyleSheet.create({
     borderColor: Colors.borderSubtle,
     marginBottom: 20,
   },
+  priceRowWeb: {
+    paddingVertical: 16,
+    marginBottom: 24,
+  },
   priceText: {
     fontSize: Typography.sizes.displayLg,
     fontFamily: Typography.fontFamilyExtraBold,
     color: Colors.primary,
+  },
+  priceTextWeb: {
+    fontSize: 40,
   },
   originalPriceText: {
     fontSize: Typography.sizes.headlineSm,
@@ -1039,11 +1145,18 @@ const styles = StyleSheet.create({
   sectionBlock: {
     marginBottom: 20,
   },
+  sectionBlockWeb: {
+    marginBottom: 24,
+  },
   sectionLabel: {
     fontSize: Typography.sizes.titleSm,
     fontFamily: Typography.fontFamilyBold,
     color: Colors.onSurface,
     marginBottom: 10,
+  },
+  sectionLabelWeb: {
+    fontSize: 16,
+    marginBottom: 12,
   },
   descriptionText: {
     fontSize: Typography.sizes.bodyMd,
@@ -1051,11 +1164,20 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     fontFamily: Typography.fontFamilyRegular,
   },
+  descriptionTextWeb: {
+    fontSize: 15,
+    lineHeight: 26,
+    maxWidth: 860,
+  },
   reviewSection: {
     marginTop: 12,
     paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: Colors.borderSubtle,
+  },
+  reviewSectionWeb: {
+    marginTop: 24,
+    paddingTop: 24,
   },
   recommendedRail: {
     flexDirection: 'row',
@@ -1066,6 +1188,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginHorizontal: -20,
     paddingVertical: 2,
+  },
+  recommendedRailWeb: {
+    // The desktop details card has 32pt padding; the rail stays inside it
+    // rather than bleeding to the rounded edge.
+    paddingHorizontal: 0,
+    marginHorizontal: 0,
   },
   recommendedCard: {
     width: RECOMMENDED_CARD_WIDTH,
@@ -1095,6 +1223,9 @@ const styles = StyleSheet.create({
   reviewList: {
     marginTop: 14,
     gap: 10,
+  },
+  reviewListWeb: {
+    maxWidth: 860,
   },
   reviewItem: {
     backgroundColor: Colors.surfaceContainerLow,
@@ -1140,6 +1271,9 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: Radius.lg,
   },
+  addReviewCardWeb: {
+    maxWidth: 860,
+  },
   addReviewTitle: {
     fontSize: Typography.sizes.labelLg,
     fontFamily: Typography.fontFamilyBold,
@@ -1174,6 +1308,15 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.labelMd,
     fontFamily: Typography.fontFamilyBold,
   },
+  bottomBarWrap: {},
+  bottomBarWrapWeb: {
+    width: '100%',
+    maxWidth: MAX_CONTENT_WIDTH,
+    alignSelf: 'center',
+    paddingHorizontal: 32,
+    marginTop: 8,
+    marginBottom: 12,
+  },
   bottomBar: {
     backgroundColor: Colors.surface,
     flexDirection: 'row',
@@ -1184,6 +1327,14 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.borderSubtle,
     ...Shadows.lg,
+  },
+  bottomBarWeb: {
+    width: '100%',
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    borderRadius: Radius.xl,
   },
   bottomPriceColumn: { gap: 2 },
   bottomPriceLabel: {
