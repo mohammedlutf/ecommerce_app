@@ -249,7 +249,7 @@ export default function MyAddressesScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, showDesktopChrome && styles.scrollContentWide]}
+        contentContainerStyle={[styles.scrollContent, !showDesktopChrome && styles.scrollContentMobile]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -347,17 +347,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.surface,
   },
+  // The footer is a sibling of the column, so horizontal padding and the width
+  // cap belong on `column`; padding here would inset the footer and leave a
+  // strip beneath it.
   scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 0,
   },
-  scrollContentWide: {
-    maxWidth: 1080,
-    alignSelf: 'center',
-    width: '100%',
+  scrollContentMobile: {
+    paddingBottom: 40,
   },
   column: {
     width: '100%',
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   columnWide: {
     maxWidth: 1080,

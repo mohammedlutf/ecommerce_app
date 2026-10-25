@@ -60,13 +60,17 @@ export default function AccountScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ScrollView contentContainerStyle={[styles.scrollContent, showDesktopChrome && styles.scrollContentWide]} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, !showDesktopChrome && styles.scrollContentMobile]}
+        showsVerticalScrollIndicator={false}
+      >
         {/*
          * Capped, centred content column. Without it the profile card and every
          * link row stretch the full window width on a desktop monitor, which
          * leaves very long line lengths and pushes the icons to the far edge.
-         * The footer stays a direct child of the ScrollView so it remains
-         * full-bleed.
+         * The horizontal padding lives on this column rather than on the
+         * ScrollView content, and the footer stays a direct child of the
+         * ScrollView so it remains full-bleed.
          */}
         <View style={[styles.column, showDesktopChrome && styles.columnWide]}>
           {/* Profile Card */}
@@ -220,16 +224,15 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 0,
   },
-  scrollContentWide: {
-    maxWidth: 1080,
-    alignSelf: 'center',
-    width: '100%',
+  scrollContentMobile: {
+    paddingBottom: 40,
   },
   column: {
     width: '100%',
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   columnWide: {
     maxWidth: 1080,

@@ -22,6 +22,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import useDirectional from '../../hooks/useDirectional';
+import { useSiteChrome } from '../../hooks/useResponsive';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
@@ -168,6 +169,7 @@ export default function ProductDetailScreen({ route, navigation }) {
   const { isAuthenticated } = useAuth();
   const toast = useToast();
   const { textStart } = useDirectional();
+  const { showDesktopChrome } = useSiteChrome();
 
   const [pkgdetail, setPackage] = useState('');
 
@@ -487,7 +489,14 @@ export default function ProductDetailScreen({ route, navigation }) {
   
   return (
     <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollContent,
+          !showDesktopChrome && styles.scrollContentMobile,
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Image */}
         <View style={styles.imageWrapper}>
           <ProductImage
@@ -764,9 +773,13 @@ export default function ProductDetailScreen({ route, navigation }) {
             </View>
           ) : null}
 
-          {/* Desktop-only site footer, inside the scroll content. */}
-          <PageFooter />
         </View>
+
+        {/*
+          Desktop-only site footer. It sits directly in the scroll content,
+          outside the padded info card, so the band spans the window.
+        */}
+        <PageFooter />
       </ScrollView>
 
       {/* Sticky bottom bar */}
@@ -817,8 +830,16 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontFamily: Typography.fontFamilyMedium,
   },
+  scroll: {
+    flex: 1,
+  },
+  // The bottom bar is a layout sibling, not an overlay, so the footer can be the
+  // last thing in the scroll content without a spacer band underneath it.
   scrollContent: {
-    paddingBottom: 110,
+    paddingBottom: 0,
+  },
+  scrollContentMobile: {
+    paddingBottom: 24,
   },
   imageWrapper: {
     position: 'relative',
@@ -1154,10 +1175,6 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyBold,
   },
   bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: Colors.surface,
     flexDirection: 'row',
     alignItems: 'center',

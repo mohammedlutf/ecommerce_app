@@ -295,6 +295,7 @@ function FooterLink({ label, onPress }) {
 
 const styles = StyleSheet.create({
   root: {
+    width: '100%',
     backgroundColor: Colors.surface,
     borderTopWidth: 1,
     borderTopColor: Colors.borderSubtle,

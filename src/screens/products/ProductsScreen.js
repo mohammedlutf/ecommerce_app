@@ -353,6 +353,7 @@ function SearchResults({ state, onOpen, onLoadMore, refreshing, onRefresh, onCle
   const { textStart } = useDirectional();
   const { items, loading, loadingMore, hasMore, query } = state;
   const { columns, cellStyle, rowStyle, imageHeight } = useGridMetrics();
+  const { showDesktopChrome } = useSiteChrome();
 
   if (loading && items.length === 0) {
     return (
@@ -375,7 +376,10 @@ function SearchResults({ state, onOpen, onLoadMore, refreshing, onRefresh, onCle
       keyExtractor={(item, index) => item.item_code || String(index)}
       numColumns={columns}
       columnWrapperStyle={columns > 1 ? rowStyle : undefined}
-      contentContainerStyle={styles.listContent}
+      contentContainerStyle={[
+        styles.listContent,
+        !showDesktopChrome && styles.listContentMobile,
+      ]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
       initialNumToRender={8}
@@ -1509,7 +1513,10 @@ export default function ProductsScreen({ route, navigation }) {
                               keyExtractor={(item, index) => item.item_code || String(index)}
                               numColumns={gridColumns}
                               columnWrapperStyle={gridColumns > 1 ? gridRowStyle : undefined}
-                              contentContainerStyle={styles.listContent}
+                              contentContainerStyle={[
+                                styles.listContent,
+                                !showDesktopChrome && styles.listContentMobile,
+                              ]}
                               showsVerticalScrollIndicator={false}
                               initialNumToRender={6}
                               maxToRenderPerBatch={10}
@@ -1736,10 +1743,15 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontFamily: Typography.fontFamilySemiBold,
   },
+  // No bottom padding: the footer is the list footer, so padding here would
+  // leave an empty band under it.
   listContent: {
     paddingHorizontal: 10,
-    paddingBottom: 24,
+    paddingBottom: 0,
     paddingTop: 2,
+  },
+  listContentMobile: {
+    paddingBottom: 24,
   },
   // Grid gutters are expressed per-cell in `useGridMetrics` (padding inside the
   // cell plus a negative margin on the row), so there is no `columnWrapper` or
@@ -1750,8 +1762,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingTop: 8,
   },
+  // Cancels the content container's 10px horizontal padding so the footer band
+  // spans the window while its own `Container` keeps the content aligned.
+  // No explicit width: the negative margins must be able to stretch the box,
+  // and `width: '100%'` would pin it to the padded width instead.
   footerWrap: {
-    width: '100%',
+    marginHorizontal: -10,
   },
   footer: {
     flexDirection: 'row',

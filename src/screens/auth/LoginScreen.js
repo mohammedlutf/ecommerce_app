@@ -20,11 +20,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Icon from '../../components/Icon';
 import LottieView from 'lottie-react-native';
+import PageFooter from '../../components/layout/PageFooter';
 import CountryCodeInput from '../../components/CountryCodeInput';
 import { DEFAULT_COUNTRY, minDigitsFor, toCombinedDigits, MAX_DIGITS } from '../../constants/countries';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
+import { useSiteChrome } from '../../hooks/useResponsive';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Radius, Shadows } from '../../theme/spacing';
@@ -94,6 +96,7 @@ function AuthInput({ icon, ...props }) {
 export default function LoginScreen({ navigation }) {
   const { textStart } = useDirectional();
   const { t } = useI18n();
+  const { showDesktopChrome } = useSiteChrome();
   useDocumentHead({ title: t('seo.loginTitle'), path: '/login', noindex: true });
   const { login, register } = useAuth();
   const toast = useToast();
@@ -150,8 +153,14 @@ export default function LoginScreen({ navigation }) {
       await login(toCombinedDigits(loginCountry, digits), digits, loginPassword);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       toast.success('تم تسجيل الدخول بنجاح، أهلاً بعودتك');
-      if (navigation && navigation.canGoBack()) {
-        navigation.goBack();
+      /*
+       * A direct visit to /login has no screen to go back to. Leaving the form
+       * on screen after a successful sign-in looks like the login failed, so
+       * fall through to the account hub in that case.
+       */
+      if (navigation) {
+        if (navigation.canGoBack()) navigation.goBack();
+        else if (navigation.navigate) navigation.navigate('Account');
       }
     } catch (err) {
       toast.error(err?.message || 'فشل تسجيل الدخول، تحقق من البيانات');
@@ -229,6 +238,7 @@ export default function LoginScreen({ navigation }) {
           <ScrollView
             contentContainerStyle={[
               styles.scrollContent,
+              showDesktopChrome && styles.scrollContentWeb,
               // Android runs `softwareKeyboardLayoutMode: "pan"`, so opening the
               // keyboard no longer resizes the window — the app keeps its exact
               // layout. The form is padded up by the measured keyboard height
@@ -243,8 +253,19 @@ export default function LoginScreen({ navigation }) {
             keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
             showsVerticalScrollIndicator={false}
           >
+            {/*
+              On the web the brand and the form sit side by side; on a phone the
+              wrapper is a plain column so the existing layout is unchanged.
+            */}
+            <View style={[styles.authRow, showDesktopChrome && styles.authRowWeb]}>
             {/* Brand — collapsed while typing to free vertical space */}
-            <View style={[styles.brandWrap, keyboardOpen && styles.brandWrapCollapsed]}>
+            <View
+              style={[
+                styles.brandWrap,
+                showDesktopChrome && styles.brandWrapWeb,
+                keyboardOpen && styles.brandWrapCollapsed,
+              ]}
+            >
               
                 {/* <LinearGradient
                   colors={['#22C55E', Colors.primary, Colors.primaryDark]}
@@ -264,15 +285,33 @@ export default function LoginScreen({ navigation }) {
                               source={require('../../../assets/lottie/login.json')}
                               autoPlay
                               loop
-                              style={styles.animation}
+                              style={[styles.animation, showDesktopChrome && styles.animationWeb]}
                               renderMode="HARDWARE"
                             />
               {/* <Text style={[styles.brandTitle, textStart]}>زاد ماركت</Text> */}
              <Text style={[styles.brandTagline, textStart]}>تسوق طازج وتوصيل سريع حتى باب منزلك</Text>
+
+              {/*
+                The marketing copy only earns its space on the wide layout; on
+                a phone it would push the form below the fold.
+              */}
+              {showDesktopChrome ? (
+                <View style={styles.benefits}>
+                  <Text style={[styles.benefitsTitle, textStart]}>{t('auth.benefitsTitle')}</Text>
+                  {[t('auth.benefit1'), t('auth.benefit2'), t('auth.benefit3')].map((benefit) => (
+                    <View key={benefit} style={styles.benefitRow}>
+                      <View style={styles.benefitIcon}>
+                        <Icon name="checkmark" size={13} color={Colors.primaryDark} />
+                      </View>
+                      <Text style={[styles.benefitText, textStart]}>{benefit}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </View>
 
             {/* Card */}
-            <View style={styles.card}>
+            <View style={[styles.card, showDesktopChrome && styles.cardWeb]}>
               {showForgot ? (
                 <View>
                   <Text style={[styles.cardHeadline, textStart]}>استعادة كلمة المرور</Text>
@@ -445,19 +484,30 @@ export default function LoginScreen({ navigation }) {
                 </>
               )}
             </View>
-
-            {/* Trust row */}
-            <View style={styles.trustRow}>
-              <View style={styles.trustItem}>
-                <Icon name="shield-checkmark-outline" size={16} color={Colors.success} />
-                <Text style={[styles.trustText, textStart]}>بياناتك محمية ومشفرة</Text>
-              </View>
-              <View style={styles.trustDot} />
-              <View style={styles.trustItem}>
-                <Icon name="checkmark-done-outline" size={16} color={Colors.success} />
-                <Text style={[styles.trustText, textStart]}>ضمان جودة المنتجات</Text>
-              </View>
             </View>
+
+            {showDesktopChrome ? (
+              /*
+               * The desktop page gets the same site footer as every other web
+               * page. It is rendered outside the padded row and the scroll
+               * content has no horizontal padding on web, so the footer band is
+               * full-bleed like everywhere else.
+               */
+              <PageFooter />
+            ) : (
+              /* Trust row */
+              <View style={styles.trustRow}>
+                <View style={styles.trustItem}>
+                  <Icon name="shield-checkmark-outline" size={16} color={Colors.success} />
+                  <Text style={[styles.trustText, textStart]}>بياناتك محمية ومشفرة</Text>
+                </View>
+                <View style={styles.trustDot} />
+                <View style={styles.trustItem}>
+                  <Icon name="checkmark-done-outline" size={16} color={Colors.success} />
+                  <Text style={[styles.trustText, textStart]}>ضمان جودة المنتجات</Text>
+                </View>
+              </View>
+            )}
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -489,10 +539,84 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     paddingTop: 12,
   },
+  /*
+   * Desktop: no outer padding on the scroll content, because `PageFooter` is
+   * its child and must span the window. The split layout below owns the
+   * horizontal spacing instead.
+   */
+  scrollContentWeb: {
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
+    justifyContent: 'flex-start',
+  },
+  authRow: {
+    width: '100%',
+  },
+  authRowWeb: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 56,
+    flexWrap: 'wrap',
+    paddingHorizontal: 32,
+    paddingTop: 48,
+    paddingBottom: 16,
+  },
   brandWrap: {
     alignItems: 'center',
     marginBottom: 24,
     marginTop: 12,
+  },
+  brandWrapWeb: {
+    alignItems: 'flex-start',
+    width: 400,
+    maxWidth: '100%',
+    marginTop: 0,
+    marginBottom: 0,
+    padding: 28,
+    borderRadius: Radius.xxl,
+    backgroundColor: Colors.primaryLight,
+    borderWidth: 1,
+    borderColor: Colors.primaryContainer,
+  },
+  animationWeb: {
+    width: 240,
+    height: 240,
+    marginTop: -24,
+    marginBottom: -8,
+  },
+  benefits: {
+    width: '100%',
+    marginTop: 16,
+    gap: 10,
+  },
+  benefitsTitle: {
+    fontSize: Typography.sizes.titleSm,
+    fontFamily: Typography.fontFamilyBold,
+    color: Colors.primaryDark,
+    marginBottom: 2,
+  },
+  benefitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  benefitIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: Radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: Colors.primaryContainer,
+  },
+  benefitText: {
+    flex: 1,
+    fontSize: Typography.sizes.bodySm,
+    fontFamily: Typography.fontFamilyMedium,
+    color: Colors.onSurfaceVariant,
   },
   brandWrapCollapsed: {
     // The logo + title + tagline cost ~150dp, which is the difference between
@@ -534,6 +658,11 @@ const styles = StyleSheet.create({
     borderColor: Colors.borderSubtle,
     padding: 24,
     ...Shadows.lg,
+  },
+  cardWeb: {
+    width: 460,
+    maxWidth: '100%',
+    padding: 32,
   },
   tabSwitcher: {
     flexDirection: 'row',

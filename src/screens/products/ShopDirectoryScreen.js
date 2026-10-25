@@ -110,8 +110,11 @@ export default function ShopDirectoryScreen({ navigation }) {
           key={`shops-grid-${columns}`}
           keyExtractor={(item, index) => item.name || String(index)}
           numColumns={columns}
-          columnWrapperStyle={columns > 1 ? rowStyle : undefined}
-          contentContainerStyle={styles.listContent}
+          columnWrapperStyle={columns > 1 ? [rowStyle, styles.contentRow] : undefined}
+          contentContainerStyle={[
+            styles.listContent,
+            columns === 1 && styles.listContentSingle,
+          ]}
           showsVerticalScrollIndicator={false}
           onEndReached={loadMore}
           onEndReachedThreshold={0.4}
@@ -210,13 +213,25 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyMedium,
     color: Colors.textMuted,
   },
+  // No padding on the content container: the footer is the list footer, and
+  // padding here would inset it and leave a strip below it. Each row is capped
+  // and padded instead, so the grid stays centred while the footer spans the
+  // window.
   listContent: {
-    padding: 12,
-    // Caps the grid so the directory does not stretch across a 2560px window.
+    paddingTop: 12,
+    flexGrow: 1,
+  },
+  listContentSingle: {
+    paddingHorizontal: 12,
+  },
+  contentRow: {
+    width: '100%',
     maxWidth: MAX_CONTENT_WIDTH,
     alignSelf: 'center',
-    width: '100%',
-    flexGrow: 1,
+    paddingHorizontal: 12,
+    // The cells already carry their half-gutters; do not also apply the
+    // grid's negative row margin here.
+    marginHorizontal: 0,
   },
   shopCard: {
     backgroundColor: Colors.surfaceContainerLowest,
@@ -259,6 +274,7 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   footer: {
+    width: '100%',
     paddingTop: 8,
     alignItems: 'center',
     gap: 8,

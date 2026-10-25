@@ -121,7 +121,7 @@ function OffersSkeleton() {
 
 export default function HomeScreen({ navigation }) {
   const { t } = useI18n();
-  const { showTabBar } = useSiteChrome();
+  const { showTabBar, showDesktopChrome } = useSiteChrome();
   const { textStart, insetEnd, isRTL } = useDirectional();
   useDocumentHead({
     title: t('seo.homeTitle'),
@@ -431,7 +431,10 @@ function handleSelectCategory(catName) {
       )}
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          !showDesktopChrome && styles.scrollContentMobile,
+        ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -743,7 +746,13 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.labelSm,
     fontFamily: Typography.fontFamilyBold,
   },
+  // No bottom padding: the site footer is the last child, and any padding here
+  // becomes an empty strip underneath it. Phones have no footer, so they keep
+  // their breathing room below the last section.
   scrollContent: {
+    paddingBottom: 0,
+  },
+  scrollContentMobile: {
     paddingBottom: 32,
   },
   searchSection: {

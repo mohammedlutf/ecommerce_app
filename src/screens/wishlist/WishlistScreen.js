@@ -77,8 +77,15 @@ export default function WishlistScreen({ navigation }) {
           numColumns={columns}
           key={`wishlist-grid-${columns}`}
           showsVerticalScrollIndicator={false}
-          columnWrapperStyle={columns > 1 ? styles.columnWrapper : undefined}
-          contentContainerStyle={[styles.listContent, showDesktopChrome && styles.listContentWide]}
+          columnWrapperStyle={
+            columns > 1
+              ? [styles.columnWrapper, showDesktopChrome && styles.columnWrapperWide]
+              : undefined
+          }
+          contentContainerStyle={[
+            styles.listContent,
+            showDesktopChrome ? styles.listContentWide : styles.listContentMobile,
+          ]}
           refreshControl={
             <RefreshControl
               refreshing={loading}
@@ -139,20 +146,31 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyMedium,
     color: Colors.textMuted,
   },
+  // The footer is the FlatList footer, so the content container cannot carry
+  // horizontal/bottom padding: that would inset the footer and leave a strip
+  // underneath it. The grid cells own the gutters instead.
   listContent: {
-    paddingHorizontal: 10,
-    paddingVertical: 12,
+    paddingBottom: 0,
   },
   listContentWide: {
-    paddingHorizontal: 16,
-    maxWidth: 1200,
-    alignSelf: 'center',
-    width: '100%',
+    paddingTop: 12,
+  },
+  listContentMobile: {
+    paddingHorizontal: 10,
+    paddingBottom: 12,
   },
   columnWrapper: {
     justifyContent: 'flex-start',
   },
+  // Rows are capped and centred; the footer is not a row, so it keeps spanning
+  // the window.
+  columnWrapperWide: {
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
+    paddingHorizontal: 8,
+  },
   gridColumn: {
-    padding: 6,
+    padding: 8,
   },
 });

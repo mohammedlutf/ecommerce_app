@@ -8,6 +8,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import Icon from '../../components/Icon';
 import CategoryCard from '../../components/CategoryCard';
 import EmptyState from '../../components/EmptyState';
@@ -51,7 +52,14 @@ function childrenLabel(count) {
 function DepartmentCard({ parent, onOpenGroup, onOpenParent }) {
   const { textStart, isRTL } = useDirectional();
   const children = parent.children || [];
-  const preview = children.slice(0, 5);
+  const preview = children.slice(0, 4);
+
+  /*
+   * Not every Item Group has its own image, but its children usually do. Use
+   * the first child image as the department cover so the grid stays visual
+   * instead of falling back to a row of identical placeholder icons.
+   */
+  const cover = parent.image || (children.find((child) => child.image) || {}).image || '';
 
   return (
     <View style={styles.deptCard} className="hover-lift">
@@ -62,21 +70,31 @@ function DepartmentCard({ parent, onOpenGroup, onOpenParent }) {
         style={styles.deptMedia}
       >
         <ProductImage
-          source={parent.image}
+          source={cover}
           style={styles.deptImage}
           fallbackIcon="pricetags-outline"
-          fallbackIconSize={28}
+          fallbackIconSize={30}
+          resizeMode="cover"
         />
-        <View style={styles.deptBadge}>
-          <Text style={styles.deptBadgeText}>{children.length} تصنيف فرعي</Text>
+
+        {/* Image-led caption: name and sub-category count sit on the cover. */}
+        <LinearGradient
+          pointerEvents="none"
+          colors={['transparent', 'rgba(0, 24, 14, 0.72)']}
+          style={styles.deptScrim}
+        />
+
+        <View style={styles.deptCaption} pointerEvents="none">
+          <Text style={[styles.deptName, textStart]} numberOfLines={1}>
+            {parent.name}
+          </Text>
+          <Text style={[styles.deptCount, textStart]} numberOfLines={1}>
+            {childrenLabel(children.length)}
+          </Text>
         </View>
       </Pressable>
 
       <View style={styles.deptBody}>
-        <Text style={[styles.deptName, textStart]} numberOfLines={1}>
-          {parent.name}
-        </Text>
-
         {preview.length ? (
           <View style={styles.deptList}>
             {preview.map((child) => (
@@ -87,6 +105,16 @@ function DepartmentCard({ parent, onOpenGroup, onOpenParent }) {
                 style={styles.deptItem}
                 accessibilityRole="link"
               >
+                <View style={styles.deptItemThumb}>
+                  <ProductImage
+                    source={child.image}
+                    style={styles.deptItemThumbImage}
+                    fallbackIcon="pricetag-outline"
+                    fallbackIconSize={12}
+                    fallbackIconColor={Colors.textMuted}
+                    resizeMode="cover"
+                  />
+                </View>
                 <Text style={[styles.deptItemText, textStart]} numberOfLines={1}>
                   {child.name}
                 </Text>
@@ -137,6 +165,9 @@ function DepartmentCard({ parent, onOpenGroup, onOpenParent }) {
 function ParentTab({ parent, isActive, onPress }) {
   const { textStart } = useDirectional();
   const count = parent.children ? parent.children.length : 0;
+  // Same fallback as the desktop card: borrow a child image when the parent
+  // group itself has none.
+  const cover = parent.image || ((parent.children || []).find((child) => child.image) || {}).image || '';
 
   return (
     <Pressable
@@ -151,7 +182,7 @@ function ParentTab({ parent, isActive, onPress }) {
     >
       <View style={[styles.tabThumb, isActive && styles.tabThumbActive]}>
         <ProductImage
-          source={parent.image}
+          source={cover}
           style={styles.tabThumbImage}
           fallbackIcon="pricetags-outline"
           fallbackIconSize={20}
@@ -380,8 +411,16 @@ export default function CategoriesScreen({ navigation }) {
           contentContainerStyle={styles.desktopScroll}
           showsVerticalScrollIndicator={false}
         >
+          {/*
+            Padding and the width cap live on `desktopInner`, not on the scroll
+            content: `PageFooter` sits outside it so the footer band spans the
+            full window instead of inheriting the 16px gutter.
+          */}
           <View style={styles.desktopInner}>
             <View style={styles.desktopHead}>
+              <View style={styles.desktopHeadIcon}>
+                <Icon name="grid-outline" size={22} color={Colors.primary} />
+              </View>
               <View style={styles.desktopHeadText}>
                 <Text style={[styles.desktopTitle, textStart]}>تصفح المتجر</Text>
                 <Text style={[styles.desktopSub, textStart]}>
@@ -413,9 +452,9 @@ export default function CategoriesScreen({ navigation }) {
                 </View>
               ))}
             </View>
-
-            <PageFooter />
           </View>
+
+          <PageFooter />
         </ScrollView>
       </SafeAreaView>
     );
@@ -528,7 +567,6 @@ const styles = StyleSheet.create({
 
   // ---- Desktop catalogue grid ---------------------------------------------
   desktopScroll: {
-    paddingHorizontal: 16,
     paddingTop: 18,
     paddingBottom: 0,
   },
@@ -536,13 +574,28 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 1280,
     alignSelf: 'center',
+    paddingHorizontal: 16,
   },
   desktopHead: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 16,
-    marginBottom: 18,
+    marginBottom: 20,
+    padding: 18,
+    borderRadius: Radius.xl,
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    ...Shadows.sm,
+  },
+  desktopHeadIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   desktopHeadText: {
     flex: 1,
@@ -590,7 +643,7 @@ const styles = StyleSheet.create({
   },
   deptMedia: {
     width: '100%',
-    aspectRatio: 1.85,
+    aspectRatio: 1.45,
     backgroundColor: Colors.surfaceContainerLow,
     overflow: 'hidden',
   },
@@ -598,42 +651,60 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  deptBadge: {
+  deptScrim: {
     position: 'absolute',
-    left: 10,
-    bottom: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: Radius.full,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '62%',
   },
-  deptBadgeText: {
+  deptCaption: {
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    bottom: 12,
+    gap: 2,
+  },
+  deptName: {
+    fontSize: Typography.sizes.titleMd,
+    fontFamily: Typography.fontFamilyExtraBold,
+    color: '#ffffff',
+  },
+  deptCount: {
     fontSize: Typography.sizes.labelSm,
-    fontFamily: Typography.fontFamilyBold,
-    color: Colors.primaryDark,
+    fontFamily: Typography.fontFamilyMedium,
+    color: 'rgba(255,255,255,0.86)',
   },
   deptBody: {
     padding: 14,
     gap: 8,
   },
-  deptName: {
-    fontSize: Typography.sizes.titleMd,
-    fontFamily: Typography.fontFamilyBold,
-    color: Colors.onSurface,
-  },
   deptList: {
-    gap: 1,
-    minHeight: 108,
+    gap: 2,
+    minHeight: 124,
   },
   deptItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 6,
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    borderRadius: Radius.sm,
+    gap: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: Radius.md,
     backgroundColor: Colors.surfaceContainerLow,
+  },
+  deptItemThumb: {
+    width: 28,
+    height: 28,
+    borderRadius: Radius.sm,
+    overflow: 'hidden',
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+  },
+  deptItemThumbImage: {
+    width: '100%',
+    height: '100%',
   },
   deptItemText: {
     flex: 1,
@@ -651,7 +722,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.bodySm,
     fontFamily: Typography.fontFamilyRegular,
     color: Colors.textMuted,
-    minHeight: 108,
+    minHeight: 124,
   },
   deptCta: {
     flexDirection: 'row',

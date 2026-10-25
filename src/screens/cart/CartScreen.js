@@ -20,7 +20,7 @@ import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useResetOnTabPress } from '../../hooks/useResetOnTabPress';
-import useResponsive from '../../hooks/useResponsive';
+import useResponsive, { useSiteChrome } from '../../hooks/useResponsive';
 import useDirectional from '../../hooks/useDirectional';
 import PageFooter from '../../components/layout/PageFooter';
 import useConfirm from '../../components/ConfirmDialog';
@@ -37,6 +37,7 @@ import { formatCurrency, formatCount } from '../../utils/format';
 export default function CartScreen({ navigation }) {
   useResetOnTabPress(navigation, 'CartTab');
   const { isDesktop } = useResponsive();
+  const { showDesktopChrome } = useSiteChrome();
   const { confirm, confirmDialog } = useConfirm();
   const { textStart } = useDirectional();
   // Per-visitor state: the cart must never be indexed, and there is nothing to
@@ -538,7 +539,10 @@ export default function CartScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, !showDesktopChrome && styles.scrollContentMobile]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.pageInner}>
           {isDesktop ? (
             /*
@@ -610,12 +614,18 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontFamily: Typography.fontFamilyMedium,
   },
+  // Padding lives on `pageInner`, not here: `PageFooter` is a sibling of the
+  // padded column and must stay full-bleed, and a bottom padding here would
+  // leave an empty band under the footer.
   scrollContent: {
-    padding: 16,
+    paddingBottom: 0,
+  },
+  scrollContentMobile: {
     paddingBottom: 40,
   },
   pageInner: {
     width: '100%',
+    padding: 16,
     // Caps the column so the cart does not stretch to a 2560px window, while
     // staying centred rather than pinned to the left edge.
     maxWidth: MAX_CONTENT_WIDTH,

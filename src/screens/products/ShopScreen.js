@@ -329,7 +329,7 @@ export default function ShopScreen({ route, navigation }) {
           />
         }
         ListHeaderComponent={
-          <>
+          <View style={styles.headerCap}>
             {profileCard}
 
             <View style={styles.searchWrap}>
@@ -357,7 +357,7 @@ export default function ShopScreen({ route, navigation }) {
             ) : (
               <Text style={[styles.productsTitle, textStart]}>منتجات المتجر</Text>
             )}
-          </>
+          </View>
         }
         renderItem={({ item }) => (
           <View style={cellStyle}>
@@ -433,12 +433,18 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamilyMedium,
     color: Colors.textMuted,
   },
+  // The footer is the list footer, so the content container carries no
+  // padding here: padding would inset the footer and leave a strip below it.
+  // The capped, padded header wrapper keeps the profile card centred.
   listContent: {
-    padding: 12,
+    paddingTop: 12,
+    flexGrow: 1,
+  },
+  headerCap: {
+    width: '100%',
     maxWidth: MAX_CONTENT_WIDTH,
     alignSelf: 'center',
-    width: '100%',
-    flexGrow: 1,
+    paddingHorizontal: 12,
   },
   profileCard: {
     flexDirection: 'row',
@@ -526,6 +532,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   footer: {
+    width: '100%',
     paddingTop: 8,
     alignItems: 'center',
     gap: 8,
