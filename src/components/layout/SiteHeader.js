@@ -421,7 +421,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderSubtle,
     zIndex: 30,
-    ...(Platform.OS === 'web' ? { position: 'sticky', top: 0 } : {}),
   },
   pressed: { opacity: 0.6 },
 

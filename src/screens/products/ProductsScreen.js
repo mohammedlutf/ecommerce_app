@@ -28,6 +28,8 @@ import CatalogAPI from '../../api/catalog';
 import { normalizeGroupName } from '../../utils/catalog';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import { useResetOnTabPress } from '../../hooks/useResetOnTabPress';
+import { useFocusEffect } from '@react-navigation/native';
+import { useSiteHeaderVisibility } from '../../context/SiteHeaderVisibilityContext';
 import { openProduct } from '../../seo/linking';
 import useDocumentHead from '../../seo/useDocumentHead';
 import { organizationNode, itemListNode } from '../../seo/jsonld';
@@ -349,7 +351,7 @@ function SearchResultsHeader({ query, count, loading }) {
  *  2. Search spans every item, so there is no page to swipe through — one
  *     continuous paginated list is the only honest layout.
  */
-function SearchResults({ state, onOpen, onLoadMore, refreshing, onRefresh, onClearAll }) {
+function SearchResults({ state, onOpen, onLoadMore, refreshing, onRefresh, onClearAll, onScroll }) {
   const { textStart } = useDirectional();
   const { items, loading, loadingMore, hasMore, query } = state;
   const { columns, cellStyle, rowStyle, imageHeight } = useGridMetrics();
@@ -382,6 +384,8 @@ function SearchResults({ state, onOpen, onLoadMore, refreshing, onRefresh, onCle
       ]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
+      onScroll={onScroll}
+      scrollEventThrottle={16}
       initialNumToRender={8}
       maxToRenderPerBatch={10}
       updateCellsBatchingPeriod={60}
@@ -435,6 +439,7 @@ export default function ProductsScreen({ route, navigation }) {
   const { isAdmin, savedTick, lastSaved } = useAdmin();
   const { locale, t } = useI18n();
   const { showDesktopChrome } = useSiteChrome();
+  const { setHeaderHidden } = useSiteHeaderVisibility();
 
   /**
    * Responsive grid metrics for the browse pager.
@@ -525,6 +530,18 @@ export default function ProductsScreen({ route, navigation }) {
 
   const offsetRef = useRef({});
 
+  /*
+   * Header hide-on-scroll.
+   *
+   * The desktop site header is outside every screen scroller, so it would
+   * otherwise stay pinned through the whole catalogue. Track the list offset
+   * here and ask the shell to collapse it after a deliberate downward scroll.
+   * The refs keep this out of the render path: a scroll event must not re-render
+   * the grid.
+   */
+  const lastListOffset = useRef(0);
+  const headerHiddenRef = useRef(false);
+
   const parentList = useMemo(
     () => (tree ? [ALL_KEY, ...tree.map((p) => p.name)] : [ALL_KEY]),
     [tree]
@@ -549,6 +566,57 @@ export default function ProductsScreen({ route, navigation }) {
   }, [tree, activeParent, childrenOfParent, categories]);
 
   const activeKey = childPages[activeChildIndex] || childPages[0] || ALL_KEY;
+
+  const resetHeader = useCallback(() => {
+    headerHiddenRef.current = false;
+    lastListOffset.current = 0;
+    setHeaderHidden(false);
+  }, [setHeaderHidden]);
+
+  // Leaving Products — or coming back to it — must never leave the shared header
+  // collapsed behind another screen.
+  useFocusEffect(
+    useCallback(() => {
+      resetHeader();
+      return resetHeader;
+    }, [resetHeader])
+  );
+
+  // Switching a category or entering/leaving search replaces the list under the
+  // pointer, so restore the header instead of carrying the previous scroll
+  // direction into the new list.
+  useEffect(() => {
+    resetHeader();
+  }, [activeKey, isSearchActive, resetHeader]);
+
+  const handleListScroll = useCallback(
+    (event) => {
+      if (!showDesktopChrome) return;
+      const offset = event?.nativeEvent?.contentOffset?.y;
+      if (!Number.isFinite(offset)) return;
+
+      const y = Math.max(0, offset);
+      const delta = y - lastListOffset.current;
+      lastListOffset.current = y;
+
+      if (y <= 8) {
+        if (headerHiddenRef.current) {
+          headerHiddenRef.current = false;
+          setHeaderHidden(false);
+        }
+        return;
+      }
+
+      if (delta > 6 && y > 80 && !headerHiddenRef.current) {
+        headerHiddenRef.current = true;
+        setHeaderHidden(true);
+      } else if (delta < -6 && headerHiddenRef.current) {
+        headerHiddenRef.current = false;
+        setHeaderHidden(false);
+      }
+    },
+    [setHeaderHidden, showDesktopChrome]
+  );
 
   // Clamp the active index when the page list shrinks.
   useEffect(() => {
@@ -1378,6 +1446,7 @@ export default function ProductsScreen({ route, navigation }) {
             refreshing={refreshing}
             onRefresh={refreshSearch}
             onClearAll={handleClearSearch}
+            onScroll={handleListScroll}
           />
         </>
       ) : (
@@ -1518,6 +1587,8 @@ export default function ProductsScreen({ route, navigation }) {
                                 !showDesktopChrome && styles.listContentMobile,
                               ]}
                               showsVerticalScrollIndicator={false}
+                              onScroll={handleListScroll}
+                              scrollEventThrottle={16}
                               initialNumToRender={6}
                               maxToRenderPerBatch={10}
                               updateCellsBatchingPeriod={60}
