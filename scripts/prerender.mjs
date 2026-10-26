@@ -56,6 +56,9 @@ const COPY = {
     home: { title: `${BRAND.ar} | تسوق أونلاين مع توصيل سريع`, description: 'تسوق من سوبرماركت حضرموت أونلاين. منتجات بقالة طازجة، خضار، فواكه، لحوم ومنتجات منزلية مع توصيل سريع إلى باب منزلك.' },
     products: { title: `المنتجات | ${BRAND.ar}`, description: 'تصفح جميع المنتجات المتاحة في متجرنا مع أسعار واضحة وتوصيل سريع لجميع مناطق حضرموت.' },
     categories: { title: `الأقسام | ${BRAND.ar}`, description: 'تصفح أقسام المتجر: بقالة، خضار وفواكه، لحوم، ألبان، منظفات والمزيد.' },
+    contact: { title: `تواصل معنا | ${BRAND.ar}`, description: 'تواصل مع زاد ماركت عبر الهاتف أو البريد الإلكتروني أو واتساب، واطلع على سياسة الخصوصية وسياسة الاسترجاع.' },
+    privacy: { title: `سياسة الخصوصية | ${BRAND.ar}`, description: 'تعرّف على كيفية جمع زاد ماركت لبياناتك واستخدامها وحمايتها، وخياراتك بشأنها.' },
+    returns: { title: `سياسة الاسترجاع | ${BRAND.ar}`, description: 'شروط الاسترجاع والاستبدال والاسترداد في زاد ماركت، وكيفية تقديم طلب استرجاع.' },
     product: (name) => ({
       title: `${name} | ${BRAND.ar}`,
       description: `اشترِ ${name} بأفضل سعر مع توصيل سريع. تفاصيل المنتج والصور/reviews متوفرة في المتجر.`.replace('/reviews', ''),
@@ -66,6 +69,9 @@ const COPY = {
     home: { title: `${BRAND.en} | Online shopping with fast delivery`, description: 'Shop online at Hadhramaut Supermarket. Fresh groceries, vegetables, fruits, meat and household products with fast delivery to your door.' },
     products: { title: `Products | ${BRAND.en}`, description: 'Browse everything we stock, with clear prices and fast delivery across all of Hadhramaut.' },
     categories: { title: `Categories | ${BRAND.en}`, description: 'Browse our departments: groceries, fresh produce, meat, dairy, household and more.' },
+    contact: { title: `Contact us | ${BRAND.en}`, description: 'Contact Zad Market by phone, email or WhatsApp, and read our privacy policy and returns policy.' },
+    privacy: { title: `Privacy policy | ${BRAND.en}`, description: 'Learn how Zad Market collects, uses and protects your data, and the choices available to you.' },
+    returns: { title: `Returns policy | ${BRAND.en}`, description: 'Returns, exchanges and refund conditions at Zad Market, and how to request a return.' },
     product: (name) => ({
       title: `${name} | ${BRAND.en}`,
       description: `Buy ${name} at the best price with fast delivery. Full product details and images available in store.`,
@@ -391,6 +397,34 @@ async function main() {
       })
     );
     written += 1;
+
+    // Public support pages: contact, privacy and returns.
+    const supportPages = [
+      { key: 'contact', path: '/contact', priority: '0.6', changefreq: 'monthly' },
+      { key: 'privacy', path: '/privacy', priority: '0.4', changefreq: 'yearly' },
+      { key: 'returns', path: '/returns', priority: '0.4', changefreq: 'yearly' },
+    ];
+    for (const page of supportPages) {
+      const copy = COPY[locale][page.key];
+      urls.push({
+        loc: localized(locale, page.path),
+        priority: page.priority,
+        changefreq: page.changefreq,
+      });
+      await writeRoute(
+        WEB_OUT,
+        localized(locale, page.path),
+        renderPage(template, {
+          locale,
+          title: copy.title,
+          description: copy.description,
+          canonicalPath: localized(locale, page.path),
+          jsonLd: [organizationNode(locale)],
+          body: fallbackBody(locale, copy.title, copy.description),
+        })
+      );
+      written += 1;
+    }
 
     // Product pages
     for (const product of products) {

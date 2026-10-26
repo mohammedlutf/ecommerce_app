@@ -162,6 +162,25 @@ export default function AccountScreen({ navigation }) {
 
             <TouchableOpacity
               activeOpacity={0.85}
+              onPress={() => navigation.navigate('HomeTab', { screen: 'Contact' })}
+              style={[styles.linkRow, styles.linkRowBordered]}
+              accessibilityRole="button"
+              accessibilityLabel={t('contact.accountTitle')}
+            >
+              <View style={styles.linkIcon}>
+                <Icon name="chatbubbles-outline" size={20} color={Colors.primary} />
+              </View>
+              <View style={[styles.linkText, textStart]}>
+                <Text style={[styles.linkTitle, textStart]}>{t('contact.accountTitle')}</Text>
+                <Text style={[styles.linkSubtitle, textStart]}>
+                  {t('contact.accountSubtitle')}
+                </Text>
+              </View>
+              <Icon name="chevron-back" size={20} color={Colors.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.85}
               onPress={() => navigation.navigate('VendorHome')}
               style={[styles.linkRow, styles.linkRowBordered]}
               accessibilityRole="button"

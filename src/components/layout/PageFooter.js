@@ -1,9 +1,26 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, TextInput, ActivityIndicator, Image } from 'react-native';
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  ActivityIndicator,
+  Image,
+  Linking,
+} from 'react-native';
 import Icon from '../Icon';
 import Container from './Container';
 import CatalogAPI from '../../api/catalog';
+import {
+  CONTACT_EMAIL,
+  CONTACT_MAILTO_URL,
+  CONTACT_PHONE_DISPLAY,
+  CONTACT_TEL_URL,
+  WHATSAPP_CHAT_URL,
+} from '../../constants/contact';
 import { useSiteChrome } from '../../hooks/useResponsive';
+import { useI18n } from '../../i18n/I18nContext';
 import { useToast } from '../../context/ToastContext';
 import { navigationRef } from '../../navigation/navigationRef';
 import { openProducts } from '../../seo/linking';
@@ -17,7 +34,7 @@ const LOGO = require('../../../assets/rec_logo.png');
 const SOCIALS = [
   { name: 'logo-facebook', label: 'Facebook' },
   { name: 'logo-instagram', label: 'Instagram' },
-  { name: 'logo-whatsapp', label: 'WhatsApp' },
+  { name: 'logo-whatsapp', label: 'WhatsApp', url: WHATSAPP_CHAT_URL },
   // Ionicons has no Telegram brand glyph; `paper-plane` is the closest match.
   { name: 'paper-plane', label: 'Telegram' },
 ];
@@ -41,42 +58,7 @@ const SOCIALS = [
 export default function PageFooter() {
   const { textStart } = useDirectional();
   const { showDesktopChrome } = useSiteChrome();
-  const t = (k) => {
-    const map = {
-      'footer.aboutTitle': 'عن المتجر',
-      'footer.aboutText': 'زاد ماركت الموثوق للتسوق السريع والآمن.',
-      'footer.subscribeTitle': 'اشترك في النشرة الإخبارية',
-      'footer.subscribeText': 'احصل على أحدث العروض والمنتجات مباشرة إلى بريدك الإلكتروني',
-      'footer.subscribePlaceholder': 'البريد الإلكتروني',
-      'footer.subscribeCta': 'اشتراك',
-      'footer.shopTitle': 'التسوق',
-      'nav.products': 'المنتجات',
-      'nav.categories': 'الأقسام',
-      'nav.offers': 'العروض',
-      'nav.wishlist': 'المفضلة',
-      'nav.cart': 'السلة',
-      'footer.helpTitle': 'المساعدة',
-      'account.orders': 'طلباتي',
-      'nav.trackOrder': 'تتبع الطلب',
-      'footer.shipping': 'الشحن والتوصيل',
-      'footer.returns': 'الإرجاع والاستبدال',
-      'footer.faq': 'الأسئلة الشائعة',
-      'footer.categoriesTitle': 'الأقسام',
-      'footer.contactTitle': 'تواصل معنا',
-      'footer.deliveryNote': 'التوصيل داخل صنعاء ',
-      'footer.workingHoursValue': 'السبت - الخميس: 9 ص - 6 م',
-      'footer.fridayHours': 'الجمعة: مغلق',
-      'home.securePayment': 'دفع آمن',
-      'home.easyReturns': 'إرجاع سهل',
-      'footer.rightsReserved': 'جميع الحقوق محفوظة',
-      'footer.privacy': 'سياسة الخصوصية',
-      'footer.terms': 'شروط الاستخدام',
-      'app.name': 'متجر',
-      'errors.somethingWrong': 'حدث خطأ ما',
-      'footer.subscribed': 'تم الاشتراك بنجاح',
-    };
-    return map[k] || k;
-  };
+  const { t } = useI18n();
   const toast = useToast();
   const [groups, setGroups] = useState(null);
   const [email, setEmail] = useState('');
@@ -118,6 +100,13 @@ export default function PageFooter() {
    * then rotated or resized. Every hook must be unconditional.
    */
   const go = useCallback((tab, screen) => navigationRef.current?.navigate(tab, { screen }), []);
+
+  const openLink = useCallback(
+    (url) => {
+      Linking.openURL(url).catch(() => toast.error(t('errors.somethingWrong')));
+    },
+    [toast, t]
+  );
 
   // Phone and narrow web have no footer: the bottom tab bar already occupies
   // that edge, and a newsletter form above it would crowd a 5-inch screen.
@@ -175,7 +164,7 @@ export default function PageFooter() {
                 {SOCIALS.map((social) => (
                   <Pressable
                     key={social.name}
-                    onPress={() => {}}
+                    onPress={social.url ? () => openLink(social.url) : () => {}}
                     style={({ pressed }) => [styles.socialBtn, pressed && styles.pressed]}
                     accessibilityRole="link"
                     accessibilityLabel={social.label}
@@ -193,8 +182,8 @@ export default function PageFooter() {
                 { label: t('nav.categories'), onPress: () => { try { navigationRef.current?.navigate('HomeTab', { screen: 'Categories' }); } catch { go('ProductsTab', 'Products'); } } },
                 { label: t('nav.offers'), onPress: () => { try { const arr = Array.isArray(groups) ? groups : []; const findGroup = (a) => { for (let i = 0; i < a.length; i += 1) { const p = a[i]; const n = String(p.name || '').toLowerCase(); if (n === 'العروض' || n === 'offers' || n.includes('عرض')) return p.name; if (Array.isArray(p.children)) { for (let j = 0; j < p.children.length; j += 1) { const c = p.children[j]; const cn = String(c.name || '').toLowerCase(); if (cn === 'العروض' || cn === 'offers' || cn.includes('عرض')) return c.name; } } } return null; }; const g = findGroup(arr); if (g) { openProducts(navigationRef.current, { itemGroup: g }); return; } } catch {} openProducts(navigationRef.current, {}); } },
                 // `WishlistTab` is its own tab, not a screen inside `AccountTab`; the
-        // nested form made React Navigation throw "action was not handled".
-        { label: t('nav.wishlist'), onPress: () => go('WishlistTab') },
+                // nested form made React Navigation throw "action was not handled".
+                { label: t('nav.wishlist'), onPress: () => go('WishlistTab') },
                 { label: t('nav.cart'), onPress: () => go('CartTab', 'Cart') },
               ]}
             />
@@ -205,8 +194,8 @@ export default function PageFooter() {
                 { label: t('account.orders'), onPress: () => { try { navigationRef.current?.navigate('AccountTab', { screen: 'MyOrders' }); } catch { go('AccountTab', 'Account'); } } },
                 { label: t('nav.trackOrder'), onPress: () => { try { navigationRef.current?.navigate('AccountTab', { screen: 'MyOrders' }); } catch { go('AccountTab', 'Account'); } } },
                 { label: t('footer.shipping'), onPress: () => go('AccountTab', 'Account') },
-                { label: t('footer.returns'), onPress: () => go('AccountTab', 'Account') },
-                { label: t('footer.faq'), onPress: () => go('AccountTab', 'Account') },
+                { label: t('footer.returns'), onPress: () => go('HomeTab', 'ReturnPolicy') },
+                { label: t('footer.faq'), onPress: () => go('HomeTab', 'Contact') },
               ]}
             />
 
@@ -233,6 +222,28 @@ export default function PageFooter() {
                   <Text style={[styles.contactText, textStart]}>{t('footer.fridayHours')}</Text>
                 </View>
               </View>
+              <Pressable
+                onPress={() => openLink(CONTACT_TEL_URL)}
+                style={({ pressed }) => [styles.contactItem, pressed && styles.pressed]}
+                accessibilityRole="link"
+                accessibilityLabel={CONTACT_PHONE_DISPLAY}
+              >
+                <Icon name="call-outline" size={17} color={Colors.primary} />
+                <Text style={[styles.contactText, textStart, styles.ltrText]}>
+                  {CONTACT_PHONE_DISPLAY}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => openLink(CONTACT_MAILTO_URL)}
+                style={({ pressed }) => [styles.contactItem, pressed && styles.pressed]}
+                accessibilityRole="link"
+                accessibilityLabel={CONTACT_EMAIL}
+              >
+                <Icon name="mail-outline" size={17} color={Colors.primary} />
+                <Text style={[styles.contactText, textStart, styles.ltrText]}>
+                  {CONTACT_EMAIL}
+                </Text>
+              </Pressable>
 
               <View style={styles.trustRow}>
                 <Icon name="shield-checkmark-outline" size={16} color={Colors.success} />
@@ -255,9 +266,14 @@ export default function PageFooter() {
               © {new Date().getFullYear()} {t('app.name')} — {t('footer.rightsReserved')}
             </Text>
             <View style={styles.legalLinks}>
-              <FooterLink label={t('footer.privacy')} onPress={() => {}} />
-              <FooterLink label={t('footer.terms')} onPress={() => {}} />
-              <FooterLink label={t('footer.returns')} onPress={() => {}} />
+              <FooterLink
+                label={t('footer.privacy')}
+                onPress={() => go('HomeTab', 'PrivacyPolicy')}
+              />
+              <FooterLink
+                label={t('footer.returns')}
+                onPress={() => go('HomeTab', 'ReturnPolicy')}
+              />
             </View>
           </View>
         </Container>
@@ -442,6 +458,9 @@ const styles = StyleSheet.create({
     color: Colors.onSurfaceVariant,
     lineHeight: 20,
     fontFamily: Typography.fontFamilyRegular,
+  },
+  ltrText: {
+    writingDirection: 'ltr',
   },
   trustRow: {
     flexDirection: 'row',

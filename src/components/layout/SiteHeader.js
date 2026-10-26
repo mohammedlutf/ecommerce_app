@@ -246,7 +246,7 @@ export default function SiteHeader({ onSearchSubmit }) {
               <NavLink label={t('nav.categories')} onPress={() => { if (Platform.OS === 'web') { try { navigate('HomeTab', { screen: 'Categories' }); return; } catch {} } go('ProductsTab', 'Products'); }} />
                         <NavLink label={t('nav.offers')} onPress={() => { try { const groups = Array.isArray(hierarchy) ? hierarchy : []; const findGroup = (arr) => { for (let i = 0; i < arr.length; i += 1) { const p = arr[i]; const n = String(p.name || '').toLowerCase(); if (n === 'العروض' || n === 'offers' || n.includes('عرض') || n.includes('offer')) return p.name; if (Array.isArray(p.children)) { for (let j = 0; j < p.children.length; j += 1) { const c = p.children[j]; const cn = String(c.name || '').toLowerCase(); if (cn === 'العروض' || cn === 'offers' || cn.includes('عرض') || cn.includes('offer')) return c.name; } } } return null; }; const offerGroup = findGroup(groups); if (offerGroup) { openProducts(navigationRef.current, { itemGroup: offerGroup }); setOpenGroup(null); return; } } catch {} if (Platform.OS === 'web') { openProducts(navigationRef.current, {}); setOpenGroup(null); return; } go('ProductsTab', 'Products'); }} />
               <NavLink label={t('nav.help')} onPress={() => go('AccountTab', 'Account')} />
-              <NavLink label={t('nav.contact')} onPress={() => go('AccountTab', 'Account')} />
+              <NavLink label={t('nav.contact')} onPress={() => go('HomeTab', 'Contact')} />
             </View>
           </Container>
         </View>

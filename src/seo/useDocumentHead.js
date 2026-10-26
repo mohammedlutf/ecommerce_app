@@ -81,7 +81,8 @@ export default function useDocumentHead({
 } = {}) {
   const locale = typeof document !== 'undefined' ? currentLocaleFromDom() : DEFAULT_LOCALE;
   const siteLocale = locale === 'ar' ? SITE.locale : SITE.localeEn;
-  const fullTitle = title ? `${title} | ${SITE.name}` : SITE.name;
+  const siteName = locale === 'ar' ? SITE.name : SITE.nameEn;
+  const fullTitle = title ? `${title} | ${siteName}` : siteName;
   const canonicalPath = pathWithLocale(locale, path);
   const ogImage = absoluteUrl(image || '/assets/rtlrecologo.png');
 
@@ -97,7 +98,7 @@ export default function useDocumentHead({
     upsertMeta(doc, 'property', 'og:description', description || '');
     upsertMeta(doc, 'property', 'og:type', type);
     upsertMeta(doc, 'property', 'og:url', absoluteUrl(canonicalPath));
-    upsertMeta(doc, 'property', 'og:site_name', SITE.name);
+    upsertMeta(doc, 'property', 'og:site_name', siteName);
     upsertMeta(doc, 'property', 'og:image', ogImage);
     upsertMeta(doc, 'property', 'og:locale', siteLocale);
     upsertMeta(doc, 'name', 'twitter:card', 'summary_large_image');
@@ -119,7 +120,7 @@ export default function useDocumentHead({
     // `locale` is derived from the DOM rather than state, so it is not a
     // dependency; the provider re-renders children on a language change anyway.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fullTitle, description, canonicalPath, ogImage, type, noindex]);
+  }, [fullTitle, description, canonicalPath, ogImage, type, noindex, siteName]);
 
   /**
    * Structured data.

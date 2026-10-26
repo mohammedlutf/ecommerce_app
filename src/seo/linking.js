@@ -155,6 +155,9 @@ export const linking = {
            */
           ShopDirectory: 'shops',
           Shop: 'shop/:shop',
+          Contact: 'contact',
+          PrivacyPolicy: 'privacy',
+          ReturnPolicy: 'returns',
         },
       },
       ProductsTab: {

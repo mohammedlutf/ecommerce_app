@@ -158,6 +158,12 @@ const deepLinks = {
   '/ar/order/ORD-9': 'CartTab/OrderConfirmation',
   '/ar/account': 'AccountTab/Account',
   '/ar/login': 'AccountTab/Login',
+  '/ar/contact': 'HomeTab/Contact',
+  '/en/contact': 'HomeTab/Contact',
+  '/ar/privacy': 'HomeTab/PrivacyPolicy',
+  '/en/privacy': 'HomeTab/PrivacyPolicy',
+  '/ar/returns': 'HomeTab/ReturnPolicy',
+  '/en/returns': 'HomeTab/ReturnPolicy',
 };
 for (const [url, expected] of Object.entries(deepLinks)) {
   check(url, focused(H.getStateFromPath(url, config)), expected);

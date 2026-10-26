@@ -140,13 +140,15 @@ const expected = {
   'src/screens/auth/LoginScreen.js': "noindex: true",
   'src/screens/account/AccountScreen.js': "noindex: true",
   'src/screens/wishlist/WishlistScreen.js': "noindex: true",
+  'src/screens/support/ContactScreen.js': "path: '/contact'",
+  'src/screens/support/PolicyScreen.js': 'path: policy.path',
 };
 for (const [f, needle] of Object.entries(expected)) {
   const src = fs.readFileSync(f, 'utf8');
   if (!src.includes('useDocumentHead(')) fail(`${f} never calls useDocumentHead`);
   else if (!src.includes(needle)) fail(`${f} head missing expected "${needle}"`);
 }
-console.log('   all 8 screens wired');
+console.log(`   all ${Object.keys(expected).length} screens wired`);
 
 /* ---- 9. private pages are noindex and excluded from the sitemap source ---- */
 console.log('9. private routes excluded');

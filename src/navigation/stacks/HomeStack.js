@@ -6,6 +6,8 @@ import ProductDetailScreen from '../../screens/products/ProductDetailScreen';
 import ShopDirectoryScreen from '../../screens/products/ShopDirectoryScreen';
 import ShopScreen from '../../screens/products/ShopScreen';
 import CategoriesScreen from '../../screens/categories/CategoriesScreen';
+import ContactScreen from '../../screens/support/ContactScreen';
+import PolicyScreen from '../../screens/support/PolicyScreen';
 import { Colors } from '../../theme/colors';
 
 const Stack = createNativeStackNavigator();
@@ -48,6 +50,26 @@ export default function HomeStack() {
         name="Shop"
         component={ShopScreen}
         options={{ title: 'المتجر' }}
+      />
+      {/* Public support pages. Registered here rather than under Account so they
+          remain reachable while signed out, and so the website URL for each one
+          has a single unambiguous route. */}
+      <Stack.Screen
+        name="Contact"
+        component={ContactScreen}
+        options={{ title: 'تواصل معنا' }}
+      />
+      <Stack.Screen
+        name="PrivacyPolicy"
+        component={PolicyScreen}
+        initialParams={{ policy: 'privacy' }}
+        options={{ title: 'سياسة الخصوصية' }}
+      />
+      <Stack.Screen
+        name="ReturnPolicy"
+        component={PolicyScreen}
+        initialParams={{ policy: 'returns' }}
+        options={{ title: 'سياسة الاسترجاع' }}
       />
     </Stack.Navigator>
   );

@@ -511,18 +511,32 @@ export default function HomeScreen({ navigation }) {
             resizeMode="contain"
           />
 
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => navigation.navigate('CartTab')}
-            style={styles.cartBtn}
-          >
-            <Icon name="cart" size={22} color={Colors.primaryDark} />
-            {cartCount > 0 && (
-              <View style={[styles.cartBadge, insetEnd(-4)]}>
-                <Text style={[styles.cartBadgeText, textStart]}>{cartCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate('Contact')}
+              style={styles.cartBtn}
+              accessibilityRole="button"
+              accessibilityLabel={t('nav.contact')}
+            >
+              <Icon name="headset-outline" size={22} color={Colors.primaryDark} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate('CartTab')}
+              style={styles.cartBtn}
+              accessibilityRole="button"
+              accessibilityLabel={t('nav.cart')}
+            >
+              <Icon name="cart" size={22} color={Colors.primaryDark} />
+              {cartCount > 0 && (
+                <View style={[styles.cartBadge, insetEnd(-4)]}>
+                  <Text style={[styles.cartBadgeText, textStart]}>{cartCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -1007,6 +1021,11 @@ const styles = StyleSheet.create({
   brandImage: {
     width: 150,
     height: 42,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   cartBtn: {
     position: 'relative',

@@ -86,9 +86,9 @@ export default {
   },
 
   footer: {
-    aboutTitle: 'About Hadhramaut Supermarket',
+    aboutTitle: 'About Zad Market',
     aboutText:
-      'Hadhramaut Supermarket is your trusted destination for everyday shopping. We bring you fresh produce and a wide range of goods, delivered quickly to your door.',
+      'Zad Market is your trusted destination for everyday shopping. We bring you fresh produce and a wide range of goods, delivered quickly to your door.',
     shopTitle: 'Shop',
     helpTitle: 'Customer service',
     companyTitle: 'Company',
@@ -110,6 +110,93 @@ export default {
     shipping: 'Shipping and delivery',
     faq: 'Frequently asked questions',
     rightsReserved: 'All rights reserved',
+  },
+
+  contact: {
+    eyebrow: 'Customer care',
+    title: 'Contact us',
+    subtitle:
+      'We are happy to help. Pick the fastest way to reach us, or message us on WhatsApp and we will get back to you as soon as we can.',
+    callNow: 'Call us',
+    emailNow: 'Send an email',
+    messageNow: 'Message on WhatsApp',
+    phoneLabel: 'Phone',
+    phoneHint: 'Available during store working hours',
+    emailLabel: 'Email',
+    emailHint: 'For questions and non-urgent requests',
+    whatsappLabel: 'WhatsApp',
+    whatsappHint: 'The fastest way to chat directly with our team',
+    whatsappMessage: 'Hello Zad Market, I need help with my order.',
+    fastest: 'Fastest',
+    channelsTitle: 'Ways to reach us',
+    channelsSubtitle: 'Contact us directly through whichever channel suits you best.',
+    policiesTitle: 'Policies and information',
+    policiesSubtitle: 'Read how we protect your data and handle returns and refunds.',
+    privacyTitle: 'Privacy policy',
+    privacyText: 'Learn what data we collect and how we use and protect it.',
+    returnsTitle: 'Returns policy',
+    returnsText: 'Return and exchange conditions and how refunds work.',
+    readPolicy: 'Read policy',
+    tipTitle: 'Before you contact us',
+    tipText:
+      'Have your order number and product name ready if your question is about an existing order. It helps us help you faster.',
+    openError: 'Could not open the requested app. You can reach us on',
+    accountTitle: 'Contact us',
+    accountSubtitle: 'Phone, email and WhatsApp, plus our privacy and returns policies.',
+  },
+
+  legal: {
+    eyebrow: 'Policies and information',
+    lastUpdated: 'Last updated: 26 October 2026',
+    contactTitle: 'Still need help?',
+    contactText: 'Our team can help with orders, products, privacy requests and returns.',
+    contactCta: 'Contact us',
+    relatedTitle: 'Related policy',
+  },
+
+  privacyPolicy: {
+    title: 'Privacy policy',
+    intro:
+      'We respect your privacy and use your data only to provide the service and improve your experience. This policy explains what information we collect and how we handle it.',
+    collectTitle: 'Information we collect',
+    collectBody:
+      'We collect the information you provide when you create an account or place an order, including your name, phone number, email address and delivery address, together with order details and conversations with our support team. We may also collect basic technical data about your device and browser to operate and protect the site.',
+    useTitle: 'How we use information',
+    useBody:
+      'We use your data to process and deliver orders, contact you about them, provide support, improve our products and services, and send offers if you have agreed. We do not sell your personal data.',
+    shareTitle: 'Sharing information',
+    shareBody:
+      'We share only the minimum information needed with delivery partners, the stores fulfilling your order, and payment and technology providers. We may disclose information when required by law or a competent authority.',
+    cookiesTitle: 'Cookies and local storage',
+    cookiesBody:
+      'We use browser local storage to remember your language, cart, wishlist and sign-in state. These are needed for the store to work. We do not use advertising trackers.',
+    securityTitle: 'Security and retention',
+    securityBody:
+      'We use reasonable technical and organisational measures to protect your data, and keep it only for as long as needed to provide the service or meet legal and accounting obligations.',
+    rightsTitle: 'Your rights and choices',
+    rightsBody:
+      'You can ask to access, correct or delete your data, or withdraw consent to marketing messages, by contacting us. We may need to retain some order records where the law requires it.',
+  },
+
+  returnPolicy: {
+    title: 'Returns policy',
+    intro:
+      'We want you to shop with confidence. This policy explains when you can request a return or exchange, and how refunds work.',
+    windowTitle: 'Return window',
+    windowBody:
+      'You can request a return for eligible products within 7 days of receiving your order. The product must be unused, in its original condition and packaging, with proof of purchase or your order number.',
+    freshTitle: 'Fresh and perishable products',
+    freshBody:
+      'If there is a quality problem with a fresh, chilled or frozen product, tell us within 24 hours of delivery with a photo of the product and your order number. We will review the case and arrange a suitable replacement or refund.',
+    processTitle: 'How to request a return',
+    processBody:
+      'Message us on WhatsApp or call us with your order number, the product and the reason for the return. Keep the product until the request is reviewed. Depending on the area and product, we may ask you to send it back or arrange a collection.',
+    refundsTitle: 'Refunds',
+    refundsBody:
+      'Once a return is approved, we will confirm the available refund method and expected timing. Refunds usually go back to the original payment method, or may be issued as store credit or cash for cash-on-delivery orders, as agreed.',
+    exclusionsTitle: 'What is not covered',
+    exclusionsBody:
+      'For health and hygiene reasons, opened or used products, personalised items, gift cards and final-sale items may not be returnable unless faulty or not as described. The policy also does not cover damage caused by misuse after delivery.',
   },
 
   search: {
@@ -326,16 +413,6 @@ export default {
     itemsCountOther: 'saved products',
   },
 
-  seo: {
-    siteName: 'Hadhramaut Supermarket',
-    defaultTitle: 'Hadhramaut Supermarket | Online shopping with fast delivery',
-    defaultDescription:
-      'Shop online at Hadhramaut Supermarket. Fresh groceries, vegetables, fruits, meat and household products with fast delivery to your door.',
-    productsTitle: 'Products',
-    categoriesTitle: 'Categories',
-    offersTitle: 'Deals and offers',
-  },
-
   errors: {
     notFound: 'Page not found',
     notFoundHint: 'The link you are looking for is not available',
@@ -370,5 +447,12 @@ export default {
     loginTitle: 'Sign in',
     accountTitle: 'My account',
     wishlistTitle: 'Wishlist',
+    contactTitle: 'Contact us',
+    contactDescription:
+      'Contact Zad Market by phone, email or WhatsApp, and read our privacy policy and returns policy.',
+    privacyDescription:
+      'Learn how Zad Market collects, uses and protects your data, and the choices available to you.',
+    returnsDescription:
+      'Returns, exchanges and refund conditions at Zad Market, and how to request a return.',
   },
 };
