@@ -43,7 +43,7 @@ import { USER_STORAGE_KEY as USER_KEY } from './sessionKeys';
  */
 const CONFIGURED_API_URL = (process.env.EXPO_PUBLIC_API_URL || '').trim();
 
-const DEV_LAN_FALLBACK = 'http://192.168.1.38:8000';
+const DEV_LAN_FALLBACK = 'https://erp.shopzadmarket.com/';
 
 const IS_WEB = Platform.OS === 'web';
 const IS_DEV = typeof __DEV__ !== 'undefined' && __DEV__;

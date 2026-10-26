@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /ar/cart
+Disallow: /en/cart
+Disallow: /ar/account
+Disallow: /en/account
+Disallow: /ar/login
+Disallow: /en/login
+
+Sitemap: https://shopzadmarket.com/sitemap.xml
