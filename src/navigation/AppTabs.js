@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import HomeStack from './stacks/HomeStack';
@@ -26,7 +26,7 @@ const Tab = createBottomTabNavigator();
  * dropped the bottom inset and let the system bar draw straight over the tabs —
  * the inset has to be added back on top of these numbers.
  */
-const TAB_BAR_CONTENT_HEIGHT = 60;
+const TAB_BAR_CONTENT_HEIGHT = 69;
 const TAB_BAR_PADDING_BOTTOM = 8;
 
 /**
@@ -46,6 +46,10 @@ export default function AppTabs({ hideTabBar = false }) {
         headerShown: false,
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.outline,
+        tabBarShowLabel: true,
+        tabBarLabelPosition: 'below-icon',
+        tabBarHideOnKeyboard: false,
+        tabBarAllowFontScaling: false,
         // The desktop shell moves navigation into the header, and the bottom
         // strip on a 1440px window is pure dead space.
         tabBarStyle: hideTabBar
@@ -53,11 +57,12 @@ export default function AppTabs({ hideTabBar = false }) {
           : [
               styles.tabBar,
               {
-                height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,
-                paddingBottom: TAB_BAR_PADDING_BOTTOM + insets.bottom,
+                height: (Platform.OS === 'web' ? 69 : 56) + insets.bottom,
+                paddingBottom: (Platform.OS === 'web' ? 8 : 4) + insets.bottom,
+                paddingTop: Platform.OS === 'web' ? 6 : 4,
               },
             ],
-        tabBarLabelStyle: styles.tabBarLabel,
+        tabBarLabelStyle: [styles.tabBarLabel, { fontSize: 11, marginTop: 1, lineHeight: 14 }],
       }}
     >
       <Tab.Screen
@@ -67,7 +72,7 @@ export default function AppTabs({ hideTabBar = false }) {
           tabBarLabel: 'الرئيسية',
           tabBarIcon: ({ color, focused }) => (
             <View style={styles.iconContainer}>
-              <Icon name={focused ? 'home' : 'home-outline'} size={22} color={color} />
+              <Icon name={focused ? 'home' : 'home-outline'} size={24} color={color} />
             </View>
           ),
         }}
@@ -80,7 +85,7 @@ export default function AppTabs({ hideTabBar = false }) {
           tabBarLabel: 'المنتجات',
           tabBarIcon: ({ color, focused }) => (
             <View style={styles.iconContainer}>
-              <Icon name={focused ? 'grid' : 'grid-outline'} size={22} color={color} />
+              <Icon name={focused ? 'grid' : 'grid-outline'} size={24} color={color} />
             </View>
           ),
         }}
@@ -93,7 +98,7 @@ export default function AppTabs({ hideTabBar = false }) {
           tabBarLabel: 'المفضلة',
           tabBarIcon: ({ color, focused }) => (
             <View style={styles.iconContainer}>
-              <Icon name={focused ? 'heart' : 'heart-outline'} size={22} color={color} />
+              <Icon name={focused ? 'heart' : 'heart-outline'} size={24} color={color} />
               {wishlistCount > 0 && (
                 <View style={styles.badge}>
                   <Text style={[styles.badgeText, textStart]}>{wishlistCount}</Text>
@@ -111,7 +116,7 @@ export default function AppTabs({ hideTabBar = false }) {
           tabBarLabel: 'السلة',
           tabBarIcon: ({ color, focused }) => (
             <View style={styles.iconContainer}>
-              <Icon name={focused ? 'cart' : 'cart-outline'} size={22} color={color} />
+              <Icon name={focused ? 'cart' : 'cart-outline'} size={24} color={color} />
               {cartCount > 0 && (
                 <View style={[styles.badge, styles.cartBadge]}>
                   <Text style={[styles.badgeText, textStart]}>{cartCount}</Text>
@@ -129,7 +134,7 @@ export default function AppTabs({ hideTabBar = false }) {
           tabBarLabel: 'حسابي',
           tabBarIcon: ({ color, focused }) => (
             <View style={styles.iconContainer}>
-              <Icon name={focused ? 'person' : 'person-outline'} size={22} color={color} />
+              <Icon name={focused ? 'person' : 'person-outline'} size={24} color={color} />
               {unreadCount > 0 && (
                 <View style={styles.badge}>
                   <Text style={[styles.badgeText, textStart]}>
@@ -150,7 +155,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceContainerLowest,
     borderTopWidth: 1,
     borderTopColor: Colors.borderSubtle,
-    paddingTop: 8,
+    paddingTop: 6,
     shadowColor: Colors.shadowColor || '#004129',
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.05,
@@ -160,14 +165,15 @@ const styles = StyleSheet.create({
   tabBarLabel: {
     fontSize: Typography.sizes.labelSm,
     fontFamily: Typography.fontFamilyBold,
-    marginTop: 2,
+    marginTop: 0,
+    paddingTop:1,
   },
   iconContainer: {
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
     width: 44,
-    height: 30,
+    height: 26,
     borderRadius: Radius.full,
   },
   badge: {
