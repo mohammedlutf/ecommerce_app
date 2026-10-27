@@ -19,7 +19,7 @@ const config = getDefaultConfig(__dirname);
  * Native builds never run Metro's dev server, so this is a no-op for devices.
  */
 const PROXY_TARGET = (
-  process.env.EXPO_PUBLIC_API_URL || 'https://erp.shopzadmarket.com/'
+  process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.36:8000'
 )
   .trim()
   .replace(/\/+$/, '');

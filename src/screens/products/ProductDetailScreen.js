@@ -7,6 +7,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   TextInput,
+  Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from '../../components/Icon';
@@ -199,6 +201,8 @@ export default function ProductDetailScreen({ route, navigation }) {
   const [settings, setSettings] = useState({
     enableReviews: true,
     enableRecommendations: true,
+    disableAddToCartWeb: false,
+    disableAddToCartApp: false,
   });
   const [recommended, setRecommended] = useState([]);
   const [recommendedLoading, setRecommendedLoading] = useState(false);
@@ -415,7 +419,18 @@ export default function ProductDetailScreen({ route, navigation }) {
   const showReviews = settings.enableReviews;
   const showRecommended = settings.enableRecommendations;
 
+  function showComingSoon() {
+    const message = 'سيتم فتح الاضافات الى  السلة قريبًا';
+    toast.info(message);
+  }
+
   async function handleAddToCart() {
+    const isDisabled =
+      Platform.OS === 'web' ? !!settings.disableAddToCartWeb : !!settings.disableAddToCartApp;
+    if (isDisabled) {
+      showComingSoon();
+      return;
+    }
     setActionLoading(true);
     try {
       await addToCart(product.item_code, qty, selectedUom, product);

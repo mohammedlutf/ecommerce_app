@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   Animated,
+  Alert,
+  Platform,
 } from 'react-native';
 import { impactLight, notifySuccess } from '../utils/haptics';
 import Icon from './Icon';
@@ -23,6 +25,7 @@ import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../context/ToastContext';
 import { useAdmin } from '../context/AdminContext';
 import useDirectional from '../hooks/useDirectional';
+import CatalogAPI from '../api/catalog';
 
 function ProductCard({
   product,
@@ -44,6 +47,23 @@ function ProductCard({
   const toast = useToast();
   const { isAdmin, openEditor } = useAdmin();
   const { textStart, insetStart, insetEnd } = useDirectional();
+
+  const [cartDisabled, setCartDisabled] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    CatalogAPI.getWebshopSettings().then((loaded) => {
+      if (cancelled) return;
+      if (Platform.OS === 'web') {
+        setCartDisabled(!!loaded?.disableAddToCartWeb);
+      } else {
+        setCartDisabled(!!loaded?.disableAddToCartApp);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const availableUoms =
     product.uoms && product.uoms.length > 0
@@ -109,7 +129,16 @@ function ProductCard({
     }
   }
 
+  function showComingSoon() {
+    const message = 'سيتم فتح الاضافات الى  السلة قريبًا';
+    toast.info(message);
+  }
+
   async function handleAddToCart() {
+    if (cartDisabled) {
+      showComingSoon();
+      return;
+    }
     animatePress();
     setCartActionLoading(true);
     try {
@@ -291,14 +320,25 @@ function ProductCard({
           {/* Action */}
           <View style={styles.actionContainer}>
             {inCartQty > 0 ? (
-              <QuantityStepper
-                quantity={inCartQty}
-                onIncrement={handleIncrement}
-                onDecrement={handleDecrement}
-                loading={cartActionLoading}
-                size="sm"
-                fullWidth
-              />
+              cartDisabled ? (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={showComingSoon}
+                  style={styles.addToCartBtn}
+                >
+                  <Icon name="add" size={16} color={Colors.onPrimary} />
+                  <Text style={[styles.addToCartText, textStart]}>أضف للسلة</Text>
+                </TouchableOpacity>
+              ) : (
+                <QuantityStepper
+                  quantity={inCartQty}
+                  onIncrement={handleIncrement}
+                  onDecrement={handleDecrement}
+                  loading={cartActionLoading}
+                  size="sm"
+                  fullWidth
+                />
+              )
             ) : (
               <TouchableOpacity
                 activeOpacity={0.85}

@@ -116,7 +116,7 @@ export const CatalogAPI = {
    * hero: the home screen then renders exactly what it rendered before the
    * advertising table existed.
    */
-  async getWebshopSettings({ force = false } = {}) {
+  async getWebshopSettings({ force = true } = {}) {
     const elapsed = Date.now() - settingsCacheAt;
     if (!force && settingsCache && elapsed < SETTINGS_CACHE_TTL) return settingsCache;
 
@@ -130,6 +130,8 @@ export const CatalogAPI = {
         // screen exactly as it was, shops and all.
         showShopsOnHome: !(raw && raw.show_shops_on_homescreen === false),
         homepageAds: normalizeHomepageAds(raw && raw.homepage_ads),
+        disableAddToCartWeb: !!(raw && raw.disable_add_to_cart_web),
+        disableAddToCartApp: !!(raw && raw.disable_add_to_cart_app),
       };
     } catch (err) {
       console.warn('Could not load webshop settings:', err.message);
@@ -138,6 +140,8 @@ export const CatalogAPI = {
         enableRecommendations: true,
         showShopsOnHome: true,
         homepageAds: [],
+        disableAddToCartWeb: false,
+        disableAddToCartApp: false,
       };
     }
     settingsCacheAt = Date.now();

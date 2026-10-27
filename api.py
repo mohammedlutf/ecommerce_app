@@ -822,6 +822,8 @@ def webshop_settings():
 		"enable_recommendations": bool(settings.enable_recommendations),
 		"show_shops_on_homescreen": _show_shops_on_homescreen(settings),
 		"homepage_ads": _homepage_ads(settings),
+		"disable_add_to_cart_web": bool(settings.get("disable_add_to_cart_web")),
+		"disable_add_to_cart_app": bool(settings.get("disable_add_to_cart_app")),
 	}
 
 
@@ -1094,7 +1096,10 @@ def wishlist_items():
 
 @frappe.whitelist(allow_guest=True)
 def cart(item_code=None, qty=0, uom=None):
+	settings = _settings()
 	if item_code:
+		if settings.get("disable_add_to_cart_web") or settings.get("disable_add_to_cart_app"):
+			frappe.throw(_("سيتم فتح الاضافات الى  السلة قريبًا"))
 		if uom in ("undefined", "null", ""):
 			uom = None
 		if flt(qty) <= 0:
